@@ -63,15 +63,20 @@ git clone https://github.com/RoboSense-LiDAR/rslidar_msg.git
 Now we are ready to compile the driver and source it.
 ``` bash
 cd .. # Go back to /lidar_ws
+source /opt/ros/humble/setup.bash # Source ROS2
 colcon build
 source install/setup.bash
 ```
 #### Run the LiDAR node
-To run the driver (which is required in order to use the LiDAR with ROS2), connect the LiDAR to your computer using the ethernet cable. Then, follow the steps of [this video](https://www.youtube.com/watch?v=Y3ZYh9g4TtU) after the 1:50 mark. The IP address that should be configured is the destination address of the LiDAR, i.e. `192.168.102.150`. You can install WireShark through
+To run the driver (which is required in order to use the LiDAR with ROS2), connect the LiDAR to your computer using the ethernet cable. Make sure your firewall does not block the connection by running
+``` bash
+sudo ufw allow 6702/udp
+```
+Then, follow the steps of [this video](https://www.youtube.com/watch?v=Y3ZYh9g4TtU) after the 1:50 mark. The IP address that should be configured is the destination address of the LiDAR, i.e. `192.168.102.150`. You can install WireShark through
 ``` bash
 sudo apt install wireshark
 ```
-Note that the IP-address has to be set up manually each time your machine is rebooted.
+Make sure you change the IP address of the ethernet connection and not the WiFi.
 
 Now, to run the driver, type
 ``` bash

@@ -1,2 +1,6 @@
 # This workspace contains LiDAR drivers, NEVER PUSH!
 lidar_ws
+# Don't include COLCON build stuff
+perception_ws/build
+perception_ws/install
+perception_ws/log

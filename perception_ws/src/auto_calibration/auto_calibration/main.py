@@ -1,11 +1,14 @@
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import PointCloud2
+from sensor_msgs.msg import PointCloud2, Image
 from sensor_msgs_py import point_cloud2 as pc2
 from geometry_msgs.msg import PointStamped
-from std_msgs.msg import Header
+from std_msgs.msg import Header, String
+import cv2
+from cv_bridge import CvBridge
 import numpy as np
 import time
+import sys
 
 import auto_calibration.utils as ut
 
@@ -81,12 +84,103 @@ class LidarBoardDetector(Node):
         self.get_logger().info(f"\nFiltering time:\t\t{'%.5f' % filtering_time} s.\n\
 RANSAC time:\t\t{'%.5f' % ransac_time} s.\n\
 Publishing time:\t{'%.5f' % publishing_time} s.\n")
+
+
+class CameraProjection(Node):
+    def __init__(self):
+        super().__init__('camera_projection')
         
+        # Subscribers
+        self.image_sub = self.create_subscription(Image, '/color/image_raw', self.camera_callback, 10)
+        self.point_cloud_sub = self.create_subscription(PointCloud2, '/rslidar_points', self.lidar_callback, 10)
+
+        # Publishers
+        self.processed_img_publisher = self.create_publisher(Image, '/camera_projection', 10)
+        
+        # Global variables
+        self.camera_matrix = np.array([
+            [914.969275, 0., 654.163992],
+            [0., 914.443972, 371.069725],
+            [0., 0., 1.]
+        ])
+        
+        self.dist_coeffs = np.array([0.119090, -0.250076, 0.005887, 0.002350, 0.])
+        self.bridge = CvBridge()
+        self.received_point_cloud = False
+        self.point_cloud = None
+        self.processed_img_published = False
+    
+    
+    def lidar_callback(self, msg: PointCloud2):
+        if self.received_point_cloud:
+            return
+        self.received_point_cloud = True
+        
+        # Save current pointcloud
+        self.point_cloud = pc2.read_points(msg, field_names=["x", "y", "z"], skip_nans=True)
+        
+    
+    
+    def camera_callback(self, msg: Image):
+        if not self.received_point_cloud or self.processed_img_published:
+            return
+
+        
+        # Calculate ranges of points
+        num_points = len(self.point_cloud)
+        points_3d = np.zeros((num_points, 3))
+        ranges_sq = np.zeros((1, num_points))
+        max_range = 0.
+        min_range = sys.float_info.max
+        start = time.perf_counter()
+        for i in range(num_points):
+            x, y, z = self.point_cloud[i][0], self.point_cloud[i][1], self.point_cloud[i][2]
+            # Extrinsics
+            x, y, z = -y, -z + .15, x
+            r2 = x**2 + y**2 + z**2
+            if r2 > max_range:
+                max_range = r2
+            if r2 < min_range:
+                min_range = r2
+            points_3d[i, :] = [x, y, z]
+            ranges_sq[:, i] = r2
+        points_2d, _ = cv2.projectPoints(points_3d, (0,0,0), (0,0,0), self.camera_matrix, self.dist_coeffs)
+        points_2d = points_2d[:, 0].astype(int)
+        end = time.perf_counter()
+        print(f"Parsing time: {end - start} s.")
+        
+        # Convert the Image message to a CV2 image
+        cv_image = self.bridge.imgmsg_to_cv2(msg, 'passthrough')
+        
+        # Undistort the image
+        undistorted_image = cv2.undistort(cv_image, self.camera_matrix, self.dist_coeffs)
+        
+        # Draw the projected point on the undistorted image
+        start = time.perf_counter()
+        for i in range(num_points):
+            # Color points accordingly
+            ratio = 2 * (ranges_sq[0, i] - min_range) / (max_range - min_range)
+            b = int(max(0, 255*(1 - ratio)))
+            r = int(max(0, 255*(ratio - 1)))
+            g = 255 - b - r
+            
+            # Draw the projected points
+            cv2.circle(undistorted_image, (points_2d[i, 0], points_2d[i, 1]), 1, (r, g, b), -1)
+        end = time.perf_counter()
+        print(f"Drawing time: {end - start} s.")
+
+        # Convert the modified image back to an Image message
+        modified_msg = self.bridge.cv2_to_imgmsg(undistorted_image, 'bgr8')
+
+        # Publish the modified image
+        self.processed_img_publisher.publish(modified_msg)
+        self.processed_img_published = True
     
 def main(args=None):
     rclpy.init(args=args)
         
-    node = LidarBoardDetector()
+    # node = LidarBoardDetector()
+    node = CameraProjection()
 
     rclpy.spin(node)
 

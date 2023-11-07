@@ -4,3 +4,6 @@ lidar_ws
 perception_ws/build
 perception_ws/install
 perception_ws/log
+
+# Don't push YOLO models!!
+yolov8m-seg.pt

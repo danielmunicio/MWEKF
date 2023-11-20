@@ -10,16 +10,16 @@ difop="1210"
 # Make sure repo exists
 if ! [ -d "$HOME/$repo_name" ]; then
     echo "(!) The repository '$repo_name' does not exist. Make sure it is cloned inside root directory"
-    exit 1
+    #exit 1
 fi
 
 # Go to directory
-cd ~/$repo_name
+cd $HOME/$repo_name
 
 # Make sure it has not already been created
 if [ -d "$HOME/$repo_name/lidar_ws" ]; then
     echo "(!) A LiDAR workspace already exists, aborting driver cloning"
-    exit 1
+    #exit 1
 fi
 
 # # Create workspace
@@ -72,27 +72,60 @@ cd ..
 echo "(*) Cloning RSLiDAR message repo..."
 git clone https://github.com/RoboSense-LiDAR/rslidar_msg.git
 
-# Go back to lidar_ws
-cd ..
+cd $HOME
 source /opt/ros/humble/setup.bash # Source ROS2
-echo "(*) Compiling driver..."
-colcon build # Build the packages
-echo "(*) LiDAR driver successfully installed!"
+
+cd feb-system-integration/comm_ws
+echo "(*) Compiling communication workspace..."
+colcon build # Build comm_ws
+echo "(*) Communication workspace successfully built!"
+source install/setup.bash # Make sure to source to overlay correctly
+
+cd ../lidar_ws
+echo "(*) Compiling LiDAR workspace..."
+colcon build # Build lidar_ws
+echo "(*) LiDAR workspace successfully built!"
+
+cd ../perception_ws
+echo "(*) Compiling perception workspace..."
+colcon build # Build comm_ws
+echo "(*) Perception workspace successfully built!"
 
 cd $HOME
 
 # Install camera driver
 sudo apt install ros-humble-librealsense2*
 
-# Define the command to add to ~/.bashrc
-command_to_add="source ~/feb-system-integration/lidar_ws/install/setup.bash"
+# Install intrinsic calibration package
+sudo apt install ros-humble-camera-calibration-parsers
+sudo apt install ros-humble-camera-info-manager
+sudo apt install ros-humble-launch-testing-ament-cmake
+sudp apt install ros-humble-camera-calibration
 
-# Check if the command is already in ~/.bashrc
-if ! grep -qF "$command_to_add" ~/.bashrc; then
-    # If not found, add it to ~/.bashrc
-    echo "$command_to_add" >> ~/.bashrc
-    echo "Commands added to ~/.bashrc. It will be sourced each time you open a terminal."
-else
-    # If already found, inform the user
-    echo "Commands already exist in ~/.bashrc. No changes made."
-fi
+# Function to add a command to ~/.bashrc if it doesn't already exist
+add_command_to_bashrc() {
+  local command_to_add="$1"
+
+  # Check if the command already exists in ~/.bashrc
+  if grep -q "$command_to_add" "$HOME/.bashrc"; then
+      echo "(i) Command '$command_to_add' already exists in ~/.bashrc"
+  else
+      # Add the command to ~/.bashrc
+      echo -e "\n# Added by script\n$command_to_add" >> "$HOME/.bashrc"
+      echo "(*) Command '$command_to_add' added to ~/.bashrc"
+  fi
+}
+
+# Example commands to add
+commands=(
+  'source /opt/ros/humble/setup.bash'
+  'source ~/feb-system-integration/comm_ws/install/setup.bash'
+  'source ~/feb-system-integration/lidar_ws/install/setup.bash'
+  'source ~/feb-system-integration/perception_ws/install/setup.bash'
+)
+
+# Loop through each command and add it to ~/.bashrc
+for cmd in "${commands[@]}"; do
+  add_command_to_bashrc "$cmd"
+done
+

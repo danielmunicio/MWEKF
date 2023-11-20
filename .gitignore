@@ -1,2 +1,9 @@
 # This workspace contains LiDAR drivers, NEVER PUSH!
 lidar_ws
+# Don't push COLCON created stuff
+build/
+install/
+log/
+
+# Don't push YOLO models!!
+*.pt

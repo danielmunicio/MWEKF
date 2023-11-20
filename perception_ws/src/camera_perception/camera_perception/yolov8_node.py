@@ -1,13 +1,13 @@
 from ultralytics import YOLO
 from rclpy.node import Node
-from std_msgs.msg import String
+from std_msgs.msg import String, Float32MultiArray, MultiArrayDimension
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import rclpy
 import os
 import time
 
-from feb_msgs.msg import Bitmasks, MatrixInt
+from feb_msgs.msg import Bitmasks
 
 class YoloNode(Node):
     def __init__(self):
@@ -36,6 +36,11 @@ class YoloNode(Node):
         
     
     def camera_callback(self, msg: Image):
+        """Runs every time an image messge is received from the camera
+
+        Args:
+            msg (Image): Image message from camera
+        """
         # Convert message to CV2 image
         img = self.bridge.imgmsg_to_cv2(msg, 'passthrough')
         # Do segmentation
@@ -44,19 +49,28 @@ class YoloNode(Node):
         end = time.perf_counter()
         seg_time = end - start
         
+        # Define dimensions of message
+        height, width = MultiArrayDimension(), MultiArrayDimension()
+        height.label = "height"
+        width.label = "width"
+        dim = [height, width]
+        
         # Extract bitmasks (THIS IS SLOW!!)
         start = time.perf_counter()
         mask_list = []
         for mask in results[0].masks:
-            # Convert the mask to numpy 2D array
-            matrix = mask.data.numpy()[0]
             # Create matrix message
-            matrix_msg = MatrixInt()
-            matrix_msg.rows, matrix_msg.cols = matrix.shape
-            matrix_msg.entries = matrix.flatten().astype(int).tolist() # Very slow, needs optimizing
+            mask_msg = Float32MultiArray()
+            # Extract dimensions
+            w, h = mask.data.size(dim=1), mask.data.size(dim=2)
+            dim[0].size, dim[1].size = w, h
+            dim[0].stride = w * h
+            dim[1].stride = h
+            mask_msg.layout.data_offset = 0
+            mask_msg.layout.dim = dim
+            mask_msg.data = mask.data.flatten().tolist() # Very slow, needs optimizing
             # Append to list of masks
-            mask_list.append(matrix_msg)
-        
+            mask_list.append(mask_msg)
         # Extract colors
         colors = list(results[0].names.values())
         color_list = []

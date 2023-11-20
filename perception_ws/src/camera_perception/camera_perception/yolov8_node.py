@@ -1,11 +1,12 @@
 from ultralytics import YOLO
 from rclpy.node import Node
-from std_msgs.msg import String, Float32MultiArray, MultiArrayDimension
+from std_msgs.msg import String
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import rclpy
 import os
 import time
+import numpy as np
 
 from feb_msgs.msg import Bitmasks
 
@@ -49,28 +50,17 @@ class YoloNode(Node):
         end = time.perf_counter()
         seg_time = end - start
         
-        # Define dimensions of message
-        height, width = MultiArrayDimension(), MultiArrayDimension()
-        height.label = "height"
-        width.label = "width"
-        dim = [height, width]
-        
-        # Extract bitmasks (THIS IS SLOW!!)
+        # Extract bitmasks
         start = time.perf_counter()
         mask_list = []
         for mask in results[0].masks:
-            # Create matrix message
-            mask_msg = Float32MultiArray()
-            # Extract dimensions
-            w, h = mask.data.size(dim=1), mask.data.size(dim=2)
-            dim[0].size, dim[1].size = w, h
-            dim[0].stride = w * h
-            dim[1].stride = h
-            mask_msg.layout.data_offset = 0
-            mask_msg.layout.dim = dim
-            mask_msg.data = mask.data.flatten().tolist() # Very slow, needs optimizing
-            # Append to list of masks
+            # Convert bitmask to image message
+            mask_img = mask.data.numpy()[0].astype(np.uint8)
+            mask_msg = self.bridge.cv2_to_imgmsg(mask_img, encoding="mono8")
+            
+            # Append bitmask to list
             mask_list.append(mask_msg)
+            
         # Extract colors
         colors = list(results[0].names.values())
         color_list = []

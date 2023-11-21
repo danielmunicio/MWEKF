@@ -7,3 +7,6 @@ log/
 
 # Don't push YOLO models!!
 *.pt
+
+# Don't push pycaches
+__pycache__/

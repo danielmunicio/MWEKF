@@ -7,5 +7,3 @@ log/
 
 # Don't push YOLO models!!
 *.pt
-
-__pycache__/

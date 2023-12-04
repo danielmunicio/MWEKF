@@ -93,3 +93,7 @@ def main():
     yolo_node = YoloNode()
     rclpy.spin(yolo_node)
     rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()

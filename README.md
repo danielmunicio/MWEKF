@@ -38,7 +38,7 @@ Then, to configure the LiDAR driver, **do not connect the LiDAR to your computer
 cd ~/feb-system-integration
 bash feb_lidar_setup.bash
 ```
-In case you switch to a different dongle, the script will create a new connection profile. When the connection profile has been created, you can connect the LiDAR to your computer. Make sure the green LED on the ethernet port is blinking at a constant high frequency; it means that data is being received by your computer.
+In case you switch to a different dongle, the script will create a new connection profile if you run it again. When the connection profile has been created, you can connect the LiDAR to your computer. Make sure the green LED on the ethernet port is blinking at a constant high frequency; it means that data is being received by your computer.
 
 ## Launching the sensor nodes
 ### RoboSense M1 LiDAR
@@ -56,3 +56,24 @@ Connect the camera to your computer using the USB cable and launch the camera dr
 ros2 run realsense2_camera realsense2_camera_node
 ```
 In this case, no `rViz2` window will be opened.
+
+## Table of nodes
+To run node with name `<node-name>`, open a terminal and go to the `<ws-name>` workspace of the node and source it.
+``` bash
+cd ~/feb-system-integration/<ws-name>
+# Build the workspace here if you haven't!
+source install/setup.bash
+```
+Remember that you must have built the workspace in order to do this.
+
+To run the node, type
+``` bash
+ros2 run <package-name> <node-name>
+```
+where `<package-name>` is the package where the node is located. All nodes, their packages, and workspaces are presented in the table below.
+
+| Workspace `<ws-name>` | Package `<package-name>`  | Node `<node-name`|
+|---                    |---                        |---               |
+|`perception_ws`        |`auto_calibration`         |`main`            |
+|`perception_ws`        |`camera_perception`        |`yolov8_node`     |
+|`perception_ws`        |`sensor_fusion`            |`fusion_node`     |

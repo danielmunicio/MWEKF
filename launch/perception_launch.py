@@ -9,6 +9,12 @@ def generate_launch_description():
             executable='yolov8_node',
             name='yolo_node'
         ),
+        # The LiDAR node
+        Node(
+            package='lidar_perception',
+            executable='lidar_node',
+            name='lidar_node'
+        ),
         # The sensor fusion node
         Node(
             package='sensor_fusion',

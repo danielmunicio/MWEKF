@@ -23,7 +23,7 @@ class YoloNode(Node):
         
         # PUBLISHERS
         self.img_pub = self.create_publisher(Image, '/perception/mask_debug', 1)
-        self.masks_publisher = self.create_publisher(Bitmasks, 'perception/masks', 1)
+        self.masks_publisher = self.create_publisher(Bitmasks, '/perception/camera/bitmasks', 1)
         
         
         # GLOBAL VARIABLES

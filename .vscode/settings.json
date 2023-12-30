@@ -1,5 +1,0 @@
-{
-    "python.analysis.extraPaths": [
-        "./comm_ws/build/feb_msgs/rosidl_generator_py"
-    ]
-}

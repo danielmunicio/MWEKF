@@ -10,3 +10,6 @@ log/
 
 # Don't push pycaches
 __pycache__/
+
+# Each person should make their own setup...
+.vscode/

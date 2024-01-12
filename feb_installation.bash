@@ -22,7 +22,15 @@ if [ -d "$HOME/$repo_name/lidar_ws" ]; then
     #exit 1
 fi
 
-# # Create workspace
+# Install PIP and SetupTools
+sudo apt update
+sudo apt-get install -y python3-pip
+pip install setuptools==58.2.0
+
+# Install PCAP dependency
+sudo apt-get install -y  libpcap-dev
+
+# Create workspace
 mkdir -p ./lidar_ws/src
 cd $HOME/$repo_name/lidar_ws/src
 
@@ -94,7 +102,8 @@ echo "(*) Perception workspace successfully built!"
 cd $HOME
 
 # Install camera driver
-sudo apt install ros-humble-librealsense2*
+sudo apt install -y ros-humble-librealsense2*
+sudo apt install -y ros-humble-realsense2-*
 
 # Install intrinsic calibration package
 sudo apt install ros-humble-camera-calibration-parsers

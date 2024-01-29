@@ -4,7 +4,7 @@ from std_msgs.msg import String
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import rclpy
-import os
+import os, glob
 import time
 import numpy as np
 
@@ -26,14 +26,23 @@ class YoloNode(Node):
         self.masks_publisher = self.create_publisher(Bitmasks, '/perception/camera/bitmasks', 1)
         
         
-        # GLOBAL VARIABLES
+        # Find the name and absolute path to the model
         current_path = os.path.dirname(__file__)
-        root = current_path.partition('perception_ws')[0]
-        # Find the absolute path to the model
-        filename = os.path.join(root, 'perception_ws/src/camera_perception/best.pt')
-        self.model = YOLO(filename)
+        path_to_repo = current_path.partition('feb-system-integration')[0]
+        model_dir = os.path.join(path_to_repo, 'feb-system-integration/perception_ws/src/camera_perception')
+        model_files = [file for file in os.listdir(model_dir) if os.path.splitext(file)[1] == '.pt']
+        try:
+            model_path = os.path.join(model_dir, model_files[0])
+            if len(model_files) > 1:
+                self.get_logger().warn(f"Multiple YOLO models found in '{model_dir}', currently using '{model_files[0]}'")
+        except IndexError:
+            self.get_logger().error(f"No YOLO model with .pt extension found in '{model_dir}', node shut down")
+            raise SystemExit
+        
+        # GLOBAL VARIABLES
+        self.model = YOLO(model_path)
         self.model.fuse()
-        self.bridge = CvBridge()        
+        self.bridge = CvBridge()
         
     
     def camera_callback(self, msg: Image):
@@ -49,7 +58,10 @@ class YoloNode(Node):
         results = self.model(img, verbose=False)
         end = time.perf_counter()
         seg_time = end - start
-        
+        # In case nothing is detected
+        if not results[0].masks:
+            self.get_logger().info('No masks created in this image')
+            return
         # Extract bitmasks
         start = time.perf_counter()
         mask_list = []

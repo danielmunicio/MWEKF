@@ -8,31 +8,28 @@ difop="1210"
 # Install LiDAR driver
 
 # Make sure repo exists
-if ! [ -d "$HOME/$repo_name" ]; then
-    echo "(!) The repository '$repo_name' does not exist. Make sure it is cloned inside root directory"
-    #exit 1
+if ! [ -d "$repo_name" ]; then
+    echo "(!) The repository '$repo_name' does not exist. Make sure it is cloned inside current directory"
+    exit 1
 fi
 
 # Go to directory
-cd $HOME/$repo_name
+cd $repo_name
 
 # Make sure it has not already been created
-if [ -d "$HOME/$repo_name/lidar_ws" ]; then
+if [ -d "$repo_name/lidar_ws" ]; then
     echo "(!) A LiDAR workspace already exists, aborting driver cloning"
     #exit 1
 fi
 
-# Install PIP and SetupTools
-sudo apt update
-sudo apt-get install -y python3-pip
-pip install setuptools==58.2.0
+# Apt and PIP installs
+sudo apt-get update && xargs apt-get -y install < $repo_name/requirements/apt.txt
+pip install -r $repo_name/requirements/pip.txt
 
-# Install PCAP dependency
-sudo apt-get install -y  libpcap-dev
 
 # Create workspace
-mkdir -p ./lidar_ws/src
-cd $HOME/$repo_name/lidar_ws/src
+mkdir -p $repo_name/lidar_ws/src
+cd $repo_name/lidar_ws/src
 
 # Clone the driver
 echo "(*) Cloning SDK repo..."
@@ -80,36 +77,17 @@ cd ..
 echo "(*) Cloning RSLiDAR message repo..."
 git clone https://github.com/RoboSense-LiDAR/rslidar_msg.git
 
-cd $HOME
+cd ../..
 source /opt/ros/humble/setup.bash # Source ROS2
 
-cd feb-system-integration/comm_ws
-echo "(*) Compiling communication workspace..."
-colcon build # Build comm_ws
-echo "(*) Communication workspace successfully built!"
-source install/setup.bash # Make sure to source to overlay correctly
-
-cd ../lidar_ws
-echo "(*) Compiling LiDAR workspace..."
-colcon build # Build lidar_ws
-echo "(*) LiDAR workspace successfully built!"
-
-cd ../perception_ws
-echo "(*) Compiling perception workspace..."
-colcon build # Build comm_ws
-echo "(*) Perception workspace successfully built!"
-
-cd $HOME
-
-# Install camera driver
-sudo apt install -y ros-humble-librealsense2*
-sudo apt install -y ros-humble-realsense2-*
+echo "(*) Running colcon build"
+colcon build
 
 # Install intrinsic calibration package
 sudo apt install ros-humble-camera-calibration-parsers
 sudo apt install ros-humble-camera-info-manager
 sudo apt install ros-humble-launch-testing-ament-cmake
-sudp apt install ros-humble-camera-calibration
+sudo apt install ros-humble-camera-calibration
 
 # Function to add a command to ~/.bashrc if it doesn't already exist
 add_command_to_bashrc() {
@@ -128,9 +106,6 @@ add_command_to_bashrc() {
 # Example commands to add
 commands=(
   'source /opt/ros/humble/setup.bash'
-  'source ~/feb-system-integration/comm_ws/install/setup.bash'
-  'source ~/feb-system-integration/lidar_ws/install/setup.bash'
-  'source ~/feb-system-integration/perception_ws/install/setup.bash'
 )
 
 # Loop through each command and add it to ~/.bashrc

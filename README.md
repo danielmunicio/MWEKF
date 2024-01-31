@@ -29,7 +29,7 @@ git clone git@github.com:FEBAutonomous/feb-system-integration.git
 If it says you don't have git (perhaps if this is a fresh install), run these commands:
 ```
 sudo apt update; sudo apt upgrade
-sudo apt install git
+sudo apt install git curl
 ```
 
 ### Install and set up camera and LiDAR drivers

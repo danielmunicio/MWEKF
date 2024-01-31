@@ -26,6 +26,11 @@ and add the key under `Settings > SSH and GPG keys` on GitHub.
 cd ~/
 git clone git@github.com:FEBAutonomous/feb-system-integration.git
 ```
+If it says you don't have git (perhaps if this is a fresh install), run these commands:
+```
+sudo apt update; sudo apt upgrade
+sudo apt install git
+```
 
 ### Install and set up camera and LiDAR drivers
 Go into the repo and run the installation script.

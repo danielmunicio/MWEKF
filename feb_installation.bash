@@ -4,32 +4,29 @@
 repo_name="feb-system-integration"
 msop="6702"
 difop="1210"
+current_directory=$(basename "$(pwd)")
 
 # Install LiDAR driver
 
 # Make sure repo exists
-if ! [ -d "$repo_name" ]; then
-    echo "(!) The repository '$repo_name' does not exist. Make sure it is cloned inside current directory"
+if ! [ "$current_directory" == "$repo_name" ]; then
+    echo "(!) The script has to be ran from folder '$repo_name'"
     exit 1
 fi
 
-# Go to directory
-cd $repo_name
-
 # Make sure it has not already been created
-if [ -d "$repo_name/lidar_ws" ]; then
+if [ -d "lidar_ws" ]; then
     echo "(!) A LiDAR workspace already exists, aborting driver cloning"
-    #exit 1
+    # exit 1
 fi
 
 # Apt and PIP installs
 sudo apt-get update && xargs apt-get -y install < $repo_name/requirements/apt.txt
 pip install -r $repo_name/requirements/pip.txt
 
-
 # Create workspace
-mkdir -p $repo_name/lidar_ws/src
-cd $repo_name/lidar_ws/src
+mkdir -p lidar_ws/src
+cd lidar_ws/src
 
 # Clone the driver
 echo "(*) Cloning SDK repo..."

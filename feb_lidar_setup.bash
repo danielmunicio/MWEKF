@@ -47,4 +47,3 @@ if ! sudo ufw status numbered | grep -q "$msop/udp"; then
 else
   echo "(i) Firewall rule for port $msop/udp already exists."
 fi
-

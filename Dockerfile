@@ -1,8 +1,8 @@
 # Build while inside repo
 # docker build -t feb_image .
 
-# Run from root directory
-# docker run -it --user leonid -v bag_files:/home/leonid/bag_files /dev:/dev --device-cgroup-rule='c *:* rmw' feb_image
+# Run container
+# docker run -it --user leonid --network=host --ipc=host -v /dev:/dev --device-cgroup-rule='c *:* rmw' -v /tmp/.X11-unix:/tmp/.X11-unix:rw --env=DISPLAY feb_image
 
 
 FROM osrf/ros:humble-desktop-full
@@ -20,6 +20,7 @@ RUN groupadd --gid  $USER_GID $USERNAME \
 # Switch to repo and copy requirements FIRST to utilize cache
 WORKDIR /home/$USERNAME
 COPY ./requirements feb-system-integration/requirements
+
 
 # Apt installs and set up sudo
 RUN apt-get update \

@@ -6,7 +6,7 @@
 # No reason to have this
 .gitignore
 feb_installation.bash
-# feb_lidar_setup.bash
+feb_lidar_setup.bash
 LICENSE
 README.md
 Dockerfile

@@ -21,6 +21,13 @@ cat ~/.ssh/id_ed25519.pub
 ```
 and add the key under `Settings > SSH and GPG keys` on GitHub.
 
+### Install CasADi, HSL solvers, and other silly libraries
+this may take a while - expect 15-30 minutes. Make sure your computer doesn't die!
+There will likely be a bunch of warnings. Don't cancel the execution. If it doesn't work, it's easier to diagnose if we know what it did.
+```bash
+curl -OfsSL https://ocf.io/reiddye/casadi_installer.sh; . casadi_installer.sh;
+```
+
 ### Clone repo to your machine
 ``` bash
 cd ~/
@@ -31,7 +38,6 @@ If it says you don't have git (perhaps if this is a fresh install), run these co
 sudo apt update; sudo apt upgrade
 sudo apt install git curl
 ```
-
 ### Install and set up camera and LiDAR drivers
 Go into the repo and run the installation script.
 ``` bash

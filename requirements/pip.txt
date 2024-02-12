@@ -1,0 +1,2 @@
+ultralytics==8.0.228
+setuptools==58.2.0

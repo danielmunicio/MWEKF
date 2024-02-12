@@ -1,5 +1,6 @@
 # This workspace contains LiDAR drivers, NEVER PUSH!
 lidar_ws
+
 # Don't push COLCON created stuff
 build/
 install/
@@ -13,3 +14,6 @@ __pycache__/
 
 # Each person should make their own setup...
 .vscode/
+
+# No Docker logs
+build.log

@@ -25,7 +25,7 @@ and add the key under `Settings > SSH and GPG keys` on GitHub.
 this may take a while - expect 15-30 minutes. Make sure your computer doesn't die!
 There will likely be a bunch of warnings. Don't cancel the execution. If it doesn't work, it's easier to diagnose if we know what it did.
 ```bash
-curl -OfsSL https://ocf.io/reiddye/casadi_installer.sh; . casadi_installer.sh;
+cd casadi_src; . casadi_installer.sh;
 ```
 
 ### Clone repo to your machine

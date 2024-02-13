@@ -1,5 +1,12 @@
 #!/bin/bash
 
+# This script
+#   1. Installs LiDAR SDK
+#   2. Performs necessary APT and PIP installs
+#   3. Adds base ROS2 source command to .bashrc
+# 
+#   Author: Leonid Meledin
+
 # Variables
 repo_name="feb-system-integration"
 msop="6702"
@@ -53,8 +60,6 @@ if [ -e "package.xml" ] && [ -e "package_ros2.xml" ]; then
 else
   echo "(!) Either package.xml or package_ros2.xml not found in the current directory."
 fi
-
-
 
 # Check if the config file exists in the "/config" directory
 config_file="./config/config.yaml"

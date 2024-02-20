@@ -13,6 +13,7 @@ if [ $arch == "aarch64" ]
 then
 	echo "M1 or M2 Mac detected! Switching installation script."
 	echo "WORHP will NOT be installed on your system, and CasADi will be aquired from pip."
+        echo "Triangle not installed - build fails on M1/M2 macs. Not sure why. Triangle source build coming soon but not yet implemented."
 	curl -0fsSL "https://ocf.io/reiddye/casadi_installer_m1_m2_mac.sh";
 	. casadi_installer_m1_m2_mac.sh;
 	exit
@@ -45,6 +46,11 @@ sudo apt install -y check build-essential python3-dev python3-pip python3-numpy 
 # make references to `python` and `cython` work
 sudo ln -s /usr/bin/python3 /usr/bin/python
 sudo ln -s /usr/bin/cython3 /usr/bin/cython
+
+
+# Triangle library
+python -m pip install triangle
+
 
 ### HSL SOLVERS ###
 git clone https://github.com/coin-or-tools/ThirdParty-HSL.git

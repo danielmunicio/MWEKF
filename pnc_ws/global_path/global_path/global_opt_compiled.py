@@ -259,17 +259,17 @@ class CompiledGlobalOpt:
         if generate_c: self.solver.generate_dependencies('global_opt.c')
         if compile_c:  
             os.system(f'gcc -fPIC {gcc_opt_flag} -shared global_opt.c -o global_opt.so')
-            os.system(f'mv global_opt.so MPC/bin/global_opt.so') #TODO: fix this path
+            # os.system(f'mv global_opt.so MPC/bin/global_opt.so') #TODO: fix this path if necessary
         if use_c:
             new_opts = self.sopts
             new_opts['expand']=False
-            self.solver = nlpsol('solver', self.nlp_solver, './MPC/bin/global_opt.so', new_opts) #TODO: fix this path
+            self.solver = nlpsol('solver', self.nlp_solver, 'global_opt.so', new_opts)
     def load_solver(self):
         """alternative to construct_solver if you're just loading a saved solver.
         """
         new_opts = self.sopts
         new_opts['expand']=False
-        self.solver = nlpsol('solver', self.nlp_solver, './MPC/bin/global_opt.so', new_opts) #TODO: fix this path
+        self.solver = nlpsol('solver', self.nlp_solver, 'global_opt.so', new_opts)
 
     def angle(self, a, b):
         cosine = (a@b)/(np.linalg.norm(a)*np.linalg.norm(b))
@@ -346,7 +346,3 @@ class CompiledGlobalOpt:
         res['t'] = np.concatenate([[0.], np.cumsum(self.soln['x'][:, 5])])
         
         return res
-
-
-
-# %%

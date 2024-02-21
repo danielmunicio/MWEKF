@@ -15,7 +15,7 @@ def continuous_dynamics_fixed_x_order(x, u, l_r=0.5, l_f=0.5, m=1.0):
     beta = ca.arctan(l_r/(l_f + l_r) * ca.tan(u[1]))
 
     # calculate dx/dt
-    return ca.horzcat(x[3] * ca.cos(x[2] + beta),  # dxPos/dt = v*cos(theta+beta)
+    return ca.vertcat(x[3] * ca.cos(x[2] + beta),  # dxPos/dt = v*cos(theta+beta)
                       x[3] * ca.sin(x[2] + beta),  # dyPos/dt = v*sin(theta+beta)
                       x[3] / l_r * ca.sin(beta),   # dtheta/dt = v/l_r*sin(beta)
                       u[0] / m)                    # dv/dt = F/m

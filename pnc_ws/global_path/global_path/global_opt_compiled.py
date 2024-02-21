@@ -32,47 +32,63 @@ class CompiledGlobalOpt:
         },
     }
     def __init__(self, N, nlp_solver='ipopt', solver_opts=None, car_params={'l_r': 1.4987, 'l_f':1.5213, 'm': 1.}, bbox={'l': 2, 'w': 1}, **constraints):
+        """initializes a CompiledGlobalOpt object.
+
+        Args:
+            N (int): number of points to expect in the path.
+            nlp_solver (str, optional): which NLP solver plugin to use. can be 'ipopt', 'worhp', 'snopt', or whatever you have installed. Defaults to 'ipopt'.
+            solver_opts (dict, optional): options to pass to NLP solver. if None, use default options. Defaults to None.
+            car_params (dict, optional): parameters for dynamics model (currently bicycle model). Defaults to {'l_r': 1.4987, 'l_f':1.5213, 'm': 1.}.
+            bbox (dict, optional): length and width of car (assumes car is roughly rectangular). Defaults to {'l': 2, 'w': 1}.
+            DF_MAX (float, optional): maximum steering angle (radians). Defaults to 0.5.
+            ACC_MIN (float, optional): maximum braking acceleration (m/s^2, should be <0). Defaults to -3.0.
+            ACC_MAX_FN (float or casadi.Function, optional): function of velocity (m/s) which gives maximum forward acceleration (m/s^2) at that velocity, or constant max. Should be torque at that velocity divided by mass of car (ie, no aero consideration). Defaults to 2.0.
+            V_MIN (float, optional): minimum velocity. Defaults to 0.0.
+            V_MAX (float, optional): maximum velocity. Defaults to 25.0.
+            FRIC_MAX (float or casadi.Function, optional): function of velocity (m/s) which gives maximum frictional acceleration (m/s^2) at that velocity, or constant max. Defaults to 12.0.
+        """
+        self.N = N
         self.car_params = car_params
         self.bbox = bbox
         self.nlp_solver = nlp_solver
         self.sopts = solver_opts if solver_opts else CompiledGlobalOpt.DEFAULT_SOPTS[nlp_solver]
         self.linear_solver = 'MA97' if self.nlp_solver == 'worhp' else self.sopts['ipopt.linear_solver'] if 'ipopt.linear_solver' in self.sopts else 'MUMPS'
-        # constraints
-        # self.DF_MIN  = -0.5
-        self.DF_MAX  =  0.5
-
-        self.ACC_MIN = -3.0
-        # self.ACC_MAX =  2.0
-        self.ACC_MAX_FN = 2.0
         
-        # self.DF_DOT_MIN = -0.5
+        ####* constraints ####
+        self.DF_MAX  =  0.5
+        self.ACC_MIN = -3.0
+        self.ACC_MAX_FN = 2.0
         self.DF_DOT_MAX =  0.5
-
         self.V_MIN = 0.0
         self.V_MAX = 25.0
-
         self.FRIC_MAX = 12.0
 
         # update with user provided constraints
         self.__dict__.update(constraints)
+
+        # if not Function objects already, make the acceleration limiting functions 
         v = SX.sym('v')
         if not isinstance(self.FRIC_MAX, Function):
             self.FRIC_MAX = Function('FRIC_MAX', [v], [self.FRIC_MAX])
         if not isinstance(self.ACC_MAX_FN, Function):
             self.ACC_MAX_FN = Function('ACC_MAX_FN', [v], [self.ACC_MAX_FN])
 
-        self.N = N
-        # utility functions
+        ####* utility functions ####
+        # easy way to account for angle wrapping
         x = MX.sym('x', 4)
         self.fix_angle = Function('fix_angle', [x], [horzcat(x[0, :], x[1, :], sin(x[2, :]), x[3, :])])
+        # generate 2x2 rotation matrices
         psi = MX.sym('psi')
         self.rot = Function('rot', [psi], [reshape(horzcat(cos(psi), sin(psi), -sin(psi), cos(psi)), 2, 2)])
 
-        # Track parameters
+        ###########################################*
+        ####* Symbolic Variable Initialization ####*
+        ###########################################*
+
+        #* Track parameters
         self.bound_pairs = MX.sym('bound_pairs', self.N, 4)
 
-
-        # opt variables
+        #* opt variables
         self.x = MX.sym('x', self.N, 10)
         self.t = self.x[:, 0]
         self.psi = self.x[:, 1]
@@ -80,27 +96,34 @@ class CompiledGlobalOpt:
         self.u = self.x[:, 3:5]
         self.dt = self.x[:, 5:6]
         self.sl_dyn = self.x[:, 6:10]
-        # self.sl_dyn = MX.sym('sl_dyn', self.N+1)
 
+        #* this represents the full state at each discretization point
         self.z = horzcat(
             self.bound_pairs[:, :2]*(1-self.t)+self.bound_pairs[:, 2:4]*self.t, # LERP between pairs of points on track bounds
             self.psi,
             self.v
         )
-        # print(self.z.shape)
+        
+        #* this is the same thing but shifted by one index. Allows us to take diffs.
         self.z_i = vertcat(
             self.z[self.N-1:, :],
             self.z[:self.N-1, :]
         )
+        ######################*
+        ####* Constraints ####*
+        ######################*
 
-        # constraints
+        #* get discrete dynamics function
         self.dynamics = discrete_custom_integrator(n=3, **car_params)
+        #* these will store our constraint expressions (g) and bounds (lbg, ubg)
         self.g = []
         self.lbg = []
         self.ubg = []
+        #* table to keep track of indices of each constraint
         self.gtable = dict()
         self.glen = 0
 
+        #* Dynamics constraints: # Math: F(z_i, u_i, \Delta t_i) == z_{i+1}
         for i in range(-1, self.N-1):
             self._add_constraint(
                 f'dynamics{i}',
@@ -109,6 +132,7 @@ class CompiledGlobalOpt:
                 lbg = DM([0.0]*4),
                 ubg = DM([0.0]*4)
             )
+        #* other constraints. all follow the same pattern.
         self._add_constraint(
             'vel',
             g = vec(self.v),
@@ -160,12 +184,16 @@ class CompiledGlobalOpt:
             ubg = DM([0.0]*self.N)
         )
 
+        #* Cone Constraints: stop the car from hitting any cones
+        # TODO: allow the cone locations to be different from the track side points
+
+        #* construct a function which is close enough to a rectangle
         self.safe = Function('safespace', [x:=MX.sym('x', 2)], [(DM([1/self.bbox['w'], 1/self.bbox['l']])**6).T@x**6])
 
         self.cones = vertcat(self.bound_pairs[:, :2], self.bound_pairs[:, 2:4]).T
         left = self.bound_pairs[:, :2].T
         right = self.bound_pairs[:, 2:4].T
-        self.nc = 5
+        self.nc = 5 #* number of cones to consider (ahead of and behind the current cone, on each side)
         for i in range(self.N):
             if i<self.nc:
                 considered = horzcat(left[:, ((i-self.nc)%self.N):self.N], left[:, :i+self.nc],
@@ -184,13 +212,18 @@ class CompiledGlobalOpt:
                 ubg=DM([inf]*self.nc*4)
             )
 
+
+        #* YAY we're done adding constraints. Now concatenate all the constraints into one big vector.
+        #* note that while vertcat is typically slower than horzcat, since these are all vectors, it's the exact same memory operation
         self.g = vertcat(*self.g)
         self.lbg = vertcat(*self.lbg)
         self.ubg = vertcat(*self.ubg)
 
-        # cost
+        #* COST FUNCITON: # Math: \sum_{i=1}^N\left[ \Delta t_i + 10^5\cdot\sum(\text{sl}_\text{dyn})^2\right]
+        #* slack vars aren't really neccessary for dynamics but I'm too lazy to remove them. Really they should be on the cone constraints but it's ok.
         self.f = sum1(self.dt) + 1e5*sumsqr(self.sl_dyn)
 
+        #* construct the NLP dictionary to be passed into casadi.nlpsol
         self.nlp = {
             'x': vec(self.x),
             'f': self.f,
@@ -199,6 +232,14 @@ class CompiledGlobalOpt:
         }
 
     def _add_constraint(self, name, g, lbg, ubg):
+        """utility funciton to add a constraint and keep track of all the indices
+
+        Args:
+            name (str): name for this constraint (human-readable)
+            g (casadi symbolic expression): expression to be constrained
+            lbg (float): lower bound for g
+            ubg (float): upper bound for g
+        """
         self.gtable[name] = (self.glen, self.glen+g.shape[0])
         self.glen += g.shape[0]
         self.g.append(g)
@@ -206,19 +247,29 @@ class CompiledGlobalOpt:
         self.ubg.append(ubg)
 
     def construct_solver(self, generate_c=False, compile_c=False, use_c=False, gcc_opt_flag='-Ofast'):
+        """creates a solver object
+
+        Args:
+            generate_c (bool, optional): whether or not to generate new C code. Defaults to False.
+            compile_c (bool, optional): whether or not to look for and compile the C code. Defaults to False.
+            use_c (bool, optional): whether or not to load the compiled C code. Defaults to False.
+            gcc_opt_flag (str, optional): optimization flags to pass to GCC. can be -O1, -O2, -O3, or -Ofast depending on how long you're willing to wait. Defaults to '-Ofast'.
+        """
         self.solver = nlpsol('solver', self.nlp_solver, self.nlp, self.sopts)
         if generate_c: self.solver.generate_dependencies('global_opt.c')
         if compile_c:  
             os.system(f'gcc -fPIC {gcc_opt_flag} -shared global_opt.c -o global_opt.so')
-            os.system(f'mv global_opt.so MPC/bin/global_opt.so')
+            os.system(f'mv global_opt.so MPC/bin/global_opt.so') #TODO: fix this path
         if use_c:
             new_opts = self.sopts
             new_opts['expand']=False
-            self.solver = nlpsol('solver', self.nlp_solver, './MPC/bin/global_opt.so', new_opts)
+            self.solver = nlpsol('solver', self.nlp_solver, './MPC/bin/global_opt.so', new_opts) #TODO: fix this path
     def load_solver(self):
+        """alternative to construct_solver if you're just loading a saved solver.
+        """
         new_opts = self.sopts
         new_opts['expand']=False
-        self.solver = nlpsol('solver', self.nlp_solver, './MPC/bin/global_opt.so', new_opts)
+        self.solver = nlpsol('solver', self.nlp_solver, './MPC/bin/global_opt.so', new_opts) #TODO: fix this path
 
     def angle(self, a, b):
         cosine = (a@b)/(np.linalg.norm(a)*np.linalg.norm(b))
@@ -226,6 +277,17 @@ class CompiledGlobalOpt:
         return np.arccos(cosine)*np.sign(np.linalg.det([a, b]))
     
     def to_constant_tgrid(self, dt, z, u, t):
+        """converts a solver result to a constant-dt representation. z, u, and t can be passed in with **res (from solve())
+
+        Args:
+            dt (float): desired resultant time discretization interval
+            z (np.ndarray): states from solver
+            u (np.ndarray): controls from solver
+            t (np.ndarray): timestamps from solver
+
+        Returns:
+            (np.ndarray, np.ndarray): arrays of states, controls
+        """
         cur = 0.
         states = []
         controls = []
@@ -239,12 +301,21 @@ class CompiledGlobalOpt:
 
         
     def solve(self, left, right):
+        """crunch the numbers.
+
+        Args:
+            left (np.ndarray): location of left cones. shape (N, 2).
+            right (np.ndarray): location of right cones. shape (N, 2).
+
+        Returns:
+            dict: result of solve. keys 'z' (states), 'u' (controls), 't' (timestamps)
+        """
         center = (left+right)/2
         diffs = np.diff(center, prepend=center[-1:], axis=0)
         diffs = np.concatenate([diffs, [[1, 0]]], axis=0)
         d_angles = [self.angle(diffs[i-1], diffs[i]) for i in range(1, len(diffs))]
         angles = np.cumsum(d_angles)
-        # print('angles', angles.shape, self.N)
+        
         self.x0 = vec(vertcat(
             DM([0.5]*self.N), # t
             DM(angles),       # psi

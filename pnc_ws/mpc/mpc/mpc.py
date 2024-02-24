@@ -1,11 +1,11 @@
 import rclpy
-from rclpy.node import Node
+from mpc_controller import KinMPCPathFollower
 
 def main(args=None):
     rclpy.init(args=args)
         
     # node = LidarBoardDetector()
-    node = CameraProjection()
+    node = KinMPCPathFollower()
 
     rclpy.spin(node)
 
@@ -13,6 +13,9 @@ def main(args=None):
     # (optional - otherwise it will be done automatically
     # when the garbage collector destroys the node object)
     node.destroy_node()
+    rclpy.shutdown()
+
+    rclpy.spin(yolo_node)
     rclpy.shutdown()
 
 if __name__ == '__main__':

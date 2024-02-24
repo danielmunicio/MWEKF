@@ -1,11 +1,18 @@
 # XY Nonlinear Kinematic MPC Module.
 
+# General Imports
 import time
 import casadi
 from controller import Controller
 from utils import discrete_dynamics
 
-class KinMPCPathFollower(Controller):
+# ROS Imports
+import rclpy
+from rclpy.node import Node
+
+
+
+class KinMPCPathFollower(Controller, Node):
 
     def __init__(self, 
                  N          = 10,     # timesteps in MPC Horizon

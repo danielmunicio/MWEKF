@@ -9,6 +9,9 @@ from utils import discrete_dynamics
 # ROS Imports
 import rclpy
 from rclpy.node import Node
+from std_msgs.msg import Float64
+from nav_msgs.msg import Path
+
 
 class KinMPCPathFollower(Controller, Node):
     def __init__(self, 
@@ -29,15 +32,22 @@ class KinMPCPathFollower(Controller, Node):
                  Q = [1., 1., 10., 0.1], # weights on x, y, psi, and v.
                  R = [10., 100.],        # weights on *change in* drive and steering
                  F = [0., 0., 0., 10.],  # final state weights
-                 **kwargs):  
+                 **kwargs): 
+         
         ### ROS Integration Code ###
         super().__init__('mpc_node')
 
         # Subscribers
-        self.
+        self.global_path = self.create_subscription(Path, 'path/global', self.global_path_callback, 1)
+        self.local_path = self.create_subscription(Path, 'path/local', self.local_path_callback, 1)
+        self.path = self.global_path if self.global_path is not None else self.local_path
+        self.state = self.create_subscription(TODO, '/slam/state', self.state_callback, 1)
+        
+        # Publishers
+        self.trottle = self.create_publisher(Float64, '/control/trottle', 1)
+        self.steer = self.create_publisher(Float64, '/control/steer', 1)
 
-
-
+        ############################
         self.TRACK_SLACK_WEIGHT = 5e5
         self.use_rk_dynamics = False
         self.solver = 'ipopt'

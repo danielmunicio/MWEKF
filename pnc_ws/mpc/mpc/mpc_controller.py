@@ -10,10 +10,7 @@ from utils import discrete_dynamics
 import rclpy
 from rclpy.node import Node
 
-
-
 class KinMPCPathFollower(Controller, Node):
-
     def __init__(self, 
                  N          = 10,     # timesteps in MPC Horizon
                  DT         = 0.2,    # discretization time between timesteps (s)
@@ -33,10 +30,17 @@ class KinMPCPathFollower(Controller, Node):
                  R = [10., 100.],        # weights on *change in* drive and steering
                  F = [0., 0., 0., 10.],  # final state weights
                  **kwargs):  
+        ### ROS Integration Code ###
+        super().__init__('mpc_node')
+
+        # Subscribers
+        self.
+
+
+
         self.TRACK_SLACK_WEIGHT = 5e5
         self.use_rk_dynamics = False
         self.solver = 'ipopt'
-
 
         self.__dict__.update(kwargs)
         for key in list(locals()):
@@ -272,9 +276,12 @@ class KinMPCPathFollower(Controller, Node):
     def _update_previous_input(self, acc_prev, df_prev):
         self.opti.set_value(self.u_prev, [acc_prev, df_prev])
 
+### RUNNING MPC NODE ###
+def main(args=None):
+    rclpy.init(args=args)
+    mpc_node = KinMPCPathFollower()
+    rclpy.spin(mpc_node)
+    rclpy.shutdown()
+
 if __name__ == '__main__':
-    kmpc = KinMPCPathFollower()
-    sol_dict = kmpc.solve()
-    
-    for key in sol_dict:
-        print(key, sol_dict[key])
+    main()

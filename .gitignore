@@ -22,3 +22,6 @@ build.log
 casadi_src/*
 !casadi_installer.sh
 !COLCON_IGNORE
+
+# No Virtual Environements
+venv/

@@ -5,7 +5,7 @@ import time
 import casadi
 from controller import Controller
 from utils import discrete_dynamics
-import np
+import numpy as np
 
 # ROS Imports
 import rclpy
@@ -14,7 +14,6 @@ from std_msgs.msg import Float64
 
 from feb_msgs.msg import State
 from feb_msgs.msg import FebPath
-
 
 class KinMPCPathFollower(Controller, Node):
     def __init__(self, 
@@ -150,23 +149,23 @@ class KinMPCPathFollower(Controller, Node):
         count = 0
         point = []
         for val in msg.PathState:
-            
-            
+            if count >= 6:
+                point = np.array(point)
+                path.append(point)
+                point = []
+            point.append(val)
             count += 1
-            
-        pass
+        path = np.array(path)
+        return path
 
     def state_callback(state, msg: State):
-        # returns the current state as an np array for 4 values: x,y,velocity,heading
-        vals = np.array(Float64)
-        vals[0] = State.State[0]
-        vals[1] = State.State[1]
-        vals[2] = State.State[2]
-        vals[3] = State.State[3]
-        
-
-   
-            
+        # returns the current state as an np array with these values in this order: x,y,velocity,heading
+        vals = np.zeros((1,4),np.float64)
+        vals[0] = State.State[0] # x value
+        vals[1] = State.State[1] # y value
+        vals[2] = State.State[2] # velocity
+        vals[3] = State.State[3] # heading
+        return vals  
         
     def _add_constraints(self):
         # State Bound Constraints

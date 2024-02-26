@@ -5,6 +5,7 @@ import time
 import casadi
 from controller import Controller
 from utils import discrete_dynamics
+from utils import get_update_dict
 import numpy as np
 
 # ROS Imports
@@ -40,6 +41,8 @@ class KinMPCPathFollower(Controller, Node):
         super().__init__('mpc_node')
 
         # Subscribers
+        self.curr_steer = self.create_subscription(Float64, '/odometry/steer', self.steer_callback, 1)
+        self.curr_acc = self.create_subscription(Float64, '/odometry/wss', self.acc_callback, 1) 
         self.global_path = self.create_subscription(FebPath, 'path/global', self.path_callback, 1)
         self.local_path = self.create_subscription(FebPath, 'path/local', self.path_callback, 1)
         self.path = self.global_path if self.global_path is not None else self.local_path
@@ -142,10 +145,27 @@ class KinMPCPathFollower(Controller, Node):
         if self.solver == 'worhp': self.s_opts = dict() # idk what the worhp options are
         self.opti.solver(self.solver, self.p_opts, self.s_opts)
 
-        sol = self.solve()
+        self.prev_soln = self.solve()
+
+    ### ROS Callback Functions ###
+    def steer_callback(self, msg: Float64):
+        '''
+        Return Steering Angle from steering angle sensor on car
+        '''
+        return float(msg)
+    
+    def acc_callback(self, msg: Float64):
+        '''
+        Return Acceleration from acelerometer on car
+        '''
+        return float(msg)
 
     def path_callback(self, msg: FebPath):
-        # x, y, velocity, heading, acceleration, and steering angle
+        '''
+        Input: msg.PathState -> List of State (from State.msg) vectors
+        Returns: Matrix of State vectors (4 x n)
+        '''
+        # TODO: Fix 
         path = []
         count = 0
         point = []
@@ -161,16 +181,16 @@ class KinMPCPathFollower(Controller, Node):
 
     def state_callback(self, msg: State):
         # returns the current state as an np array with these values in this order: x,y,velocity,heading
-        vals = np.zeros((1,4), np.float64)
-        vals[0] = msg.State[0] # x value
-        vals[1] = msg.State[1] # y value
-        vals[2] = msg.State[2] # velocity
-        vals[3] = msg.State[3] # heading
+        curr_state = np.zeros((1,4), np.float64)
+        curr_state[0] = msg.State[0] # x value
+        curr_state[1] = msg.State[1] # y value
+        curr_state[2] = msg.State[2] # velocity
+        curr_state[3] = msg.State[3] # heading
         
-        update_dict = update_dict()
-        self.update
-        self.solve()
-        return vals  
+        prev_controls = np.array([self.curr_steer, self.curr_acc])
+        new_values = get_update_dict(pose=curr_state, prev_u=self.FROM_ODOMETRY, kmpc=self, states=self.path, prev_soln=self.prev_soln)
+        self.update(new_values)
+        self.prev_soln = self.solve()
         
     def _add_constraints(self):
         # State Bound Constraints

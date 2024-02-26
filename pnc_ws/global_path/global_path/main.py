@@ -9,7 +9,7 @@ from feb_msgs import PathState
 
 class GlobalPath(Node):
     def __init__(self): 
-        super().__init__("global path")
+        super().__init__("global_path")
 
         #Publishers
         self.pc_publisher = self.create_publisher(PathState, '/path/global', 10)
@@ -37,3 +37,13 @@ class GlobalPath(Node):
         
 
         publish(states)
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    global_path_node = GlobalPath()
+    rclpy.spin(global_path_node)
+    rclpy.shutdown()
+
+if __name__ == "__main__":
+    main()

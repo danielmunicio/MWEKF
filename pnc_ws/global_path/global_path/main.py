@@ -16,3 +16,12 @@ class GlobalPath(Node):
         
         #Subscribers
         self.pc_subscriber = self.create_subscription(    , '/slam/matched/global') #TODO: fill in type
+
+        ## PSUEDOCODE
+        # input: cones from slam
+        g = CompiledGlobalOpt()
+        left_points, right_points = yashs_algorithm(bluecones, yellowcones)
+        res = g.solve(left_points, right_points)
+        states, controls = g.to_constant_tgrid(**res)
+
+        publish(states)

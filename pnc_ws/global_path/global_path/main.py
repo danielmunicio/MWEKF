@@ -24,4 +24,8 @@ class GlobalPath(Node):
         res = g.solve(left_points, right_points)
         states, controls = g.to_constant_tgrid(**res)
 
+<<<<<<< HEAD
         publish(states)
+=======
+        publish(states)
+>>>>>>> 1655b97 (added psuedocode)

@@ -1,1 +1,1 @@
-feb_msgs/Float64[] PathState
+feb_msgs/State[] PathState

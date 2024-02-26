@@ -14,6 +14,8 @@ find_package(rosidl_default_generators REQUIRED)
 ament_export_dependencies(rosidl_default_runtime)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/FebPath.msg"
+  "msg/State.msg"
   "msg/Bitmasks.msg"
   DEPENDENCIES std_msgs sensor_msgs
 )

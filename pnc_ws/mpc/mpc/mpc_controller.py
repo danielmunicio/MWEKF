@@ -5,12 +5,15 @@ import time
 import casadi
 from controller import Controller
 from utils import discrete_dynamics
+import np
 
 # ROS Imports
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float64
-from nav_msgs.msg import Path
+
+from feb_msgs.msg import State
+from feb_msgs.msg import FebPath
 
 
 class KinMPCPathFollower(Controller, Node):
@@ -38,10 +41,10 @@ class KinMPCPathFollower(Controller, Node):
         super().__init__('mpc_node')
 
         # Subscribers
-        self.global_path = self.create_subscription(Path, 'path/global', self.global_path_callback, 1)
-        self.local_path = self.create_subscription(Path, 'path/local', self.local_path_callback, 1)
+        self.global_path = self.create_subscription(FebPath, 'path/global', self.path_callback, 1)
+        self.local_path = self.create_subscription(FebPath, 'path/local', self.path_callback, 1)
         self.path = self.global_path if self.global_path is not None else self.local_path
-        self.state = self.create_subscription(TODO, '/slam/state', self.state_callback, 1)
+        self.state = self.create_subscription(State, '/slam/state', self.state_callback, 1)
         
         # Publishers
         self.trottle = self.create_publisher(Float64, '/control/trottle', 1)
@@ -141,6 +144,30 @@ class KinMPCPathFollower(Controller, Node):
 
         sol = self.solve()
 
+    def path_callback(self, msg: FebPath):
+        # x, y, velocity, heading, acceleration, and steering angle
+        path = []
+        count = 0
+        point = []
+        for val in msg.PathState:
+            
+            
+            count += 1
+            
+        pass
+
+    def state_callback(state, msg: State):
+        # returns the current state as an np array for 4 values: x,y,velocity,heading
+        vals = np.array(Float64)
+        vals[0] = State.State[0]
+        vals[1] = State.State[1]
+        vals[2] = State.State[2]
+        vals[3] = State.State[3]
+        
+
+   
+            
+        
     def _add_constraints(self):
         # State Bound Constraints
         self.opti.subject_to( self.opti.bounded(self.V_MIN, self.v_dv, self.V_MAX) )        
@@ -285,6 +312,8 @@ class KinMPCPathFollower(Controller, Node):
 
     def _update_previous_input(self, acc_prev, df_prev):
         self.opti.set_value(self.u_prev, [acc_prev, df_prev])
+    
+    
 
 ### RUNNING MPC NODE ###
 def main(args=None):

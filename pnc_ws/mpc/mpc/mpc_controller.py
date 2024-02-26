@@ -50,6 +50,7 @@ class KinMPCPathFollower(Controller, Node):
         self.steer = self.create_publisher(Float64, '/control/steer', 1)
 
         ############################
+
         self.TRACK_SLACK_WEIGHT = 5e5
         self.use_rk_dynamics = False
         self.solver = 'ipopt'
@@ -158,13 +159,17 @@ class KinMPCPathFollower(Controller, Node):
         path = np.array(path)
         return path
 
-    def state_callback(state, msg: State):
+    def state_callback(self, msg: State):
         # returns the current state as an np array with these values in this order: x,y,velocity,heading
-        vals = np.zeros((1,4),np.float64)
-        vals[0] = State.State[0] # x value
-        vals[1] = State.State[1] # y value
-        vals[2] = State.State[2] # velocity
-        vals[3] = State.State[3] # heading
+        vals = np.zeros((1,4), np.float64)
+        vals[0] = msg.State[0] # x value
+        vals[1] = msg.State[1] # y value
+        vals[2] = msg.State[2] # velocity
+        vals[3] = msg.State[3] # heading
+        
+        update_dict = update_dict()
+        self.update
+        self.solve()
         return vals  
         
     def _add_constraints(self):

@@ -10,3 +10,7 @@ class settings:
     V_MIN = 0.0
     V_MAX = 25.0
     FRIC_MAX = 12.0
+
+    @classmethod
+    def settings():
+        return 

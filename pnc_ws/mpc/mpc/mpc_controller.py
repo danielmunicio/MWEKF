@@ -16,16 +16,6 @@ from std_msgs.msg import Float64
 from feb_msgs.msg import State
 from feb_msgs.msg import FebPath
 
-'''
-KinMPCPathFollower:
-    Class Variables:
-    - 
-    Functions:
-    - __init__: initalizes all variables and calls _add_cost, _add_constraints, 
-        _update_initial_condition, _update_reference, _update_previous_input
-    - 
-
-'''
 class KinMPCPathFollower(Controller, Node):
     def __init__(self, 
                  N          = 10,     # timesteps in MPC Horizon
@@ -47,7 +37,7 @@ class KinMPCPathFollower(Controller, Node):
                  F = [0., 0., 0., 10.],  # final state weights
                  **kwargs): 
         
-        # Defining Arguments
+        # Assigning Arguments
         self.N = N
         self.DT = DT
         self.L_F = L_F

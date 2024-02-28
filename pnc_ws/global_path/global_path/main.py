@@ -3,7 +3,7 @@ from global_opt_settings import settings as settings
 from global_opt_compiled import CompiledGlobalOpt
 from rclpy.node import Node
 import numpy as np
-from global_opt_settings import settings
+from global_opt_settings import GlobalOptSettings as settings
 from feb_msgs import State
 from feb_msgs import PathState
 

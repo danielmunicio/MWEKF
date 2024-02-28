@@ -36,27 +36,28 @@ class KinMPCPathFollower(Controller, Node):
                  R = [10., 100.],        # weights on *change in* drive and steering
                  F = [0., 0., 0., 10.],  # final state weights
                  **kwargs): 
-        
-        # Assigning Arguments
-        self.N = N
-        self.DT = DT
-        self.L_F = L_F
-        self.L_R = L_R
-        self.V_MIN = V_MIN
-        self.V_MAX = V_MAX
-        self.A_MIN = A_MIN
-        self.A_MAX = A_MAX
-        self.DF_MIN = DF_MIN
-        self.DF_MAX = DF_MAX
-        self.A_DOT_MIN = A_DOT_MIN
-        self.A_DOT_MAX = A_DOT_MAX
-        self.DF_DOT_MIN = DF_DOT_MIN
-        self.DF_DOT_MAX = DF_DOT_MAX
-        self.Q = Q
-        self.R = R
-        self.F = F
+        '''
+        Initializes KinMPCPathFollower object
 
-        ### ROS Integration Code ###
+        Arguments: see above
+        '''
+
+        # Go through all arguments and set to class attributes
+        self.__dict__.update(kwargs)
+        for key in list(locals()):
+            if key == 'self':
+                pass
+            elif key in 'QRF': 
+                setattr(self, key, casadi.diag(locals()[key]))
+            else:
+                setattr(self, key, locals()[key])
+
+        self.TRACK_SLACK_WEIGHT = 5e5
+        self.use_rk_dynamics = False
+        self.solver = 'ipopt'
+        self.opti = casadi.Opti()
+
+        ### START - ROS Integration Code ###
         super().__init__('mpc_node')
 
         # Subscribers
@@ -71,19 +72,7 @@ class KinMPCPathFollower(Controller, Node):
         self.throttle = self.create_publisher(Float64, '/control/throttle', 1)
         self.steer = self.create_publisher(Float64, '/control/steer', 1)
 
-        ############################
-
-        self.TRACK_SLACK_WEIGHT = 5e5
-        self.use_rk_dynamics = False
-        self.solver = 'ipopt'
-
-        self.__dict__.update(kwargs)
-        for key in list(locals()):
-            if key == 'self':  pass
-            elif key in 'QRF': setattr(self, key, casadi.diag(locals()[key]))
-            else:              setattr(self, key, locals()[key])
-
-        self.opti = casadi.Opti()
+        ### END - ROS Integration Code ###
 
         ''' 
         (1) Parameters

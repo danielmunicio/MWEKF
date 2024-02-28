@@ -4,9 +4,12 @@
 Here, we will cover everything you will need to get going with coding for FEB Autonomous.
 
 
-### Recommended environment
-* Ubuntu 22.04 Jammy Jellyfish (TODO: Add internal link to installations for different OS)
+### Required environment
+* Ubuntu 22.04 Jammy Jellyfish
+    - [PC or non-M1/M2 Mac](https://ubuntu.com/tutorials/install-ubuntu-desktop#1-overview) (You need a USB stick for this)
+    - [Using a VM](https://www.notion.so/Virtual-Machine-VM-ROS-Setup-Tutorial-350398bb897645a6a468814d065b1033) (Notion page, requires login)
 * [ROS2 Humble](https://docs.ros.org/en/humble/Installation.html)
+* [COLCON](https://colcon.readthedocs.io/en/released/user/installation.html) (Make sure to copy the commands associated with "ROS2 repository")
 
 ### SSH keys
 To be able to push your code to our repo, you will need to generate an SSH key.
@@ -22,7 +25,7 @@ cat ~/.ssh/id_ed25519.pub
 and add the key under `Settings > SSH and GPG keys` on GitHub.
 
 ### Install CasADi, HSL solvers, and other silly libraries
-this may take a while - expect 15-30 minutes. Make sure your computer doesn't die!
+This may take a while - expect 15-30 minutes. Make sure your computer doesn't die!
 There will likely be a bunch of warnings. Don't cancel the execution. If it doesn't work, it's easier to diagnose if we know what it did.
 ```bash
 cd casadi_src; . casadi_installer.sh;

@@ -17,33 +17,15 @@ class GlobalPath(Node):
         self.cp_publisher = self.create_publisher(bool, '/path/finished', 10)
         
         #Subscribers
-        self.pc_subscriber = self.create_subscription(Cones, '/slam/matched/global', self.listener_cb, 10) #TODO: fill in type
+        self.pc_subscriber = self.create_subscription(Cones, '/slam/matched/global', self.listener_cb, 10)
 
-        ## PSUEDOCODE
-        # input: cones from slam
-        # blue_cones = ... #Message from /slam/matched/global
-        # yellow_cones = ... #Message from /slam/matched/global
-        # self.g = CompiledGlobalOpt(**settings)
-        # self.g.load_solver()
-
-        # left_points, right_points = yashs_algorithm(blue_cones, yellow_cones)
-        # res = g.solve(left_points, right_points)
-        # states, controls = g.to_constant_tgrid(**res)
-        # bools = []
-        #for i in states, determine whether each state is true or false and add it to bools
-        #publish bools to /global/finished
-    
-        
-
-        # publish(states)
-
-    def listener_cb(self, msg):
+    def listener_cb(self, msg: Cones):
         left, right = ConeOrdering(msg)
         res = self.g.solve(left, right)
         states, _ = self.g.to_constant_tgrid(**res)
         
-        #TODO: figure out how to make `states` into a message
-        self.pc_publisher.publish(states)
+        msg = PathState([State(i.tolist()) for i in states])
+        self.pc_publisher.publish(msg)
         self.cp_publisher.publish(True)
 
         # we don't need this anymore and the expression graph isn't exactly small, so let's free stuff

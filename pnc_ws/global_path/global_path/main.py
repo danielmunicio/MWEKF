@@ -1,19 +1,18 @@
 import rclpy
-from global_opt_settings import settings as settings
-from global_opt_compiled import CompiledGlobalOpt
 from rclpy.node import Node
 import numpy as np
-from global_opt_settings import GlobalOptSettings as settings
 from feb_msgs import State
 from feb_msgs import FebState
 from feb_msgs import Cones
-from ConeOrdering import ConeOrdering
+from .global_opt_settings import GlobalOptSettings as settings
+from .global_opt_compiled import CompiledGlobalOpt
+from .ConeOrdering import ConeOrdering
 class GlobalPath(Node):
     def __init__(self): 
         super().__init__("global_path")
 
         #Publishers
-        self.pc_publisher = self.create_publisher(FebPath, '/path/global', 10)
+        self.pc_publisher = self.create_publisher(FebState, '/path/global', 10)
         self.cp_publisher = self.create_publisher(bool, '/path/finished', 10)
         
         #Subscribers

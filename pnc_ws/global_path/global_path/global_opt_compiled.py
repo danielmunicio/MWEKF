@@ -1,4 +1,4 @@
-#%%
+from os.path import dirname, join
 from casadi import *
 import numpy as np
 from time import perf_counter
@@ -256,21 +256,22 @@ class CompiledGlobalOpt:
             use_c (bool, optional): whether or not to load the compiled C code. Defaults to False.
             gcc_opt_flag (str, optional): optimization flags to pass to GCC. can be -O1, -O2, -O3, or -Ofast depending on how long you're willing to wait. Defaults to '-Ofast'.
         """
+        path = join(dirname(__file__), 'global_opt')
         self.solver = nlpsol('solver', self.nlp_solver, self.nlp, self.sopts)
-        if generate_c: self.solver.generate_dependencies('global_opt.c')
+        if generate_c: self.solver.generate_dependencies(f'{path}.c')
         if compile_c:  
-            os.system(f'gcc -fPIC {gcc_opt_flag} -shared global_opt.c -o global_opt.so')
+            os.system(f'gcc -fPIC {gcc_opt_flag} -shared {path}.c -o {path}.so')
             # os.system(f'mv global_opt.so MPC/bin/global_opt.so') #TODO: fix this path if necessary
         if use_c:
             new_opts = self.sopts
             new_opts['expand']=False
-            self.solver = nlpsol('solver', self.nlp_solver, 'global_opt.so', new_opts)
+            self.solver = nlpsol('solver', self.nlp_solver, f'{path}.so', new_opts)
     def load_solver(self):
         """alternative to construct_solver if you're just loading a saved solver.
         """
         new_opts = self.sopts
         new_opts['expand']=False
-        self.solver = nlpsol('solver', self.nlp_solver, 'global_opt.so', new_opts)
+        self.solver = nlpsol('solver', self.nlp_solver, join(dirname(__file__), 'global_opt.so'), new_opts)
 
     def angle(self, a, b):
         cosine = (a@b)/(np.linalg.norm(a)*np.linalg.norm(b))

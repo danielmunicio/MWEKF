@@ -25,3 +25,6 @@ casadi_src/*
 
 # No Virtual Environements
 venv/
+
+global_opt.c
+global_opt.so

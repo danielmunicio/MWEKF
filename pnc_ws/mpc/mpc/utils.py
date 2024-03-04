@@ -33,18 +33,18 @@ def discrete_dynamics(tstep, l_r=0.5, l_f=0.5, m=1.0):
     }
     return ca.integrator('integrator', 'rk', ode, 0, tstep, {'number_of_finite_elements': 2, 'expand': True, 'simplify': True})
 
-def closest_point(pt):
-    idx = np.argmin(np.linalg.norm(states[:, :2]-pt, axis=1))
-    if idx+kmpc.N>states.shape[0]:
-        return np.vstack([states[idx:],states[:kmpc.N-(states.shape[0]-idx)]])
-    return states[idx:idx+kmpc.N, :]
+def closest_point(pt, kmpc, states):
+    idx = np.argmin(np.linalg.norm(states[:, :2] - pt, axis=1))
+    if idx + kmpc.N > states.shape[0]:
+        return np.vstack([states[idx:], states[:kmpc.N - (states.shape[0] - idx)]])
+    return states[idx : idx + kmpc.N, :]
 
-def get_update_dict(pose, prev_u, prev_soln=None):
+def get_update_dict(pose, prev_u, kmpc, states, prev_soln=None):
     # pts = g.subpath_from_point(pose[:2], kmpc.N, 0.).T
     # idx = np.argmin(np.linalg.norm(path[:65, :2]-pose[:2], axis=1))
     # pts = path[idx:idx+kmpc.N]
     # pts = time_path.subpath_from_point(pose[:2], kmpc.N+1)[1:]
-    pts = closest_point(pose[:2])
+    pts = closest_point(pose[:2], kmpc, states)
     update_dict = dict(
         x0 = pose[0],
         y0 = pose[1],

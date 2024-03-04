@@ -3,9 +3,10 @@
 # General Imports
 import time
 import casadi
+import numpy as np
 from controller import Controller
 from utils import discrete_dynamics
-import numpy as np
+from utils import get_update_dict
 
 # ROS Imports
 import rclpy
@@ -35,33 +36,43 @@ class KinMPCPathFollower(Controller, Node):
                  R = [10., 100.],        # weights on *change in* drive and steering
                  F = [0., 0., 0., 10.],  # final state weights
                  **kwargs): 
-         
-        ### ROS Integration Code ###
+        '''
+        Initializes KinMPCPathFollower object
+
+        Arguments: see above
+        '''
+
+        # Go through all arguments and set to class attributes
+        self.__dict__.update(kwargs)
+        for key in list(locals()):
+            if key == 'self':
+                pass
+            elif key in 'QRF': 
+                setattr(self, key, casadi.diag(locals()[key]))
+            else:
+                setattr(self, key, locals()[key])
+
+        self.TRACK_SLACK_WEIGHT = 5e5
+        self.use_rk_dynamics = False
+        self.solver = 'ipopt'
+        self.opti = casadi.Opti()
+
+        ### START - ROS Integration Code ###
         super().__init__('mpc_node')
 
         # Subscribers
+        self.curr_steer = self.create_subscription(Float64, '/odometry/steer', self.steer_callback, 1)
+        self.curr_acc = self.create_subscription(Float64, '/odometry/wss', self.acc_callback, 1) 
         self.global_path = self.create_subscription(FebPath, 'path/global', self.path_callback, 1)
         self.local_path = self.create_subscription(FebPath, 'path/local', self.path_callback, 1)
         self.path = self.global_path if self.global_path is not None else self.local_path
         self.state = self.create_subscription(State, '/slam/state', self.state_callback, 1)
         
         # Publishers
-        self.trottle = self.create_publisher(Float64, '/control/trottle', 1)
+        self.throttle = self.create_publisher(Float64, '/control/throttle', 1)
         self.steer = self.create_publisher(Float64, '/control/steer', 1)
 
-        ############################
-
-        self.TRACK_SLACK_WEIGHT = 5e5
-        self.use_rk_dynamics = False
-        self.solver = 'ipopt'
-
-        self.__dict__.update(kwargs)
-        for key in list(locals()):
-            if key == 'self':  pass
-            elif key in 'QRF': setattr(self, key, casadi.diag(locals()[key]))
-            else:              setattr(self, key, locals()[key])
-
-        self.opti = casadi.Opti()
+        ### END - ROS Integration Code ###
 
         ''' 
         (1) Parameters
@@ -110,6 +121,9 @@ class KinMPCPathFollower(Controller, Node):
         self.sl_acc_dv = self.sl_dv[:,0]
         self.sl_df_dv  = self.sl_dv[:,1]
         self.sl_tr_dv  = self.sl_dv[:,2]
+
+        # Keep track of previous solution for updates
+        self.prev_soln = None
         
         '''
         (3) Problem Setup: Constraints, Cost, Initial Solve
@@ -142,37 +156,126 @@ class KinMPCPathFollower(Controller, Node):
         if self.solver == 'worhp': self.s_opts = dict() # idk what the worhp options are
         self.opti.solver(self.solver, self.p_opts, self.s_opts)
 
-        sol = self.solve()
+# ---------------------------------------------------------------------------------------------- #
+        
+    ### START - ROS Callback Functions ###
+        
+    def steer_callback(self, msg: Float64):
+        '''
+        Return Steering Angle from steering angle sensor on car
+        '''
+        return float(msg)
+    
+    def acc_callback(self, msg: Float64):
+        '''
+        Return Acceleration from acelerometer on car
+        '''
+        return float(msg)
 
     def path_callback(self, msg: FebPath):
-        # x, y, velocity, heading, acceleration, and steering angle
+        '''
+        Input: msg.PathState -> List of State (from State.msg) vectors
+        Returns: List of numpy state vectors (len 4: x, y, velocity, heading)
+        Description: Takes in a local or global path depending on what 
+        lap we're in and converts to np.array of state vectors
+        '''
         path = []
-        count = 0
-        point = []
-        for val in msg.PathState:
-            if count >= 6:
-                point = np.array(point)
-                path.append(point)
-                point = []
-            point.append(val)
-            count += 1
-        path = np.array(path)
-        return path
+        for state in msg.PathState:
+            path.append(list(state))
+        return np.array(path)
 
     def state_callback(self, msg: State):
+        '''
+        Input: Float64[4]
+        Description: Converts State msg to numpy vector, 
+            updates variables initalized in __init__ (e.g. self.z_ref, self.z_curr, etc.) with get_update_dict and self.update,
+            and solves mpc problem -> stores result in self.prev_soln
+        '''
         # returns the current state as an np array with these values in this order: x,y,velocity,heading
-        vals = np.zeros((1,4), np.float64)
-        vals[0] = msg.State[0] # x value
-        vals[1] = msg.State[1] # y value
-        vals[2] = msg.State[2] # velocity
-        vals[3] = msg.State[3] # heading
+        curr_state = np.zeros((1,4), np.float64)
+        curr_state[0] = msg.State[0] # x value
+        curr_state[1] = msg.State[1] # y value
+        curr_state[2] = msg.State[2] # velocity
+        curr_state[3] = msg.State[3] # heading
         
-        update_dict = update_dict()
-        self.update
-        self.solve()
-        return vals  
+        prev_controls = np.array([self.curr_steer, self.curr_acc])
+        new_values = get_update_dict(pose=curr_state, prev_u=prev_controls, kmpc=self, states=self.path, prev_soln=self.prev_soln)
+        self.update(new_values)
+        self.prev_soln = self.solve()
+
+    ### END - ROS Callback Functions ###
+
+# ---------------------------------------------------------------------------------------------- #
+        
+    ### START - Update Functions to update relevant class variables ###
+    
+    def update(self, update_dict):
+        '''
+        Input: 
+        - update_dict: all mpc variables to be updated 
+        Description: calls _update_initial_condition, _update_reference, and _update_previous_input to actually update
+        '''
+        self._update_initial_condition( *[update_dict[key] for key in ['x0', 'y0', 'psi0', 'v0']] )
+        self._update_reference( *[update_dict[key] for key in ['x_ref', 'y_ref', 'psi_ref', 'v_ref']] )
+        self._update_previous_input( *[update_dict[key] for key in ['acc_prev', 'df_prev']] )
+
+        if 'warm_start' in update_dict.keys():
+            # Warm Start used if provided.  Else I believe the problem is solved from scratch with initial values of 0.
+            self.opti.set_initial(self.z_dv,  update_dict['warm_start']['z_ws'])
+            self.opti.set_initial(self.u_dv,  update_dict['warm_start']['u_ws'])
+            self.opti.set_initial(self.sl_dv, update_dict['warm_start']['sl_ws'])
+
+    def _update_initial_condition(self, x0, y0, psi0, vel0):
+        '''
+        Inputs:
+        - x0: current x
+        - y0: current y
+        - psi0: current heading
+        - vel0: current velocity
+
+        Updates current state (z_curr)
+        '''
+        self.opti.set_value(self.z_curr, [x0, y0, psi0, vel0])
+
+    def _update_reference(self, x_ref, y_ref, psi_ref, v_ref):
+        '''
+        Inputs: reference = where car should be
+        - x_ref: reference x
+        - y_ref: reference y
+        - psi_ref: reference heading
+        - v_ref: reference velocity
+        '''
+        self.opti.set_value(self.x_ref,   x_ref)
+        self.opti.set_value(self.y_ref,   y_ref)
+        self.opti.set_value(self.psi_ref, psi_ref)
+        self.opti.set_value(self.v_ref,   v_ref)
+
+    def _update_previous_input(self, acc_prev, df_prev):
+        '''
+        Inputs: previous = last solve
+        - acc_prev: previous acceleration value
+        - df_prev: previous steering angle value
+        '''
+        self.opti.set_value(self.u_prev, [acc_prev, df_prev])
+    
+    ### END - Update Functions to update relevant class variables ###
+
+# ---------------------------------------------------------------------------------------------- #
+
+    ### START - MPC Main Functions (Setting Up and Solving MPC Optimization Problem) ###
         
     def _add_constraints(self):
+        '''
+        Description:
+        -> State Bound Constraints, Input Bound Constraints, Input Rate Bound Constraints, Other Constraints: 
+            Ensures variables are inside bounds set in __init__, Other Contraints ensures slack variables are >= 0
+        -> Initial State Constraint: Makes sure first state of planned trajectory matches current car state
+        -> State Dynamics Constraints: Ensures car can move appropriately based on Car Dynamics
+            - For more on equations used, read this section: 
+            https://www.notion.so/MPC-Overview-31d7d1b2a56e4e36bcdf5c195f8ec5b3?pvs=4#9b47dac35e68479f81217baee5237da8
+        -> Track Constraints: Car stays inside track limits
+            - For more, read: https://www.notion.so/MPC-Overview-31d7d1b2a56e4e36bcdf5c195f8ec5b3?pvs=4#566651b3c5444c9e85b89aec223f2cf8
+        '''
         # State Bound Constraints
         self.opti.subject_to( self.opti.bounded(self.V_MIN, self.v_dv, self.V_MAX) )        
         
@@ -228,6 +331,13 @@ class KinMPCPathFollower(Controller, Node):
         self.opti.subject_to(constraint-self.sl_tr_dv.T < 0 )
 
     def _add_cost(self):
+        '''
+        Description: Our cost function penalizes 3 main things
+        -> _quad_form: returns (z.T)Qz where z is vector and Q is matrix
+        -> 1. Error between current state and reference state for each planned timestep
+        -> 2. Error between current state and reference state for last planned timestep
+        -> 3. Use of controls
+        '''
         def _quad_form(z, Q):
             return casadi.mtimes(z, casadi.mtimes(Q, z.T))
         # casadi.MX.sym('m').inv()
@@ -249,11 +359,15 @@ class KinMPCPathFollower(Controller, Node):
                                                 0,  0, det, 0, 
                                                 0,  0, 0, det), (4, 4)).T/det
             
-            cost += _quad_form((mat@(self.z_dv[i+1, :]-self.z_ref[i, :]).T).T, self.Q)
+            # 1. Error between current state and reference state for each planned timestep
+            cost += _quad_form((mat @ (self.z_dv[i+1, :]-self.z_ref[i, :]).T).T, self.Q)
             # cost += _quad_form(self.z_dv[i+1, :] - self.z_ref[i,:], self.Q) # tracking cost
+
+        # 2. Error between current state and reference state for last planned timestep
         # cost += _quad_form(self.z_dv[-1, :] - self.z_ref[-1, :], self.F)
 
         for i in range(self.N - 1):
+            # 3. Use of controls
             cost += _quad_form(self.u_dv[i+1, :] - self.u_dv[i,:], self.R)  # input derivative cost
         
         # slack costs for soft constraints
@@ -264,6 +378,10 @@ class KinMPCPathFollower(Controller, Node):
         self.opti.minimize( cost )
 
     def solve(self):
+        '''
+        Returns: sol_dict (solution variables and other data related to solve) -> see below for specific info
+        Description: self.opti.solve() uses casadi to find solution to mpc problem and publishes control to apply
+        '''
         st = time.time()
         try:
             sol = self.opti.solve()
@@ -292,39 +410,29 @@ class KinMPCPathFollower(Controller, Node):
         sol_dict['sl_mpc']     = sl_mpc      # solution slack vars (N by 3, see self.sl_dv above)
         sol_dict['z_ref']      = z_ref       # state reference (N by 4, see self.z_ref above)
 
+        # Publishing controls
+        throttle_msg = Float64()
+        steer_msg = Float64()
+        throttle_msg.data = sol_dict['u_control'][0]
+        steer_msg.data = sol_dict['u_control'][1]
+        self.throttle.publish(throttle_msg)
+        self.steer.publish(steer_msg)
+
         return sol_dict
 
-    def update(self, update_dict):
-        self._update_initial_condition( *[update_dict[key] for key in ['x0', 'y0', 'psi0', 'v0']] )
-        self._update_reference( *[update_dict[key] for key in ['x_ref', 'y_ref', 'psi_ref', 'v_ref']] )
-        self._update_previous_input( *[update_dict[key] for key in ['acc_prev', 'df_prev']] )
+    ### END - MPC Main Functions (Setting Up and Solving MPC Optimization Problem) ###
+        
+# ---------------------------------------------------------------------------------------------- #
 
-        if 'warm_start' in update_dict.keys():
-            # Warm Start used if provided.  Else I believe the problem is solved from scratch with initial values of 0.
-            self.opti.set_initial(self.z_dv,  update_dict['warm_start']['z_ws'])
-            self.opti.set_initial(self.u_dv,  update_dict['warm_start']['u_ws'])
-            self.opti.set_initial(self.sl_dv, update_dict['warm_start']['sl_ws'])
-
-    def _update_initial_condition(self, x0, y0, psi0, vel0):
-        self.opti.set_value(self.z_curr, [x0, y0, psi0, vel0])
-
-    def _update_reference(self, x_ref, y_ref, psi_ref, v_ref):
-        self.opti.set_value(self.x_ref,   x_ref)
-        self.opti.set_value(self.y_ref,   y_ref)
-        self.opti.set_value(self.psi_ref, psi_ref)
-        self.opti.set_value(self.v_ref,   v_ref)
-
-    def _update_previous_input(self, acc_prev, df_prev):
-        self.opti.set_value(self.u_prev, [acc_prev, df_prev])
-    
-    
-
-### RUNNING MPC NODE ###
+### START - RUNNING MPC NODE ###
+        
 def main(args=None):
     rclpy.init(args=args)
     mpc_node = KinMPCPathFollower()
     rclpy.spin(mpc_node)
     rclpy.shutdown()
 
+### END - RUNNING MPC NODE ###
+    
 if __name__ == '__main__':
     main()

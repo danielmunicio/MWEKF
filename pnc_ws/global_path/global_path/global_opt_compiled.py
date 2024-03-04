@@ -2,7 +2,7 @@ from os.path import dirname, join
 from casadi import *
 import numpy as np
 from time import perf_counter
-from dynamics import discrete_custom_integrator
+from .dynamics import discrete_custom_integrator
 import os
 # hsl checking fuckery
 # only works on mac/linux. if you havee windows, I'm willing to bet you have bigger problems.
@@ -258,7 +258,9 @@ class CompiledGlobalOpt:
         """
         path = join(dirname(__file__), 'global_opt')
         self.solver = nlpsol('solver', self.nlp_solver, self.nlp, self.sopts)
-        if generate_c: self.solver.generate_dependencies(f'{path}.c')
+        if generate_c: 
+            self.solver.generate_dependencies(f'global_opt.c')
+            os.system(f'mv global_opt.c {path}.c')
         if compile_c:  
             os.system(f'gcc -fPIC {gcc_opt_flag} -shared {path}.c -o {path}.so')
             # os.system(f'mv global_opt.so MPC/bin/global_opt.so') #TODO: fix this path if necessary

@@ -1,4 +1,4 @@
-from global_opt_settings import GlobalOptSettings
+from .global_opt_settings import GlobalOptSettings
 import numpy as np
 from feb_msgs import Cones
 def ConeOrdering(msg: Cones):

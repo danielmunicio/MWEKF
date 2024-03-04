@@ -1,4 +1,4 @@
-from Settings import Settings
+from .Settings import Settings
 from casadi import Function
     
 class GlobalOptSettings(metaclass=Settings):

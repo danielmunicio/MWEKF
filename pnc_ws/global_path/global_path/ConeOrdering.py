@@ -1,6 +1,6 @@
 from .global_opt_settings import GlobalOptSettings
 import numpy as np
-from feb_msgs import Cones
+from feb_msgs.msg import Cones
 def ConeOrdering(msg: Cones):
     """get cones from message and call the cone ordering algorithm and return the results
 

@@ -1,9 +1,9 @@
 import rclpy
 from rclpy.node import Node
 import numpy as np
-from feb_msgs import State
-from feb_msgs import FebState
-from feb_msgs import Cones
+from feb_msgs.msg import State
+from feb_msgs.msg import FebPath
+from feb_msgs.msg import Cones
 from .global_opt_settings import GlobalOptSettings as settings
 from .global_opt_compiled import CompiledGlobalOpt
 from .ConeOrdering import ConeOrdering
@@ -12,7 +12,7 @@ class GlobalPath(Node):
         super().__init__("global_path")
 
         #Publishers
-        self.pc_publisher = self.create_publisher(FebState, '/path/global', 10)
+        self.pc_publisher = self.create_publisher(FebPath, '/path/global', 10)
         self.cp_publisher = self.create_publisher(bool, '/path/finished', 10)
         
         #Subscribers
@@ -23,7 +23,7 @@ class GlobalPath(Node):
         res = self.g.solve(left, right)
         states, _ = self.g.to_constant_tgrid(**res)
         
-        msg = FebState()
+        msg = FebPath()
         msg.PathState = [State(i.tolist()) for i in states]
         self.pc_publisher.publish(msg)
         self.cp_publisher.publish(True)

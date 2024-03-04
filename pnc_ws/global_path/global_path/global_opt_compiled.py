@@ -1,9 +1,10 @@
 from os.path import dirname, join
-from casadi import *
 import numpy as np
 from time import perf_counter
 from .dynamics import discrete_custom_integrator
+from casadi import MX, DM, Function, nlpsol, horzcat, reshape, sin, cos, SX, vec, inf, vertcat, tan, arctan, sum1, sumsqr
 import os
+import casadi as ca
 # hsl checking fuckery
 # only works on mac/linux. if you havee windows, I'm willing to bet you have bigger problems.
 hsl_avail = (

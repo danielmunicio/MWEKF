@@ -268,6 +268,7 @@ class CompiledGlobalOpt:
             new_opts = self.sopts
             new_opts['expand']=False
             self.solver = nlpsol('solver', self.nlp_solver, f'{path}.so', new_opts)
+
     def load_solver(self):
         """alternative to construct_solver if you're just loading a saved solver.
         """

@@ -7,6 +7,12 @@ def generate_launch_description():
         Node(
             package='mpc',
             executable='mpc',
-            name='mpc_node_actual'
+            name='mpc_node_actual',
+        ),
+        # global path planning node
+        Node(
+            package='global_path',
+            executable='global_path',
+            name='global_path',
         )
     ])

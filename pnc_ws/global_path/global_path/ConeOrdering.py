@@ -1,7 +1,7 @@
 from .global_opt_settings import GlobalOptSettings
 import numpy as np
-from feb_msgs.msg import Cones
-def ConeOrdering(msg: Cones):
+from feb_msgs.msg import Map
+def ConeOrdering(msg: Map):
     """get cones from message and call the cone ordering algorithm and return the results
 
     Args:
@@ -11,9 +11,10 @@ def ConeOrdering(msg: Cones):
         tuple[ndarray(2, N), ndarray(2, N)]: pairs of points on the track boundary
     """
     N = GlobalOptSettings.N # get size
-    left, right = list(msg)
-    left = np.reshape(np.array(list(left)), (2, N))
-    right = np.reshape(np.array(list(right)), (2, N))
+    left, right = (
+        np.array([list(msg.left_cones_x), list(msg.left_cones_y)]),
+        np.array([list(msg.right_cones_x), list(msg.right_cones_y)]),
+    )
     left, right = cone_ordering_algorithm(left, right, N)
     return left, right
 

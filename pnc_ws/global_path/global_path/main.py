@@ -3,7 +3,7 @@ from rclpy.node import Node
 import numpy as np
 from feb_msgs.msg import State
 from feb_msgs.msg import FebPath
-from feb_msgs.msg import Cones
+from feb_msgs.msg import Map
 from std_msgs.msg import Bool
 from .global_opt_settings import GlobalOptSettings as settings
 from .global_opt_compiled import CompiledGlobalOpt
@@ -18,20 +18,21 @@ class GlobalPath(Node):
         self.cp_publisher = self.create_publisher(Bool, '/path/finished', 10)
         
         #Subscribers
-        self.pc_subscriber = self.create_subscription(Cones, '/slam/matched/global', self.listener_cb, 10)
+        self.pc_subscriber = self.create_subscription(Map, '/slam/matched/global', self.listener_cb, 10)
 
         self.g = CompiledGlobalOpt(**settings)
 
-    def listener_cb(self, msg: Cones):
+    def listener_cb(self, msg: Map):
         left, right = ConeOrdering(msg)
         res = self.g.solve(left, right)
         states, _ = self.g.to_constant_tgrid(**res)
         
         msg = FebPath()
-        msg.state_path = [State() for _ in states]
-        for i, state in enumerate(msg.state_path):
-            state.carstate = states[i].tolist()
-            
+        msg.x = states[:, 0].flatten().tolist()
+        msg.y = states[:, 1].flatten().tolist()
+        msg.v = states[:, 2].flatten().tolist()
+        msg.psi = states[:, 3].flatten().tolist()
+        
         self.pc_publisher.publish(msg)
 
         msg = Bool()

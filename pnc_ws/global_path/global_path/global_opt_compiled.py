@@ -348,9 +348,9 @@ class CompiledGlobalOpt:
             DM(angles),       # psi
             DM([1.0]*self.N), # v
             DM([0.0]*self.N), # a
-            DM([0.0]*self.N),
+            DM([0.0]*self.N), # theta
             DM([0.5]*self.N), # dt
-            DM([0.0]*self.N*4)
+            DM([0.0]*self.N*4)# track slack vars
         ))
         self.solver.print_options()
         self.soln = self.solver(

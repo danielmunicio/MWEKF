@@ -16,6 +16,7 @@ from sensor_msgs.msg import Imu
 from geometry_msgs.msg import Quaternion, Vector3
 
 from feb_msgs.msg import State
+from feb_msgs.msg import Map
 from feb_msgs.msg import FebPath
 
 class GraphSLAM_Global(Node):
@@ -54,7 +55,7 @@ class GraphSLAM_Global(Node):
 
         # Publish the current map (GLOBAL_NODE, so this will send the whole map)
         self.map_pub = self.create_publisher(
-            Map, # To be created
+            Map, 
             '/slam/Global-Map',
             1
         )
@@ -68,6 +69,7 @@ class GraphSLAM_Global(Node):
         # used to calculate the state of the vehicle
         self.statetimestamp = 0.0
         self.currentstate = State()
+        self.map = Map()
     
     
 
@@ -185,11 +187,29 @@ class GraphSLAM_Global(Node):
 
     """
     Function that takes the list of cones, updates and solves the graph
-    
+    Input:
+        List_of_Cones: (n x 3 list of n cones, defined by their r (distance from car), theta (angle from car heading), and color
     """
     def cones_callback(self, cones: List_of_Cones) -> None:
         # Dummy function for now, need to update graph and solve graph on each timestep
         pass
+
+        #input cone list & dummy dx since we are already doing that in update_graph with imu data
+        self.slam.update_graph_color([],List_of_Cones, False)
+        x_guess, lm_guess = self.slam.solve_graph()
+
+        left_cones = lm_guess[lm_guess[:,2] == 2][:,:2] # blue
+        right_cones = lm_guess[lm_guess[:,2] == 1][:,:2] # yellow
+        #left_cones = lm_guess[lm_guess[:,2] == 0][:,:2] # orange
+
+
+        #update map message with new map data 
+        self.map.left_cones_x = left_cones[:,0] 
+        self.map.left_cones_y = left_cones[:,1]
+        self.map.right_cones_x = right_cones[:,0]
+        self.map.right_cones_y = right_cones[:,1]
+
+        self.map_pub.publish(self.map)
 
 # For running node
 def main(args=None):

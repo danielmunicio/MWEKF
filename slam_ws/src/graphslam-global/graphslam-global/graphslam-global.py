@@ -70,6 +70,7 @@ class GraphSLAM_Global(Node):
         self.statetimestamp = 0.0
         self.currentstate = State()
         self.map = Map()
+        self.seq = 0
     
     
 
@@ -208,6 +209,12 @@ class GraphSLAM_Global(Node):
         self.map.left_cones_y = left_cones[:,1]
         self.map.right_cones_x = right_cones[:,0]
         self.map.right_cones_y = right_cones[:,1]
+
+        #update message header
+        self.seq += 1
+        self.map.header.seq = self.seq
+        self.map.header.stamp = self.get_clock().now().to_msg()
+        self.map.header.frame_id = "cone_locations"
 
         self.map_pub.publish(self.map)
 

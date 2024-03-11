@@ -21,4 +21,4 @@ def ConeOrdering(msg: Map):
 def cone_ordering_algorithm(left, right, N):
     """even more dummy placeholder algorithm
     """
-    return np.ones((N, 2)), np.ones((N, 2)) 
+    return np.ones((N, 2)), np.ones((N, 2))

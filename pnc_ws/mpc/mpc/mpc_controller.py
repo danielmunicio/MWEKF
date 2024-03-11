@@ -35,7 +35,7 @@ class KinMPCPathFollower(Controller, Node):
                  Q = [1., 1., 10., 0.1], # weights on x, y, psi, and v.
                  R = [10., 100.],        # weights on *change in* drive and steering
                  F = [0., 0., 0., 10.],  # final state weights
-                 **kwargs): 
+                 **kwargs):
         '''
         Initializes KinMPCPathFollower object
 

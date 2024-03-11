@@ -108,9 +108,15 @@ class CompiledGlobalOpt:
         
         #* this is the same thing but shifted by one index. Allows us to take diffs.
         self.z_i = vertcat(
-            self.z[self.N-1:, :],
-            self.z[:self.N-1, :]
+            self.z[1:, :],
+            self.z[:1, :]
         )
+        self.u_i = vertcat(
+            self.u[1:, :],
+            self.u[:1, :]
+        )
+        # [1, 2, 3, ..., N-1, 0]
+
         ######################*
         ####* Constraints ####*
         ######################*
@@ -147,11 +153,18 @@ class CompiledGlobalOpt:
             lbg = DM([self.ACC_MIN]*self.N),
             ubg = DM([inf]*self.N)
         )
+        acc_max = self.ACC_MAX_FN(self.v)
         self._add_constraint(
             'acc_max',
-            g = vec(self.u[:, 0]-self.ACC_MAX_FN(self.v)),
+            g = vec(self.u[:, 0]-acc_max),
             lbg = DM([-inf]*self.N),
             ubg = DM([0.0]*self.N)
+        )
+        self._add_constraint(
+            'acc_max_end',
+            g = vec(self.u_i[:, 0]-acc_max),
+            lbg = DM([-inf]*self.N),
+            ubg = DM([0.0]*self.N),
         )
         self._add_constraint(
             'steering',
@@ -179,9 +192,17 @@ class CompiledGlobalOpt:
         )
         # centripetal acceleration: # Math: \frac{v^2}{r}=\frac{v^2}{\frac{v}{\dot{\theta}}}=\frac{v^2\dot{\theta}}{v}=v\dot{\theta}
         ac = (self.v**2 / self.car_params['l_r']) * sin(arctan(self.car_params['l_r']/(self.car_params['l_f'] + self.car_params['l_r']) * tan(self.u[:, 1])))
+        fric_max = self.FRIC_MAX(self.v)**2
         self._add_constraint(
             'centripetal_acc',
-            g = ac**2 + self.u[:, 0]**2-self.FRIC_MAX(self.v)**2,
+            g = ac**2 + self.u[:, 0]**2-fric_max,
+            lbg = DM([-inf]*self.N),
+            ubg = DM([0.0]*self.N)
+        )
+        ac2 = (self.v**2 / self.car_params['l_r']) * sin(arctan(self.car_params['l_r']/(self.car_params['l_f'] + self.car_params['l_r']) * tan(self.u_i[:, 1])))
+        self._add_constraint(
+            'centripetal_acc',
+            g = ac2**2 + self.u_i[:, 0]**2-fric_max,
             lbg = DM([-inf]*self.N),
             ubg = DM([0.0]*self.N)
         )

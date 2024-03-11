@@ -28,8 +28,8 @@ if [ -d "lidar_ws" ]; then
 fi
 
 # Apt and PIP installs
-sudo apt-get update && xargs apt-get -y install < $repo_name/requirements/apt.txt
-pip install -r $repo_name/requirements/pip.txt
+sudo apt-get update && sudo xargs apt-get -y install < ./requirements/apt.txt
+pip install -r ./requirements/pip.txt
 
 # Create workspace
 mkdir -p lidar_ws/src

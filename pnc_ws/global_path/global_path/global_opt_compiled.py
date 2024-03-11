@@ -1,8 +1,10 @@
-#%%
-from casadi import *
+from os.path import dirname, join
 import numpy as np
 from time import perf_counter
-from dynamics import discrete_custom_integrator
+from .dynamics import discrete_custom_integrator
+from casadi import MX, DM, Function, nlpsol, horzcat, reshape, sin, cos, SX, vec, inf, vertcat, tan, arctan, sum1, sumsqr
+import os
+import casadi as ca
 # hsl checking fuckery
 # only works on mac/linux. if you havee windows, I'm willing to bet you have bigger problems.
 hsl_avail = (
@@ -76,7 +78,7 @@ class CompiledGlobalOpt:
         ####* utility functions ####
         # easy way to account for angle wrapping
         x = MX.sym('x', 4)
-        self.fix_angle = Function('fix_angle', [x], [horzcat(x[0, :], x[1, :], sin(x[2, :]), x[3, :])])
+        self.fix_angle = Function('fix_angle', [x], [horzcat(x[0, :], x[1, :], sin(x[2, :]/2), x[3, :])])
         # generate 2x2 rotation matrices
         psi = MX.sym('psi')
         self.rot = Function('rot', [psi], [reshape(horzcat(cos(psi), sin(psi), -sin(psi), cos(psi)), 2, 2)])
@@ -106,9 +108,15 @@ class CompiledGlobalOpt:
         
         #* this is the same thing but shifted by one index. Allows us to take diffs.
         self.z_i = vertcat(
-            self.z[self.N-1:, :],
-            self.z[:self.N-1, :]
+            self.z[1:, :],
+            self.z[:1, :]
         )
+        self.u_i = vertcat(
+            self.u[1:, :],
+            self.u[:1, :]
+        )
+        # [1, 2, 3, ..., N-1, 0]
+
         ######################*
         ####* Constraints ####*
         ######################*
@@ -145,11 +153,18 @@ class CompiledGlobalOpt:
             lbg = DM([self.ACC_MIN]*self.N),
             ubg = DM([inf]*self.N)
         )
+        acc_max = self.ACC_MAX_FN(self.v)
         self._add_constraint(
             'acc_max',
-            g = vec(self.u[:, 0]-self.ACC_MAX_FN(self.v)),
+            g = vec(self.u[:, 0]-acc_max),
             lbg = DM([-inf]*self.N),
             ubg = DM([0.0]*self.N)
+        )
+        self._add_constraint(
+            'acc_max_end',
+            g = vec(self.u_i[:, 0]-acc_max),
+            lbg = DM([-inf]*self.N),
+            ubg = DM([0.0]*self.N),
         )
         self._add_constraint(
             'steering',
@@ -177,9 +192,17 @@ class CompiledGlobalOpt:
         )
         # centripetal acceleration: # Math: \frac{v^2}{r}=\frac{v^2}{\frac{v}{\dot{\theta}}}=\frac{v^2\dot{\theta}}{v}=v\dot{\theta}
         ac = (self.v**2 / self.car_params['l_r']) * sin(arctan(self.car_params['l_r']/(self.car_params['l_f'] + self.car_params['l_r']) * tan(self.u[:, 1])))
+        fric_max = self.FRIC_MAX(self.v)**2
         self._add_constraint(
             'centripetal_acc',
-            g = ac**2 + self.u[:, 0]**2-self.FRIC_MAX(self.v)**2,
+            g = ac**2 + self.u[:, 0]**2-fric_max,
+            lbg = DM([-inf]*self.N),
+            ubg = DM([0.0]*self.N)
+        )
+        ac2 = (self.v**2 / self.car_params['l_r']) * sin(arctan(self.car_params['l_r']/(self.car_params['l_f'] + self.car_params['l_r']) * tan(self.u_i[:, 1])))
+        self._add_constraint(
+            'centripetal_acc',
+            g = ac2**2 + self.u_i[:, 0]**2-fric_max,
             lbg = DM([-inf]*self.N),
             ubg = DM([0.0]*self.N)
         )
@@ -255,21 +278,25 @@ class CompiledGlobalOpt:
             use_c (bool, optional): whether or not to load the compiled C code. Defaults to False.
             gcc_opt_flag (str, optional): optimization flags to pass to GCC. can be -O1, -O2, -O3, or -Ofast depending on how long you're willing to wait. Defaults to '-Ofast'.
         """
+        path = join(dirname(__file__), 'global_opt')
         self.solver = nlpsol('solver', self.nlp_solver, self.nlp, self.sopts)
-        if generate_c: self.solver.generate_dependencies('global_opt.c')
+        if generate_c: 
+            self.solver.generate_dependencies(f'global_opt.c')
+            os.system(f'mv global_opt.c {path}.c')
         if compile_c:  
-            os.system(f'gcc -fPIC {gcc_opt_flag} -shared global_opt.c -o global_opt.so')
+            os.system(f'gcc -fPIC {gcc_opt_flag} -shared {path}.c -o {path}.so')
             # os.system(f'mv global_opt.so MPC/bin/global_opt.so') #TODO: fix this path if necessary
         if use_c:
             new_opts = self.sopts
             new_opts['expand']=False
-            self.solver = nlpsol('solver', self.nlp_solver, 'global_opt.so', new_opts)
+            self.solver = nlpsol('solver', self.nlp_solver, f'{path}.so', new_opts)
+
     def load_solver(self):
         """alternative to construct_solver if you're just loading a saved solver.
         """
         new_opts = self.sopts
         new_opts['expand']=False
-        self.solver = nlpsol('solver', self.nlp_solver, 'global_opt.so', new_opts)
+        self.solver = nlpsol('solver', self.nlp_solver, join(dirname(__file__), 'global_opt.so'), new_opts)
 
     def angle(self, a, b):
         cosine = (a@b)/(np.linalg.norm(a)*np.linalg.norm(b))

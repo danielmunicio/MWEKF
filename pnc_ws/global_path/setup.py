@@ -13,13 +13,14 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='leonid',
-    maintainer_email='pototskiy.leonid@gmail.com',
+    maintainer='reid',
+    maintainer_email='reid@xz.ax',
     description='TODO: Package description',
     license='TODO: License declaration',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'global_path = global_path.main:main'
         ],
     },
 )

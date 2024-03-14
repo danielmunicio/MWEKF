@@ -30,8 +30,8 @@ class GlobalPath(Node):
         msg = FebPath()
         msg.x = states[:, 0].flatten().tolist()
         msg.y = states[:, 1].flatten().tolist()
-        msg.v = states[:, 2].flatten().tolist()
-        msg.psi = states[:, 3].flatten().tolist()
+        msg.psi = states[:, 2].flatten().tolist()
+        msg.v = states[:, 3].flatten().tolist()
         
         self.pc_publisher.publish(msg)
 

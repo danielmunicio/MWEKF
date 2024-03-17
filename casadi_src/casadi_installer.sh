@@ -9,7 +9,7 @@
 # Author: Reid Dye
 # 
 
-if [ $arch == "aarch64" ]
+if [ `arch` == "aarch64" ]
 then
 	echo "M1 or M2 Mac detected! Switching installation script."
 	echo "WORHP will NOT be installed on your system, and CasADi will be aquired from pip."

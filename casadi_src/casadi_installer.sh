@@ -16,7 +16,7 @@ then
         echo "Triangle not installed - build fails on M1/M2 macs. Not sure why. Triangle source build coming soon but not yet implemented."
 	curl -0fsSL "https://ocf.io/reiddye/casadi_installer_m1_m2_mac.sh";
 	. casadi_installer_m1_m2_mac.sh;
-	exit
+	return
 fi
 
 # Function to add a command to ~/.bashrc if it doesn't already exist

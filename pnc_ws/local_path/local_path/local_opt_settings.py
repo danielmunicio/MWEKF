@@ -1,9 +1,9 @@
-from .Settings import Settings
+from Settings import Settings
 from casadi import Function
     
 class LocalOptSettings(metaclass=Settings):
     """settings for LocalOpt. All in one place, so it's always synced."""
-    N: int = 100
+    N: int = 10 # for testing, input 10 pairs of cones to test
     solver: str = 'ipopt'
     car_params: dict[str:float] = {'l_r': 1.4987, 'l_f':1.5213, 'm': 1.}
     bbox: dict[str:float] = {'l': 2, 'w': 1}

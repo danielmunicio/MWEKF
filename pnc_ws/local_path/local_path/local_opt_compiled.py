@@ -16,7 +16,7 @@ assert hsl_avail, "You must have HSL linear solvers installed on your system, bu
 class CompiledLocalOpt:
     DEFAULT_SOPTS = {
         'ipopt': {
-            'ipopt.linear_solver': 'ma57',
+            'ipopt.linear_solver': 'mumps',
             'expand': True,
             # 'ipopt.print_level': 0,
             # 'ipopt.sb': 'yes',
@@ -88,8 +88,8 @@ class CompiledLocalOpt:
 
         #* Track parameters
         currAndCones = MX.sym('bound_pairs', self.N + 1, 4)
-        self.curr_state = temp[0, :]
-        self.bound_pairs = temp[1:, :]
+        self.curr_state = currAndCones[0, :]
+        self.bound_pairs = currAndCones[1:, :]
 
         #* opt variables
         self.x = MX.sym('x', self.N, 10)
@@ -192,10 +192,10 @@ class CompiledLocalOpt:
             ubg = DM(0)
         )
         # Makes it so that the time to run is at minimum 2 (soft constraint, scalar included)
-        scalar = MX.sym("scalar")
+        self.scalar = MX.sym("scalar")
         self._add_constraint(
             'min_time',
-            g = sum1(self.dt) + scalar,
+            g = sum1(self.dt) + self.scalar,
             lbg = DM(2),
             ubg = DM(float('inf'))
         )
@@ -350,8 +350,10 @@ class CompiledLocalOpt:
             DM([0.0]*self.N), # a
             DM([0.0]*self.N),
             DM([0.5]*self.N), # dt
-            DM([0.0]*self.N*4)
+            DM([0.0]*self.N*4),
+            DM([0.0])         # scalar
         ))
+        # print(self.x0, self.x0.shape())
         self.solver.print_options()
         self.soln = self.solver(
             x0=self.x0,
@@ -359,7 +361,7 @@ class CompiledLocalOpt:
             ubg=self.ubg,
             p=vertcat(DM(curr_state), horzcat(DM(left), DM(right))),
         )
-        self.soln['x'] = np.array(reshape(self.soln['x'], (self.N, 10)))
+        self.soln['x'] = np.array(reshape(self.soln['x'][:-1], (self.N, 10)))
         self.soln['xy'] = (left.T*(1-self.soln['x'][:, 0])+right.T*self.soln['x'][:, 0]).T
 
         res=dict()

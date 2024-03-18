@@ -15,8 +15,7 @@ class LocalPath(Node):
 
         #Publishers
         self.pc_publisher = self.create_publisher(FebPath, '/path/local', 10)
-        self.cp_publisher = self.create_publisher(Bool, '/path/finished', 10)
-        
+
         #Subscribers
         self.pc_subscriber = self.create_subscription(Map, '/slam/matched/local', self.listener_cb, 10)
 
@@ -25,7 +24,7 @@ class LocalPath(Node):
     def listener_cb(self, msg: Map):
         left, right = ConeOrdering(msg)
         res = self.g.solve(left, right)
-        states, _ = self.g.to_constant_tgrid(**res)
+        states, _ = self.g.to_constant_tgrid(0.2, **res)
         
         msg = FebPath()
         msg.x = states[:, 0].flatten().tolist()
@@ -34,13 +33,6 @@ class LocalPath(Node):
         msg.v = states[:, 3].flatten().tolist()
         
         self.pc_publisher.publish(msg)
-
-        msg = Bool()
-        msg.data = True
-        self.cp_publisher.publish(msg)
-
-        # we don't need this anymore and the expression graph isn't exactly small, so let's free stuff
-        self.destroy_node()
 
 
 

@@ -5,8 +5,8 @@ import time
 import casadi
 import numpy as np
 from controller import Controller
-from utils import discrete_dynamics
-from utils import get_update_dict
+from .utils import discrete_dynamics
+from .utils import get_update_dict
 
 # ROS Imports
 import rclpy
@@ -66,7 +66,7 @@ class KinMPCPathFollower(Controller, Node):
         self.global_path = self.create_subscription(FebPath, 'path/global', self.path_callback, 1)
         self.local_path = self.create_subscription(FebPath, 'path/local', self.path_callback, 1)
         self.path = self.global_path if self.global_path is not None else self.local_path
-        self.state = self.create_subscription(State, '/slam/state', self.state_callback, 1)
+        self.create_subscription(State, '/slam/state', self.state_callback, 1)
         
         # Publishers
         self.throttle = self.create_publisher(Float64, '/control/throttle', 1)
@@ -179,10 +179,12 @@ class KinMPCPathFollower(Controller, Node):
         Description: Takes in a local or global path depending on what 
         lap we're in and converts to np.array of state vectors
         '''
-        path = []
-        for state in msg.PathState:
-            path.append(list(state))
-        return np.array(path)
+        x = np.array(msg.x)
+        y = np.array(msg.y)
+        v = np.array(msg.v)
+        psi = np.array(msg.psi)
+        path = np.column_stack((x, y, v, psi))
+        return path
 
     def state_callback(self, msg: State):
         '''

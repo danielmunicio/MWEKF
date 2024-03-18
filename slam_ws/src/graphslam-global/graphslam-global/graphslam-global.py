@@ -15,9 +15,7 @@ from std_msgs.msg import Float64, Header
 from sensor_msgs.msg import Imu
 from geometry_msgs.msg import Quaternion, Vector3
 
-from feb_msgs.msg import State
-from feb_msgs.msg import Map
-from feb_msgs.msg import FebPath
+from feb_msgs.msg import carstate, FebPath, Map, cones
 
 class GraphSLAM_Global(Node):
     def __init__(self):
@@ -38,8 +36,8 @@ class GraphSLAM_Global(Node):
 
         # Handle new cone readings from perception
         self.cones_sub = self.create_subscription(
-            List_of_Cones,
-            '/perception/YOLO/Cones', # To be changed
+            cones,
+            '/perception/cones', # To be changed
             self.cones_callback,
             1
         )
@@ -48,15 +46,15 @@ class GraphSLAM_Global(Node):
         
         # Publish the current vehicle's state: X, Y, Velo, Theta
         self.state_pub = self.create_publisher(
-            State,
-            '/slam/State',
+            carstate,
+            '/slam/state',
             1
         )
 
         # Publish the current map (GLOBAL_NODE, so this will send the whole map)
         self.map_pub = self.create_publisher(
-            Map, 
-            '/slam/Global-Map',
+            Map, # To be created
+            '/slam/map/global',
             1
         )
 
@@ -68,9 +66,9 @@ class GraphSLAM_Global(Node):
         
         # used to calculate the state of the vehicle
         self.statetimestamp = 0.0
-        self.currentstate = State()
-        self.map = Map()
-        self.seq = 0
+        self.currentstate = carstate()
+        self.state_seq = 0
+        self.cone_seq = 0
     
     
 
@@ -147,6 +145,10 @@ class GraphSLAM_Global(Node):
         self.currentstate.carstate[1] += dx[1]
         self.currentstate.carstate[2] = velocity
         self.currentstate.carstate[3] = yaw
+        self.state_seq_seq += 1
+        self.currentstate.header.seq = self.seq
+        self.currentstate.header.stamp = self.get_clock().now().to_msg()
+        self.currentstate.header.frame_id = "rslidar"
 
 
     """
@@ -161,7 +163,6 @@ class GraphSLAM_Global(Node):
     """
 
     def imu_callback(self, imu: Imu) -> None:
-        pass
         # process time
         dt = self.compute_timediff(imu.header)
         # generate current heading
@@ -188,15 +189,13 @@ class GraphSLAM_Global(Node):
 
     """
     Function that takes the list of cones, updates and solves the graph
-    Input:
-        List_of_Cones: (n x 3 list of n cones, defined by their r (distance from car), theta (angle from car heading), and color
+    
     """
-    def cones_callback(self, cones: List_of_Cones) -> None:
+    def cones_callback(self, cones: cones) -> None:
         # Dummy function for now, need to update graph and solve graph on each timestep
-        pass
-
+        
         #input cone list & dummy dx since we are already doing that in update_graph with imu data
-        self.slam.update_graph_color([],List_of_Cones, False)
+        self.slam.update_graph_color([],cones, False)
         x_guess, lm_guess = self.slam.solve_graph()
 
         left_cones = lm_guess[lm_guess[:,2] == 2][:,:2] # blue
@@ -211,10 +210,10 @@ class GraphSLAM_Global(Node):
         self.map.right_cones_y = right_cones[:,1]
 
         #update message header
-        self.seq += 1
+        self.cone_seq += 1
         self.map.header.seq = self.seq
         self.map.header.stamp = self.get_clock().now().to_msg()
-        self.map.header.frame_id = "cone_locations"
+        self.map.header.frame_id = "rslidar"
 
         self.map_pub.publish(self.map)
 

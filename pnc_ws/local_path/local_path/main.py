@@ -17,7 +17,7 @@ class LocalPath(Node):
         self.pc_publisher = self.create_publisher(FebPath, '/path/local', 10)
 
         #Subscribers
-        self.pc_subscriber = self.create_subscription(Map, '/slam/matched/local', self.listener_cb, 10)
+        self.pc_subscriber = self.create_subscription(Map, '/slam/map/local', self.listener_cb, 10)
 
         self.g = CompiledLocalOpt(**settings)
 

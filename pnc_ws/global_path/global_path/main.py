@@ -18,7 +18,7 @@ class GlobalPath(Node):
         self.cp_publisher = self.create_publisher(Bool, '/path/finished', 10)
         
         #Subscribers
-        self.pc_subscriber = self.create_subscription(Map, '/slam/matched/global', self.listener_cb, 10)
+        self.pc_subscriber = self.create_subscription(Map, '/slam/map/global', self.listener_cb, 10)
 
         self.g = CompiledGlobalOpt(**settings)
 

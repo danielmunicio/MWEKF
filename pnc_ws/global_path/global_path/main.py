@@ -25,7 +25,7 @@ class GlobalPath(Node):
     def listener_cb(self, msg: Map):
         left, right = ConeOrdering(msg)
         res = self.g.solve(left, right)
-        states, _ = self.g.to_constant_tgrid(**res)
+        states, _ = self.g.to_constant_tgrid(0.2, **res)
         
         msg = FebPath()
         msg.x = states[:, 0].flatten().tolist()

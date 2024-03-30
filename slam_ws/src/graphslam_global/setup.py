@@ -20,7 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'graphslam-global = graphslam-global.graphslam-global:main'
+            'graphslam_global = graphslam_global.graphslam_global:main'
         ],
     },
 )

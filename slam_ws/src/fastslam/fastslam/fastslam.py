@@ -1,10 +1,6 @@
 import numpy as np
 from numpy.linalg import *
-# import matplotlib.pyplot as plt
-# import csv
-# import track_generator_leonid.track_main as trackmain
-# import track_generator_leonid.settings as settings
-import graphslam_colorsolve as slamLib
+
 from time import perf_counter
 import math
 # from numpy.random import random, randn
@@ -15,16 +11,14 @@ from std_msgs.msg import Float64, Header
 from sensor_msgs.msg import Imu
 from geometry_msgs.msg import Quaternion, Vector3
 
-from feb_msgs.msg import State
-from feb_msgs.msg import Map
-from feb_msgs.msg import FebPath
+from feb_msgs.msg import carstate, FebPath, Map, cones
 
-class GraphSLAM_Global(Node):
+from fastslam_utils import *
+
+class FastSLAM(Node):
+
     def __init__(self):
-
-        # ROS2 INTEGRATIONS
-
-        super().__init__('graphslam_global_node')
+        super().__init__('fastslam_node')
 
         # SUBSCRIBERS
 
@@ -38,8 +32,8 @@ class GraphSLAM_Global(Node):
 
         # Handle new cone readings from perception
         self.cones_sub = self.create_subscription(
-            List_of_Cones,
-            '/perception/YOLO/Cones', # To be changed
+            cones,
+            '/perception/cones', # To be changed
             self.cones_callback,
             1
         )
@@ -48,32 +42,25 @@ class GraphSLAM_Global(Node):
         
         # Publish the current vehicle's state: X, Y, Velo, Theta
         self.state_pub = self.create_publisher(
-            State,
-            '/slam/State',
+            carstate,
+            '/slam/state',
             1
         )
 
-        # Publish the current map (GLOBAL_NODE, so this will send the whole map)
-        self.map_pub = self.create_publisher(
-            Map, 
-            '/slam/Global-Map',
-            1
-        )
+        # Map is completed at this point, only publish state within map
 
-        # SLAM Initialization
+        # SLAM Initializations
 
-        # Initializes a new instance of graphslam from the graphslam
-        # Data Association Threshold is to be tweaked
-        self.slam = slamLib.GraphSLAM(solver_type='qp', landmarkTolerance=4)
-        
+        self.particles = [Particle(0, 0, 1 / N, 0) for _ in range(N)]
         # used to calculate the state of the vehicle
         self.statetimestamp = 0.0
-        self.currentstate = State()
-        self.map = Map()
-        self.seq = 0
-    
-    
+        self.currentstate = carstate()
+        self.state_seq = 0
 
+    # Callback for IMU
+    # Needs all the other functions used in the graphslam imu processing
+    # copy pasted from there
+        
     """
     Function that takes in message header and computes difference in time from last state msg
     Input: Header (std_msg/Header)
@@ -134,19 +121,23 @@ class GraphSLAM_Global(Node):
         linear_velocity = longitudinal_acc * dt
         return linear_velocity
 
-    """
-    Function that updates the State.msg variables after a new state has been produced
-    Inputs: 
-    - dx: change in position [delta_x, delta_y]
-    - yaw: new heading (theta)
-    - velocity
-    Outputs: None
-    """
-    def update_state(self, dx: np.array, yaw: float, velocity: float) -> None:
-        self.currentstate.carstate[0] += dx[0]
-        self.currentstate.carstate[1] += dx[1]
-        self.currentstate.carstate[2] = velocity
-        self.currentstate.carstate[3] = yaw
+    # """
+    # Function that updates the State.msg variables after a new state has been produced
+    # Inputs: 
+    # - dx: change in position [delta_x, delta_y]
+    # - yaw: new heading (theta)
+    # - velocity
+    # Outputs: None
+    # """
+    # def update_state(self, dx: np.array, yaw: float, velocity: float) -> None:
+    #     self.currentstate.carstate[0] += dx[0]
+    #     self.currentstate.carstate[1] += dx[1]
+    #     self.currentstate.carstate[2] = velocity
+    #     self.currentstate.carstate[3] = yaw
+    #     self.state_seq_seq += 1
+    #     self.currentstate.header.seq = self.seq
+    #     self.currentstate.header.stamp = self.get_clock().now().to_msg()
+    #     self.currentstate.header.frame_id = "rslidar"
 
 
     """
@@ -161,7 +152,6 @@ class GraphSLAM_Global(Node):
     """
 
     def imu_callback(self, imu: Imu) -> None:
-        pass
         # process time
         dt = self.compute_timediff(imu.header)
         # generate current heading
@@ -176,54 +166,12 @@ class GraphSLAM_Global(Node):
         # generate dx [change in x, change in y] to add new pose to graph
         dx = velocity * dt * np.array([math.cos(yaw), math.sin(yaw)])
 
-        # add new position node to graph
-        self.slam.update_position(dx)
-
-        # update state msg
-        self.update_state(dx, yaw, velocity)
+        # THIS IS WHERE FASTSLAM WILL BE CALLED USING THE PARTICLES
 
         self.state_pub.publish(self.currentstate)
 
+    # Cone Callback will only be used to update weights
+    # Only IMU Callback will return a new state
+    # Without the Cone data, there will be no changing of 
+    # weights because there is nothing to compare particles to
 
-
-    """
-    Function that takes the list of cones, updates and solves the graph
-    Input:
-        List_of_Cones: (n x 3 list of n cones, defined by their r (distance from car), theta (angle from car heading), and color
-    """
-    def cones_callback(self, cones: List_of_Cones) -> None:
-        # Dummy function for now, need to update graph and solve graph on each timestep
-        pass
-
-        #input cone list & dummy dx since we are already doing that in update_graph with imu data
-        self.slam.update_graph_color([],List_of_Cones, False)
-        x_guess, lm_guess = self.slam.solve_graph()
-
-        left_cones = lm_guess[lm_guess[:,2] == 2][:,:2] # blue
-        right_cones = lm_guess[lm_guess[:,2] == 1][:,:2] # yellow
-        #left_cones = lm_guess[lm_guess[:,2] == 0][:,:2] # orange
-
-
-        #update map message with new map data 
-        self.map.left_cones_x = left_cones[:,0] 
-        self.map.left_cones_y = left_cones[:,1]
-        self.map.right_cones_x = right_cones[:,0]
-        self.map.right_cones_y = right_cones[:,1]
-
-        #update message header
-        self.seq += 1
-        self.map.header.seq = self.seq
-        self.map.header.stamp = self.get_clock().now().to_msg()
-        self.map.header.frame_id = "cone_locations"
-
-        self.map_pub.publish(self.map)
-
-# For running node
-def main(args=None):
-    rclpy.init(args=args)
-    graphslam_global_node = GraphSLAM_Global(Node)
-    rclpy.spin(graphslam_global_node)
-    rclpy.shutdown()
-
-if __name__ == '__main__':
-    main()

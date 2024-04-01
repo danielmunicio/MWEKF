@@ -42,9 +42,6 @@ class GlobalPath(Node):
         # we don't need this anymore and the expression graph isn't exactly small, so let's free stuff
         self.destroy_node()
 
-
-
-
 def main(args=None):
     rclpy.init(args=args)
     global_path_node = GlobalPath()

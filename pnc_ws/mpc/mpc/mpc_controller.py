@@ -61,16 +61,16 @@ class KinMPCPathFollower(Controller, Node):
         super().__init__('mpc_node')
 
         # Subscribers
-        self.curr_steer = self.create_subscription(Float64, '/odometry/steer', self.steer_callback, 1)
-        self.curr_acc = self.create_subscription(Float64, '/odometry/wss', self.acc_callback, 1) 
-        self.global_path = self.create_subscription(FebPath, 'path/global', self.path_callback, 1)
-        self.local_path = self.create_subscription(FebPath, 'path/local', self.path_callback, 1)
+        self.curr_steer_sub = self.create_subscription(Float64, '/odometry/steer', self.steer_callback, 1)
+        self.curr_acc_sub = self.create_subscription(Float64, '/odometry/wss', self.acc_callback, 1) 
+        self.global_path_sub = self.create_subscription(FebPath, 'path/global', self.global_path_callback, 1)
+        self.local_path_sub = self.create_subscription(FebPath, 'path/local', self.local_path_callback, 1)
         self.path = self.global_path if self.global_path is not None else self.local_path
-        self.create_subscription(State, '/slam/state', self.state_callback, 1)
+        self.state_sub = self.create_subscription(State, '/slam/state', self.state_callback, 1)
         
         # Publishers
-        self.throttle = self.create_publisher(Float64, '/control/throttle', 1)
-        self.steer = self.create_publisher(Float64, '/control/steer', 1)
+        self.throttle_pub = self.create_publisher(Float64, '/control/throttle', 1)
+        self.steer_pub = self.create_publisher(Float64, '/control/steer', 1)
 
         ### END - ROS Integration Code ###
 
@@ -164,15 +164,15 @@ class KinMPCPathFollower(Controller, Node):
         '''
         Return Steering Angle from steering angle sensor on car
         '''
-        return float(msg)
+        self.curr_steer = float(msg)
     
     def acc_callback(self, msg: Float64):
         '''
-        Return Acceleration from acelerometer on car
+        Set curr_acc to value recieved from 
         '''
-        return float(msg)
+        self.curr_acc = float(msg)
 
-    def path_callback(self, msg: FebPath):
+    def global_path_callback(self, msg: FebPath):
         '''
         Input: msg.PathState -> List of State (from State.msg) vectors
         Returns: List of numpy state vectors (len 4: x, y, velocity, heading)
@@ -184,7 +184,23 @@ class KinMPCPathFollower(Controller, Node):
         v = np.array(msg.v)
         psi = np.array(msg.psi)
         path = np.column_stack((x, y, v, psi))
-        return path
+        self.local_path = path
+        self.global_path = None
+    
+    def local_path_callback(self, msg: FebPath):
+        '''
+        Input: msg.PathState -> List of State (from State.msg) vectors
+        Returns: List of numpy state vectors (len 4: x, y, velocity, heading)
+        Description: Takes in a local or global path depending on what 
+        lap we're in and converts to np.array of state vectors
+        '''
+        x = np.array(msg.x)
+        y = np.array(msg.y)
+        v = np.array(msg.v)
+        psi = np.array(msg.psi)
+        path = np.column_stack((x, y, v, psi))
+        self.local_path = None
+        self.global_path = path
 
     def state_callback(self, msg: State):
         '''
@@ -203,7 +219,6 @@ class KinMPCPathFollower(Controller, Node):
         prev_controls = np.array([self.curr_steer, self.curr_acc])
         new_values = get_update_dict(pose=curr_state, prev_u=prev_controls, kmpc=self, states=self.path, prev_soln=self.prev_soln)
         self.update(new_values)
-        self.prev_soln = self.solve()
 
     ### END - ROS Callback Functions ###
 

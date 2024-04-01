@@ -20,27 +20,19 @@ class LocalPath(Node):
         self.pc_subscriber = self.create_subscription(Map, '/slam/map/local', self.listener_cb, 10)
 
         self.g = CompiledLocalOpt(**settings)
-        self.in_msg = None
-        self._start()
-
-    def _start(self):
-        while self.in_msg is None:
-            pass
-        while True:
-            left, right = ConeOrdering(self.msg)
-            res = self.g.solve(left, right)
-            states, _ = self.g.to_constant_tgrid(0.2, **res)
-            
-            msg = FebPath()
-            msg.x = states[:, 0].flatten().tolist()
-            msg.y = states[:, 1].flatten().tolist()
-            msg.psi = states[:, 2].flatten().tolist()
-            msg.v = states[:, 3].flatten().tolist()
-            
-            self.pc_publisher.publish(msg)
         
     def listener_cb(self, msg: Map):
-        self.in_msg = msg
+        left, right = ConeOrdering(self.msg)
+        res = self.g.solve(left, right)
+        states, _ = self.g.to_constant_tgrid(0.2, **res)
+        
+        msg = FebPath()
+        msg.x = states[:, 0].flatten().tolist()
+        msg.y = states[:, 1].flatten().tolist()
+        msg.psi = states[:, 2].flatten().tolist()
+        msg.v = states[:, 3].flatten().tolist()
+        
+        self.pc_publisher.publish(msg)
 
 
 

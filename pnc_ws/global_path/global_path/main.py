@@ -14,11 +14,11 @@ class GlobalPath(Node):
         super().__init__("global_path")
 
         #Publishers
-        self.pc_publisher = self.create_publisher(FebPath, '/path/global', 10)
-        self.cp_publisher = self.create_publisher(Bool, '/path/finished', 10)
+        self.pc_publisher = self.create_publisher(FebPath, '/path/global', 1)
+        self.cp_publisher = self.create_publisher(Bool, '/path/finished', 1)
         
         #Subscribers
-        self.pc_subscriber = self.create_subscription(Map, '/slam/map/global', self.listener_cb, 10)
+        self.pc_subscriber = self.create_subscription(Map, '/slam/map/global', self.listener_cb, 1)
 
         self.g = CompiledGlobalOpt(**settings)
 

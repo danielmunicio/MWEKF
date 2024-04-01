@@ -14,10 +14,10 @@ class LocalPath(Node):
         super().__init__("local_path")
 
         #Publishers
-        self.pc_publisher = self.create_publisher(FebPath, '/path/local', 10)
+        self.pc_publisher = self.create_publisher(FebPath, '/path/local', 1)
 
         #Subscribers
-        self.pc_subscriber = self.create_subscription(Map, '/slam/map/local', self.listener_cb, 10)
+        self.pc_subscriber = self.create_subscription(Map, '/slam/map/local', self.listener_cb, 1)
 
         self.g = CompiledLocalOpt(**settings)
         

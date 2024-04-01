@@ -219,6 +219,15 @@ class KinMPCPathFollower(Controller, Node):
         prev_controls = np.array([self.curr_steer, self.curr_acc])
         new_values = get_update_dict(pose=curr_state, prev_u=prev_controls, kmpc=self, states=self.path, prev_soln=self.prev_soln)
         self.update(new_values)
+        self.prev_soln = self.solve()
+
+        # Publishing controls
+        throttle_msg = Float64()
+        steer_msg = Float64()
+        throttle_msg.data = self.prev_soln['u_control'][0]
+        steer_msg.data = self.prev_soln['u_control'][1]
+        self.throttle_pub.publish(throttle_msg)
+        self.steer_pub.publish(steer_msg)
 
     ### END - ROS Callback Functions ###
 
@@ -426,14 +435,6 @@ class KinMPCPathFollower(Controller, Node):
         sol_dict['z_mpc']      = z_mpc       # solution states (N+1 by 4, see self.z_dv above)
         sol_dict['sl_mpc']     = sl_mpc      # solution slack vars (N by 3, see self.sl_dv above)
         sol_dict['z_ref']      = z_ref       # state reference (N by 4, see self.z_ref above)
-
-        # Publishing controls
-        throttle_msg = Float64()
-        steer_msg = Float64()
-        throttle_msg.data = sol_dict['u_control'][0]
-        steer_msg.data = sol_dict['u_control'][1]
-        self.throttle.publish(throttle_msg)
-        self.steer.publish(steer_msg)
 
         return sol_dict
 

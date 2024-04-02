@@ -69,6 +69,9 @@ class GraphSLAM_Global(Node):
         self.currentstate = carstate()
         self.state_seq = 0
         self.cone_seq = 0
+
+        # for handling new messages during the solve step
+        self.solving = false
     
     
 
@@ -178,7 +181,8 @@ class GraphSLAM_Global(Node):
         dx = velocity * dt * np.array([math.cos(yaw), math.sin(yaw)])
 
         # add new position node to graph
-        self.slam.update_position(dx)
+        #self.slam.update_position(dx)
+        self.slam.update_backlog_imu(dx)
 
         # update state msg
         self.update_state(dx, yaw, velocity)
@@ -195,8 +199,21 @@ class GraphSLAM_Global(Node):
         # Dummy function for now, need to update graph and solve graph on each timestep
         
         #input cone list & dummy dx since we are already doing that in update_graph with imu data
-        self.slam.update_graph_color([],cones, False)
-        x_guess, lm_guess = self.slam.solve_graph()
+        
+        #process all new cone messages separately while one thread is solving slam
+        cone_matrix = np.hstack(cone_input.r, cone_input.theta, cone_input.color)
+        self.slam.update_backlog_perception(cone_matrix)
+
+        if(self.solving):
+            return
+
+        #self.slam.update_graph_color([], latest, False) # old pre-ros threading
+        
+        #self.slam.update_graph_color(perception_backlog_imu, perception_backlog_cones)
+        #self.perception_backlog_cones = []
+        #self.perception_backlog_imu = []
+        self.slam.update_graph_block()
+        x_guess, lm_guess = self.solveGraphSlam()
 
         left_cones = lm_guess[lm_guess[:,2] == 2][:,:2] # blue
         right_cones = lm_guess[lm_guess[:,2] == 1][:,:2] # yellow
@@ -216,6 +233,20 @@ class GraphSLAM_Global(Node):
         self.map.header.frame_id = "rslidar"
 
         self.map_pub.publish(self.map)
+
+    
+    def solveGraphSlam(self):
+        self.solving = True 
+        x_guess, lm_guess = self.slam.solve_graph()
+        self.solving = False
+        return x_guess, lm_guess
+
+    def update_recent_cones(self, imu_state, cone_input):
+        
+        self.perception_backlog_cones += [cone_matrix]
+        self.perception_backlog_imu += [[imu_state[0], imu_state[1]]]
+
+    
 
 # For running node
 def main(args=None):

@@ -71,7 +71,7 @@ class GraphSLAM_Global(Node):
         self.cone_seq = 0
 
         # for handling new messages during the solve step
-        self.solving = false
+        self.solving = False
     
     
 
@@ -200,7 +200,7 @@ class GraphSLAM_Global(Node):
         #input cone list & dummy dx since we are already doing that in update_graph with imu data
         
         #process all new cone messages separately while one thread is solving slam
-        cone_matrix = np.hstack(cone_input.r, cone_input.theta, cone_input.color)
+        cone_matrix = np.hstack(cones.r, cones.theta, cones.color)
         self.slam.update_backlog_perception(cone_matrix)
 
         if(self.solving):

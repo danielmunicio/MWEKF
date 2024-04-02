@@ -15,7 +15,7 @@ from std_msgs.msg import Float64, Header
 from sensor_msgs.msg import Imu
 from geometry_msgs.msg import Quaternion, Vector3
 
-from feb_msgs.msg import carstate, FebPath, Map, cones
+from feb_msgs.msg import State, FebPath, Map, cones
 
 class GraphSLAM_Global(Node):
     def __init__(self):
@@ -29,7 +29,7 @@ class GraphSLAM_Global(Node):
         # Handle IMU messages for vehicle state
         self.imu_sub = self.create_subscription(
             Imu,
-            '/odometry/Imu',
+            '/odometry/imu',
             self.imu_callback,
             1
         )
@@ -46,7 +46,7 @@ class GraphSLAM_Global(Node):
         
         # Publish the current vehicle's state: X, Y, Velo, Theta
         self.state_pub = self.create_publisher(
-            carstate,
+            State,
             '/slam/state',
             1
         )
@@ -66,7 +66,7 @@ class GraphSLAM_Global(Node):
         
         # used to calculate the state of the vehicle
         self.statetimestamp = 0.0
-        self.currentstate = carstate()
+        self.currentstate = State()
         self.state_seq = 0
         self.cone_seq = 0
     
@@ -167,7 +167,6 @@ class GraphSLAM_Global(Node):
         dt = self.compute_timediff(imu.header)
         # generate current heading
         roll, pitch, yaw = self.quat_to_euler(imu.orientation)
-        self.currentstate.heading = yaw
         # generate current velocity
         velocity = self.compute_velocity(imu.linear_acceleration, dt)
         # for now, we assume velocity is in the direction of heading

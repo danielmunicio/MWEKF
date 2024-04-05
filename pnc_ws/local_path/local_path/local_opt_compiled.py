@@ -77,7 +77,7 @@ class CompiledLocalOpt:
         ####* utility functions ####
         # easy way to account for angle wrapping
         x = MX.sym('x', 4)
-        self.fix_angle = Function('fix_angle', [x], [horzcat(x[0, :], x[1, :], sin(x[2, :]), x[3, :])])
+        self.fix_angle = Function('fix_angle', [x], [horzcat(x[0, :], x[1, :], sin(2*x[2, :]), x[3, :])])
         # generate 2x2 rotation matrices
         psi = MX.sym('psi')
         self.rot = Function('rot', [psi], [reshape(horzcat(cos(psi), sin(psi), -sin(psi), cos(psi)), 2, 2)])
@@ -88,8 +88,8 @@ class CompiledLocalOpt:
 
         #* Track parameters
         currAndCones = MX.sym('bound_pairs', self.N + 1, 4)
-        self.curr_state = temp[0, :]
-        self.bound_pairs = temp[1:, :]
+        self.curr_state = currAndCones[0, :]
+        self.bound_pairs = currAndCones[1:, :]
 
         #* opt variables
         self.x = MX.sym('x', self.N, 10)
@@ -127,7 +127,7 @@ class CompiledLocalOpt:
         self.glen = 0
 
         #* Dynamics constraints: # Math: F(z_i, u_i, \Delta t_i) == z_{i+1}
-        for i in range(-1, self.N-1):
+        for i in range(0, self.N-1):
             self._add_constraint(
                 f'dynamics{i}',
                 g = vec(self.fix_angle(
@@ -164,7 +164,7 @@ class CompiledLocalOpt:
             'dt',
             g = vec(self.dt),
             lbg = DM([0.0]*self.N),
-            ubg = DM([1.0]*self.N)
+            ubg = DM([0.5]*self.N)
         )
         self._add_constraint(
             'df_dot',
@@ -192,10 +192,10 @@ class CompiledLocalOpt:
             ubg = DM(0)
         )
         # Makes it so that the time to run is at minimum 2 (soft constraint, scalar included)
-        scalar = MX.sym("scalar")
+        self.scalar = MX.sym("scalar")
         self._add_constraint(
             'min_time',
-            g = sum1(self.dt) + scalar,
+            g = sum1(self.dt) + self.scalar,
             lbg = DM(2),
             ubg = DM(float('inf'))
         )
@@ -218,23 +218,15 @@ class CompiledLocalOpt:
         left = self.bound_pairs[:, :2].T
         right = self.bound_pairs[:, 2:4].T
         self.nc = 5 #* number of cones to consider (ahead of and behind the current cone, on each side)
+        considered = horzcat(left[:, 1:-1], right[:, 1:-1])
         for i in range(self.N):
-            if i<self.nc:
-                considered = horzcat(left[:, ((i-self.nc)%self.N):self.N], left[:, :i+self.nc],
-                                     right[:, ((i-self.nc)%self.N):self.N], right[:, :i+self.nc])
-            elif i+self.nc >=self.N:
-                considered = horzcat(left[:, i-self.nc:self.N], left[:, :((i+self.nc)%self.N)],
-                                     right[:, i-self.nc:self.N], right[:, :((i+self.nc)%self.N)])
-            else:
-                considered = horzcat(left[:, i-self.nc:i+self.nc],
-                                     right[:, i-self.nc:i+self.nc])
-
-            self._add_constraint(
-                f'cones{i}',
-                g=self.safe(self.rot(-self.psi[i])@((considered-self.z[i, :2].T) + vertcat(self.car_params['l_f']-self.car_params['l_r'], 0))).T, 
-                lbg=DM([1]*self.nc*4),
-                ubg=DM([inf]*self.nc*4)
-            )
+            pass
+            # self._add_constraint(
+            #     f'cones{i}',
+            #     g=self.safe(self.rot(-self.psi[i])@((considered-self.z[i, :2].T) + vertcat(self.car_params['l_f']-self.car_params['l_r'], 0))).T, 
+            #     lbg=DM([1.0]*(self.N-2)*2),
+            #     ubg=DM([inf]*(self.N-2)*2)
+            # )
 
 
         #* YAY we're done adding constraints. Now concatenate all the constraints into one big vector.
@@ -342,7 +334,11 @@ class CompiledLocalOpt:
         diffs = np.concatenate([diffs, [[1, 0]]], axis=0)
         d_angles = [self.angle(diffs[i-1], diffs[i]) for i in range(1, len(diffs))]
         angles = np.cumsum(d_angles)
-        
+
+        left = center
+        right = center
+
+        print(f"angles shape: {angles.shape}")
         self.x0 = vec(vertcat(
             DM([0.5]*self.N), # t
             DM(angles),       # psi
@@ -350,8 +346,10 @@ class CompiledLocalOpt:
             DM([0.0]*self.N), # a
             DM([0.0]*self.N),
             DM([0.5]*self.N), # dt
-            DM([0.0]*self.N*4)
+            DM([0.0]*self.N*4),
+            DM([0.0])         # scalar
         ))
+        # print(self.x0, self.x0.shape())
         self.solver.print_options()
         self.soln = self.solver(
             x0=self.x0,
@@ -359,9 +357,9 @@ class CompiledLocalOpt:
             ubg=self.ubg,
             p=vertcat(DM(curr_state), horzcat(DM(left), DM(right))),
         )
-        self.soln['x'] = np.array(reshape(self.soln['x'], (self.N, 10)))
+        self.soln['x'] = np.array(reshape(self.soln['x'][:-1], (self.N, 10)))
         self.soln['xy'] = (left.T*(1-self.soln['x'][:, 0])+right.T*self.soln['x'][:, 0]).T
-
+        # print(self.soln['x'][:, 5])
         res=dict()
         res['z'] = np.hstack([
             self.soln['xy'],
@@ -369,7 +367,7 @@ class CompiledLocalOpt:
         ])
         # print('silly:',res['z'].shape)
         res['u'] = self.soln['x'][:, 3:5]
-        res['t'] = np.concatenate([[0.], np.cumsum(self.soln['x'][:, 5])][:-1])
+        res['t'] = np.concatenate([[0.], np.cumsum(self.soln['x'][:, 5])[:-1]])
             
         ## if the solved solution doesn't fill all 2 seconds
         ### NAIVE (pad "straight" controls until 2 seconds are filled)

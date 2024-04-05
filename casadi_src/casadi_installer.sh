@@ -9,14 +9,14 @@
 # Author: Reid Dye
 # 
 
-if [ $arch == "aarch64" ]
+if [ `arch` == "aarch64" ]
 then
 	echo "M1 or M2 Mac detected! Switching installation script."
 	echo "WORHP will NOT be installed on your system, and CasADi will be aquired from pip."
         echo "Triangle not installed - build fails on M1/M2 macs. Not sure why. Triangle source build coming soon but not yet implemented."
-	curl -0fsSL "https://ocf.io/reiddye/casadi_installer_m1_m2_mac.sh";
+	curl -OfsSL "https://reid.xz.ax/feb/casadi_installer_m1_m2_mac.sh"
 	. casadi_installer_m1_m2_mac.sh;
-	exit
+	return
 fi
 
 # Function to add a command to ~/.bashrc if it doesn't already exist

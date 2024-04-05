@@ -29,5 +29,6 @@ venv/
 global_opt.c
 global_opt.so
 
+# simulator
 eufs_msgs/
 eufs_sim/

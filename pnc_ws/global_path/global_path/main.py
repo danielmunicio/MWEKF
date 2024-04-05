@@ -14,18 +14,18 @@ class GlobalPath(Node):
         super().__init__("global_path")
 
         #Publishers
-        self.pc_publisher = self.create_publisher(FebPath, '/path/global', 10)
-        self.cp_publisher = self.create_publisher(Bool, '/path/finished', 10)
+        self.pc_publisher = self.create_publisher(FebPath, '/path/global', 1)
+        self.cp_publisher = self.create_publisher(Bool, '/path/finished', 1)
         
         #Subscribers
-        self.pc_subscriber = self.create_subscription(Map, '/slam/matched/global', self.listener_cb, 10)
+        self.pc_subscriber = self.create_subscription(Map, '/slam/map/global', self.listener_cb, 1)
 
         self.g = CompiledGlobalOpt(**settings)
 
     def listener_cb(self, msg: Map):
         left, right = ConeOrdering(msg)
         res = self.g.solve(left, right)
-        states, _ = self.g.to_constant_tgrid(**res)
+        states, _ = self.g.to_constant_tgrid(0.2, **res)
         
         msg = FebPath()
         msg.x = states[:, 0].flatten().tolist()
@@ -41,9 +41,6 @@ class GlobalPath(Node):
 
         # we don't need this anymore and the expression graph isn't exactly small, so let's free stuff
         self.destroy_node()
-
-
-
 
 def main(args=None):
     rclpy.init(args=args)

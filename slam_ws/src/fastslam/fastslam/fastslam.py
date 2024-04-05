@@ -11,7 +11,7 @@ from std_msgs.msg import Float64, Header
 from sensor_msgs.msg import Imu
 from geometry_msgs.msg import Quaternion, Vector3
 
-from feb_msgs.msg import carstate, FebPath, Map, cones
+from feb_msgs.msg import State, FebPath, Map, cones
 
 from fastslam_utils import *
 
@@ -38,11 +38,37 @@ class FastSLAM(Node):
             1
         )
 
+        # This is only used to store the last map. Once path is finished the last map is processed 
+        # and this becomes a useless subscription
+        self.map_sub = self.create_subscription(
+            Map,
+            '/slam/map/global',
+            self.map_callback,
+            1
+        )
+
+        # This is only used to store the latest state. Once path is finished, this will be useless
+        #NOTE: Make sure we don't run into issues where we are processing our own topics
+        self.state_sub = self.create_subscription(
+            State,
+            '/slam/state',
+            self.state_callback,
+            1
+        )
+
+        self.finish_sub = self.create_subscription(
+            bool,
+            '/path/finished',
+            self.finish_callback,
+            1
+        )
+
+
         # PUBLISHERS
         
         # Publish the current vehicle's state: X, Y, Velo, Theta
         self.state_pub = self.create_publisher(
-            carstate,
+            State,
             '/slam/state',
             1
         )
@@ -51,11 +77,14 @@ class FastSLAM(Node):
 
         # SLAM Initializations
 
-        self.particles = [Particle(0, 0, 1 / N, 0) for _ in range(N)]
+        # self.particles = [Particle(0, 0, 1 / N, 0) for _ in range(N)]
         # used to calculate the state of the vehicle
         self.statetimestamp = 0.0
-        self.currentstate = carstate()
+        self.currentstate = State()
         self.state_seq = 0
+        self.map_finished = False
+        self.last_map = None
+        self.fastslam = None
 
     # Callback for IMU
     # Needs all the other functions used in the graphslam imu processing
@@ -121,23 +150,23 @@ class FastSLAM(Node):
         linear_velocity = longitudinal_acc * dt
         return linear_velocity
 
-    # """
-    # Function that updates the State.msg variables after a new state has been produced
-    # Inputs: 
-    # - dx: change in position [delta_x, delta_y]
-    # - yaw: new heading (theta)
-    # - velocity
-    # Outputs: None
-    # """
-    # def update_state(self, dx: np.array, yaw: float, velocity: float) -> None:
-    #     self.currentstate.carstate[0] += dx[0]
-    #     self.currentstate.carstate[1] += dx[1]
-    #     self.currentstate.carstate[2] = velocity
-    #     self.currentstate.carstate[3] = yaw
-    #     self.state_seq_seq += 1
-    #     self.currentstate.header.seq = self.seq
-    #     self.currentstate.header.stamp = self.get_clock().now().to_msg()
-    #     self.currentstate.header.frame_id = "rslidar"
+    """
+    Function that updates the State.msg variables after a new state has been produced
+    Inputs: 
+    - dx: change in position [delta_x, delta_y]
+    - yaw: new heading (theta)
+    - velocity
+    Outputs: None
+    """
+    def update_state(self, loc: tuple, yaw: float, velocity: float) -> None:
+        self.currentstate.carstate[0] = loc[0]
+        self.currentstate.carstate[1] = loc[1]
+        self.currentstate.carstate[2] = velocity
+        self.currentstate.carstate[3] = yaw
+        self.state_seq_seq += 1
+        self.currentstate.header.seq = self.seq
+        self.currentstate.header.stamp = self.get_clock().now().to_msg()
+        self.currentstate.header.frame_id = "rslidar"
 
 
     """
@@ -152,26 +181,72 @@ class FastSLAM(Node):
     """
 
     def imu_callback(self, imu: Imu) -> None:
-        # process time
-        dt = self.compute_timediff(imu.header)
-        # generate current heading
-        roll, pitch, yaw = self.quat_to_euler(imu.orientation)
-        self.currentstate.heading = yaw
-        # generate current velocity
-        velocity = self.compute_velocity(imu.linear_acceleration, dt)
-        # for now, we assume velocity is in the direction of heading
+        if self.map_finished and self.fastslam is not None:
+            # process time
+            dt = self.compute_timediff(imu.header)
+            # generate current heading
+            roll, pitch, yaw = self.quat_to_euler(imu.orientation)
+            # generate current velocity
+            velocity = self.compute_velocity(imu.linear_acceleration, dt)
+            # for now, we assume velocity is in the direction of heading
 
-        self.currentstate.velocity = velocity
+            # generate dx [change in x, change in y] to add new pose to graph
+            dx = velocity * dt * np.array([math.cos(yaw), math.sin(yaw)])
+            dtheta = yaw - self.currentstate.carstate[3]
 
-        # generate dx [change in x, change in y] to add new pose to graph
-        dx = velocity * dt * np.array([math.cos(yaw), math.sin(yaw)])
 
-        # THIS IS WHERE FASTSLAM WILL BE CALLED USING THE PARTICLES
+            # THIS IS WHERE FASTSLAM WILL BE CALLED USING THE PARTICLES
+            dposition = (dx[0], dx[1], dtheta)
+            particles = self.fastslam.predict_poses(dposition)
+            best_particle = self.fastslam.get_heightest_wegit(particles)
 
-        self.state_pub.publish(self.currentstate)
+            # update state msg
+            self.update_state((best_particle.x, best_particle.y), best_particle.theta, velocity)
+
+            self.state_pub.publish(self.currentstate)
 
     # Cone Callback will only be used to update weights
     # Only IMU Callback will return a new state
     # Without the Cone data, there will be no changing of 
     # weights because there is nothing to compare particles to
+    def cones_callback(self, cones: cones) -> None:
+        if self.map_finished and self.fastslam is not None:
+            z = cones.cones
+            # We update the weights of the particles based on the cone data
+            # remains to be seen how we need to process these depending on the perception data
+            self.fastslam.update_weights(z)
 
+    # Callback for Map
+    def map_callback(self, map: Map) -> None:
+        if not self.map_finished:
+            self.last_map = map
+        
+    # Callback for State
+    def state_callback(self, state: State) -> None:
+        if not self.map_finished:
+            self.currentstate = state
+
+    # Signal that map is completed
+    # This should initialize fastslam because graphslam is completed
+    def finish_callback(self, finished: bool) -> None:
+        if not self.map_finished:
+            self.map_finished = finished
+            # Above 2 lines check if the map is just being completed
+            # If so, we initialize SLAM
+            if self.map_finished:
+                # Process carstate into tuple (x, y, theta)
+                x = self.currentstate.carstate[0]
+                y = self.currentstate.carstate[1]
+                theta = self.currentstate.carstate[3]
+                # Initialize FastSLAM
+                self.fastslam = FastSLAM(self.last_map, (x, y, theta))
+
+# For running node
+def main(args=None):
+    rclpy.init(args=args)
+    fastslam_node = FastSLAM(Node)
+    rclpy.spin(fastslam_node)
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()

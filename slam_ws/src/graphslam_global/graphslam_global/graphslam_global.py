@@ -4,7 +4,7 @@ from numpy.linalg import *
 # import csv
 # import track_generator_leonid.track_main as trackmain
 # import track_generator_leonid.settings as settings
-import graphslam_colorsolve as slamLib
+from .graphslam_colorsolve import GraphSLAM
 from time import perf_counter
 import math
 # from numpy.random import random, randn
@@ -15,7 +15,7 @@ from std_msgs.msg import Float64, Header
 from sensor_msgs.msg import Imu
 from geometry_msgs.msg import Quaternion, Vector3
 
-from feb_msgs.msg import carstate, FebPath, Map, cones
+from feb_msgs.msg import State, FebPath, Map
 
 class GraphSLAM_Global(Node):
     def __init__(self):
@@ -29,14 +29,14 @@ class GraphSLAM_Global(Node):
         # Handle IMU messages for vehicle state
         self.imu_sub = self.create_subscription(
             Imu,
-            '/odometry/Imu',
+            '/odometry/imu',
             self.imu_callback,
             1
         )
 
         # Handle new cone readings from perception
         self.cones_sub = self.create_subscription(
-            cones,
+            Map, #TODO: FIX THIS!!!! it's not map, it's some cones thing with colors.
             '/perception/cones', # To be changed
             self.cones_callback,
             1
@@ -46,7 +46,7 @@ class GraphSLAM_Global(Node):
         
         # Publish the current vehicle's state: X, Y, Velo, Theta
         self.state_pub = self.create_publisher(
-            carstate,
+            State,
             '/slam/state',
             1
         )
@@ -62,15 +62,16 @@ class GraphSLAM_Global(Node):
 
         # Initializes a new instance of graphslam from the graphslam
         # Data Association Threshold is to be tweaked
-        self.slam = slamLib.GraphSLAM(solver_type='qp', landmarkTolerance=4)
+        self.slam = GraphSLAM(solver_type='qp', landmarkTolerance=4)
         
         # used to calculate the state of the vehicle
         self.statetimestamp = 0.0
-        self.currentstate = carstate()
+        self.currentstate = State()
         self.state_seq = 0
         self.cone_seq = 0
-    
-    
+
+        # for handling new messages during the solve step
+        self.solving = False
 
     """
     Function that takes in message header and computes difference in time from last state msg
@@ -99,7 +100,6 @@ class GraphSLAM_Global(Node):
     Output: roll, pitch, yaw
     #NOTE: roll and pitch are irrelevant as of now, we only care about heading angle (pitch)
     """
-
     def quat_to_euler(self, quat: Quaternion) -> tuple[float, float, float]:
         x = quat.x
         y = quat.y
@@ -150,7 +150,6 @@ class GraphSLAM_Global(Node):
         self.currentstate.header.stamp = self.get_clock().now().to_msg()
         self.currentstate.header.frame_id = "rslidar"
 
-
     """
     Function that takes in IMU messages and processes GraphSLAM based upon 
     Input: imu (Imu_msg)
@@ -167,7 +166,6 @@ class GraphSLAM_Global(Node):
         dt = self.compute_timediff(imu.header)
         # generate current heading
         roll, pitch, yaw = self.quat_to_euler(imu.orientation)
-        self.currentstate.heading = yaw
         # generate current velocity
         velocity = self.compute_velocity(imu.linear_acceleration, dt)
         # for now, we assume velocity is in the direction of heading
@@ -178,25 +176,37 @@ class GraphSLAM_Global(Node):
         dx = velocity * dt * np.array([math.cos(yaw), math.sin(yaw)])
 
         # add new position node to graph
-        self.slam.update_position(dx)
+        #self.slam.update_position(dx)
+        self.slam.update_backlog_imu(dx)
 
         # update state msg
         self.update_state(dx, yaw, velocity)
 
         self.state_pub.publish(self.currentstate)
 
-
-
     """
     Function that takes the list of cones, updates and solves the graph
     
     """
-    def cones_callback(self, cones: cones) -> None:
+    def cones_callback(self, cones: Map) -> None: # TODO: FIX THIS!!! shouldn't be "map" type. connect properly to sims!!!
         # Dummy function for now, need to update graph and solve graph on each timestep
         
         #input cone list & dummy dx since we are already doing that in update_graph with imu data
-        self.slam.update_graph_color([],cones, False)
-        x_guess, lm_guess = self.slam.solve_graph()
+        
+        #process all new cone messages separately while one thread is solving slam
+        cone_matrix = np.hstack(cones.r, cones.theta, cones.color)
+        self.slam.update_backlog_perception(cone_matrix)
+
+        if(self.solving):
+            return
+
+        #self.slam.update_graph_color([], latest, False) # old pre-ros threading
+        
+        #self.slam.update_graph_color(perception_backlog_imu, perception_backlog_cones)
+        #self.perception_backlog_cones = []
+        #self.perception_backlog_imu = []
+        self.slam.update_graph_block()
+        x_guess, lm_guess = self.solveGraphSlam()
 
         left_cones = lm_guess[lm_guess[:,2] == 2][:,:2] # blue
         right_cones = lm_guess[lm_guess[:,2] == 1][:,:2] # yellow
@@ -217,10 +227,21 @@ class GraphSLAM_Global(Node):
 
         self.map_pub.publish(self.map)
 
+    def solveGraphSlam(self):
+        self.solving = True 
+        x_guess, lm_guess = self.slam.solve_graph()
+        self.solving = False
+        return x_guess, lm_guess
+
+    def update_recent_cones(self, imu_state, cone_input):
+        
+        self.perception_backlog_cones += [cone_matrix]
+        self.perception_backlog_imu += [[imu_state[0], imu_state[1]]]
+
 # For running node
 def main(args=None):
     rclpy.init(args=args)
-    graphslam_global_node = GraphSLAM_Global(Node)
+    graphslam_global_node = GraphSLAM_Global()
     rclpy.spin(graphslam_global_node)
     rclpy.shutdown()
 

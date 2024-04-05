@@ -8,6 +8,7 @@ from .controller import Controller
 from .utils import discrete_dynamics
 from .utils import get_update_dict
 
+
 # ROS Imports
 import rclpy
 from rclpy.node import Node
@@ -441,6 +442,9 @@ class KinMPCPathFollower(Controller, Node):
     ### END - MPC Main Functions (Setting Up and Solving MPC Optimization Problem) ###
         
 # ---------------------------------------------------------------------------------------------- #
+
+
+
 
 ### START - RUNNING MPC NODE ###
         

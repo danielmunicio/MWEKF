@@ -28,6 +28,9 @@ def cone_ordering_algorithm(left, right, N, state):
     pts = Voronoi(np.hstack([left, right]).T).vertices
     pos = np.array(state[:2])
     print(np.linalg.norm(np.array(pts)-np.array(pos), axis=1))
+
+    # DOESNT TAKE ANGLE INTO ACCOUNT
+    # MIGHT GO BACKWARDS IF SLAM IS SKILL ISSUING
     start = np.argmin(np.linalg.norm(np.array(pts)-np.array(pos), axis=1))
 
     pts[start], pts[0] = np.copy(pts[0]), np.copy(pts[start])
@@ -36,7 +39,7 @@ def cone_ordering_algorithm(left, right, N, state):
     print(pts)
     pts = interp(pts)(np.linspace(0.0, 1.0, N, endpoint=False))
 
-    return pts
+    return pts, np.copy(pts)
 
 
 def interp(points):

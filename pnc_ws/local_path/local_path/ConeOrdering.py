@@ -1,8 +1,10 @@
 from .local_opt_settings import LocalOptSettings
 import numpy as np
 from feb_msgs.msg import Map
+import scipy as sp
+from scipy.spatial import Voronoi
 
-def ConeOrdering(msg: Map):
+def ConeOrdering(msg: Map, state: list[float]):
     """get cones from message and call the cone ordering algorithm and return the results
 
     Args:
@@ -16,18 +18,26 @@ def ConeOrdering(msg: Map):
         np.array([list(msg.left_cones_x), list(msg.left_cones_y)]),
         np.array([list(msg.right_cones_x), list(msg.right_cones_y)]),
     )
-    left, right = cone_ordering_algorithm(left, right, N)
+    left, right = cone_ordering_algorithm(left, right, N, state)
     return left, right
-
-def cone_ordering_algorithm(left, right, N):
+#%%
+def cone_ordering_algorithm(left, right, N, state):
     """even more dummy placeholder algorithm
     """
-    order(left)
-    order(right)
-    l = interp(left)(np.linspace(0.0, 1.0, N, endpoint=False))
-    r = interp(right)(np.linspace(0.0, 1.0, N, endpoint=False))
+    
+    pts = Voronoi(np.hstack([left, right]).T).vertices
+    pos = np.array(state[:2])
+    print(np.linalg.norm(np.array(pts)-np.array(pos), axis=1))
+    start = np.argmin(np.linalg.norm(np.array(pts)-np.array(pos), axis=1))
 
-    return l, r
+    pts[start], pts[0] = np.copy(pts[0]), np.copy(pts[start])
+    print(pts.shape)
+    pts = order(pts)
+    print(pts)
+    pts = interp(pts)(np.linspace(0.0, 1.0, N, endpoint=False))
+
+    return pts
+
 
 def interp(points):
 
@@ -51,6 +61,15 @@ def order(cones):
     Args:
         cones (ndarray): array of shape (n, 2) with cone points. will be modified in-place. first cone must be correct.
     """
+    MAX_PATH_LENGTH=15 # meters
+    MAX_CONE_SEPARATION_DISTANCE=2.5 # meters
+    totaldist = 0.0
     for i in range(len(cones)-2):
-        mindex = np.argmin(np.linalg.norm(cones[i+1:]-cones[i], axis=1))+i+1
+        mindex = np.argmin(dists:=np.linalg.norm(cones[i+1:]-cones[i], axis=1))+i+1
+        totaldist += dists[mindex-i-1]
+        if (dists[mindex-1-i] > MAX_CONE_SEPARATION_DISTANCE) or (totaldist > MAX_PATH_LENGTH):
+            return cones[:i+1]
         cones[i+1], cones[mindex] = np.copy(cones[mindex]), np.copy(cones[i+1])
+    return cones
+cone_ordering_algorithm(np.array([[1,2,3,4,5,6,7,8,9,10], [0,0,0,0,0,0,0,0,0,0]]), np.array([[1,2,3,4,5,6,7,8,9,10], [3,3,3,3,3,3,3,3,3,3]]), 5, [3, 1.5, 0, 0])
+# %%

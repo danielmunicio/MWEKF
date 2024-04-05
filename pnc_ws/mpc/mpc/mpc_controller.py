@@ -57,15 +57,17 @@ class KinMPCPathFollower(Controller, Node):
         self.solver = 'ipopt'
         self.opti = casadi.Opti()
 
+        self.global_path = None
+        self.local_path = None
+
         ### START - ROS Integration Code ###
         super().__init__('mpc_node')
 
         # Subscribers
         self.curr_steer_sub = self.create_subscription(Float64, '/odometry/steer', self.steer_callback, 1)
         self.curr_acc_sub = self.create_subscription(Float64, '/odometry/wss', self.acc_callback, 1) 
-        self.global_path_sub = self.create_subscription(FebPath, 'path/global', self.global_path_callback, 1)
-        self.local_path_sub = self.create_subscription(FebPath, 'path/local', self.local_path_callback, 1)
-        self.path = self.global_path if self.global_path is not None else self.local_path
+        self.global_path_sub = self.create_subscription(FebPath, '/path/global', self.global_path_callback, 1)
+        self.local_path_sub = self.create_subscription(FebPath, '/path/local', self.local_path_callback, 1)
         self.state_sub = self.create_subscription(State, '/slam/state', self.state_callback, 1)
         
         # Publishers
@@ -184,8 +186,8 @@ class KinMPCPathFollower(Controller, Node):
         v = np.array(msg.v)
         psi = np.array(msg.psi)
         path = np.column_stack((x, y, v, psi))
-        self.local_path = path
-        self.global_path = None
+        self.global_path = path
+        self.path = self.global_path if self.global_path is not None else self.local_path
     
     def local_path_callback(self, msg: FebPath):
         '''
@@ -201,6 +203,7 @@ class KinMPCPathFollower(Controller, Node):
         path = np.column_stack((x, y, v, psi))
         self.local_path = None
         self.global_path = path
+        self.path = self.global_path if self.global_path is not None else self.local_path
 
     def state_callback(self, msg: State):
         '''

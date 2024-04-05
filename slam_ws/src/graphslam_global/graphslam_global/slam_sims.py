@@ -4,7 +4,7 @@ from numpy.linalg import *
 # import csv
 # import track_generator_leonid.track_main as trackmain
 # import track_generator_leonid.settings as settings
-import graphslam_colorsolve as slamLib
+# import graphslam_colorsolve as slamLib
 from time import perf_counter
 import math
 # from numpy.random import random, randn

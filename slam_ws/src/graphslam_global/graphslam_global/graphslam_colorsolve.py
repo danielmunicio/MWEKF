@@ -1,6 +1,6 @@
 #%%
 from casadi import *
-from track import get_test_track, offset_path
+from .track import get_test_track, offset_path
 import numpy as np
 from numpy.linalg import *
 from numpy.random import random

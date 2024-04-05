@@ -72,8 +72,6 @@ class GraphSLAM_Global(Node):
 
         # for handling new messages during the solve step
         self.solving = False
-    
-    
 
     """
     Function that takes in message header and computes difference in time from last state msg
@@ -102,7 +100,6 @@ class GraphSLAM_Global(Node):
     Output: roll, pitch, yaw
     #NOTE: roll and pitch are irrelevant as of now, we only care about heading angle (pitch)
     """
-
     def quat_to_euler(self, quat: Quaternion) -> tuple[float, float, float]:
         x = quat.x
         y = quat.y
@@ -153,7 +150,6 @@ class GraphSLAM_Global(Node):
         self.currentstate.header.stamp = self.get_clock().now().to_msg()
         self.currentstate.header.frame_id = "rslidar"
 
-
     """
     Function that takes in IMU messages and processes GraphSLAM based upon 
     Input: imu (Imu_msg)
@@ -187,8 +183,6 @@ class GraphSLAM_Global(Node):
         self.update_state(dx, yaw, velocity)
 
         self.state_pub.publish(self.currentstate)
-
-
 
     """
     Function that takes the list of cones, updates and solves the graph
@@ -233,7 +227,6 @@ class GraphSLAM_Global(Node):
 
         self.map_pub.publish(self.map)
 
-    
     def solveGraphSlam(self):
         self.solving = True 
         x_guess, lm_guess = self.slam.solve_graph()
@@ -244,8 +237,6 @@ class GraphSLAM_Global(Node):
         
         self.perception_backlog_cones += [cone_matrix]
         self.perception_backlog_imu += [[imu_state[0], imu_state[1]]]
-
-    
 
 # For running node
 def main(args=None):

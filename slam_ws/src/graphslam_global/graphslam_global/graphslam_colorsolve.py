@@ -182,7 +182,7 @@ class GraphSLAM:
             #self.lm_edges.append((self.x[-1] + DM(i[:2]) - self.lm[idx][:2])) # x + z_i = lm_i
 
 
-    def update_graph_color(self, dx, z, update_pos): #update_graph but w color - rohan
+    def update_graph_color(self, z): #update_graph but w color - rohan
         """updates graph given odo and lm measurements
 
         Args:
@@ -190,19 +190,6 @@ class GraphSLAM:
             z (ndarray): vector of shape (m, 3*) describing locations of m landmarks relative to the car #* updated 2 to 3 to incorporate color - Rohan
             update_pos (boolean): whether to update position in this method (used to ignore dx for ros integration)
         """ 
-        if(update_pos):
-            # guess current position
-            # by adding dx to previous position guess
-            self.xhat.append(self.xhat[-1] + dx)
-            # add 0 for comparison with landmarks with extra color attribute 
-            #z[:, 2] = np.round(z[:, 2]) #sometimes color id is ~2.000000001 ??
-            # add pose node (add symbolic position variable to list)
-            self.x.append(MX.sym(f'x{len(self.x)}', 2)) 
-            # add corresponding pose edge.
-            # equation is x[-2] + odo_measurement = x[-1]
-            # so we rearrange into a minimization problem
-            # x[-2] + odo_measurement - x[-1] = 0
-            self.x_edges.append((self.x[-2] + DM(dx) - self.x[-1]))
         #zcoords = z[:,:2]
         curpos = self.xhat[-1] # useful later for succinctness
         curpos_color = np.append(curpos, [0])

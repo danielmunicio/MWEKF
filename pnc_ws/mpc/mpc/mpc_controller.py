@@ -202,8 +202,7 @@ class KinMPCPathFollower(Controller, Node):
         v = np.array(msg.v)
         psi = np.array(msg.psi)
         path = np.column_stack((x, y, v, psi))
-        self.local_path = None
-        self.global_path = path
+        self.local_path = path
         self.path = self.global_path if self.global_path is not None else self.local_path
 
     def state_callback(self, msg: State):

@@ -28,3 +28,6 @@ venv/
 
 global_opt.c
 global_opt.so
+
+eufs_msgs/
+eufs_sim/

@@ -4,7 +4,7 @@ from numpy.linalg import *
 # import csv
 # import track_generator_leonid.track_main as trackmain
 # import track_generator_leonid.settings as settings
-import graphslam_colorsolve as slamLib
+from .graphslam_colorsolve import GraphSLAM
 from time import perf_counter
 import math
 # from numpy.random import random, randn
@@ -15,7 +15,7 @@ from std_msgs.msg import Float64, Header
 from sensor_msgs.msg import Imu
 from geometry_msgs.msg import Quaternion, Vector3
 
-from feb_msgs.msg import State, FebPath, Map, cones
+from feb_msgs.msg import State, FebPath, Map
 
 class GraphSLAM_Global(Node):
     def __init__(self):
@@ -36,7 +36,7 @@ class GraphSLAM_Global(Node):
 
         # Handle new cone readings from perception
         self.cones_sub = self.create_subscription(
-            cones,
+            Map, #TODO: FIX THIS!!!! it's not map, it's some cones thing with colors.
             '/perception/cones', # To be changed
             self.cones_callback,
             1
@@ -62,7 +62,7 @@ class GraphSLAM_Global(Node):
 
         # Initializes a new instance of graphslam from the graphslam
         # Data Association Threshold is to be tweaked
-        self.slam = slamLib.GraphSLAM(solver_type='qp', landmarkTolerance=4)
+        self.slam = GraphSLAM(solver_type='qp', landmarkTolerance=4)
         
         # used to calculate the state of the vehicle
         self.statetimestamp = 0.0
@@ -188,7 +188,7 @@ class GraphSLAM_Global(Node):
     Function that takes the list of cones, updates and solves the graph
     
     """
-    def cones_callback(self, cones: cones) -> None:
+    def cones_callback(self, cones: Map) -> None: # TODO: FIX THIS!!! shouldn't be "map" type. connect properly to sims!!!
         # Dummy function for now, need to update graph and solve graph on each timestep
         
         #input cone list & dummy dx since we are already doing that in update_graph with imu data
@@ -241,7 +241,7 @@ class GraphSLAM_Global(Node):
 # For running node
 def main(args=None):
     rclpy.init(args=args)
-    graphslam_global_node = GraphSLAM_Global(Node)
+    graphslam_global_node = GraphSLAM_Global()
     rclpy.spin(graphslam_global_node)
     rclpy.shutdown()
 

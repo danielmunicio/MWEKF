@@ -16,7 +16,7 @@ from std_msgs.msg import Float64, Header
 from sensor_msgs.msg import Imu
 from geometry_msgs.msg import Quaternion, Vector3
 
-from feb_msgs.msg import State, FebPath, Map #, Cones -- Cones.msg format unspecified atm - (code uses Cones.r, Cones.theta, Cones.color, which can be adjusted)
+from feb_msgs.msg import State, FebPath, Map, Cones #, Cones -- Cones.msg format unspecified atm - (code uses Cones.r, Cones.theta, Cones.color, which can be adjusted)
 
 class GraphSLAM_Global(Node):
     def __init__(self):
@@ -204,7 +204,8 @@ class GraphSLAM_Global(Node):
     Function that takes the list of cones, updates and solves the graph
     
     """
-    def cones_callback(self, cones: Map) -> None:
+    def cones_callback(self, cones: Cones) -> None:
+        # TODO: fix cones data processing to match Cones datatype
         combined = [list(cones.left_cones_x)+list(cones.right_cones_x), list(cones.left_cones_y)+list(cones.right_cones_y)]
         color = [0]*len(list(cones.left_cones_x)) + [1]*len(list(cones.right_cones_x))
         polar = [np.linalg.norm(np.array(combined), axis=0),
@@ -251,7 +252,7 @@ class GraphSLAM_Global(Node):
 
         self.global_map_pub.publish(self.global_map)
 
-        local_left, local_right = localCones(self.radius, left_cones, right_cones)
+        local_left, local_right = self.localCones(self.radius, left_cones, right_cones)
 
         #update map message with new map data 
         self.local_map.left_cones_x = local_left[:,0] 

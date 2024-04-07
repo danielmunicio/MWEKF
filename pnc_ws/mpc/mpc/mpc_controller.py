@@ -7,6 +7,8 @@ import numpy as np
 from .controller import Controller
 from .utils import discrete_dynamics
 from .utils import get_update_dict
+from ackermann_msgs.msg import AckermannDriveStamped
+from .mpc_publisher_node import MPCPublisherNode
 
 
 # ROS Imports
@@ -229,6 +231,7 @@ class KinMPCPathFollower(Controller, Node):
         steer_msg = Float64()
         throttle_msg.data = self.prev_soln['u_control'][0]
         steer_msg.data = self.prev_soln['u_control'][1]
+
         self.throttle_pub.publish(throttle_msg)
         self.steer_pub.publish(steer_msg)
 
@@ -453,7 +456,11 @@ class KinMPCPathFollower(Controller, Node):
 def main(args=None):
     rclpy.init(args=args)
     mpc_node = KinMPCPathFollower()
+    simulatorNode = MPCPublisherNode()
+    
+    
     rclpy.spin(mpc_node)
+    rclpy.spin()
     rclpy.shutdown()
 
 ### END - RUNNING MPC NODE ###

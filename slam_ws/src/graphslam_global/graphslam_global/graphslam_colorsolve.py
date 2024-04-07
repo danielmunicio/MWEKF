@@ -134,9 +134,9 @@ class GraphSLAM:
         Args:
             dx (ndarray): vector of shape (2, 1) describing the estimated change in car location since the previous update 
             z (ndarray): vector of shape (m, 3*) describing locations of m landmarks relative to the car #* updated 2 to 3 to incorporate color - Rohan
-            update_pos (boolean): whether to update position in this method (used to ignore dx for ros integration)
+            update_pos (boolean): whether to  position in this method (used to ignore dx for ros integration)
         """ 
-        for i in range(len(self.state_backlog)):
+        for i in range(len(self.state_backloupdateg)):
             self.x.append(MX.sym(f'x{len(self.x)}', 2))
             self.x_edges.append((self.x[-2]+DM(dx)-self.x[-1]))
 

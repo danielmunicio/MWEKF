@@ -7,6 +7,7 @@ from numpy.linalg import *
 from .graphslam_colorsolve import GraphSLAM
 from time import perf_counter
 import math
+from collections import namedtuple
 # from numpy.random import random, randn
 
 import rclpy
@@ -203,13 +204,21 @@ class GraphSLAM_Global(Node):
     Function that takes the list of cones, updates and solves the graph
     
     """
-    def cones_callback(self, cones: cones) -> None: # abt todo: we have had cones as a placeholder message structure yet to be defined (cones.r, cones.theta, cones.color) for now
+    def cones_callback(self, cones: Map) -> None:
+        combined = [list(cones.left_cones_x)+list(cones.right_cones_x), list(cones.left_cones_y)+list(cones.right_cones_y)]
+        color = [0]*len(list(cones.left_cones_x)) + [1]*len(list(cones.right_cones_x))
+        polar = [np.linalg.norm(np.array(combined), axis=0),
+                 np.arctan2(*combined[::-1]), # [::-1] puts them in order (y, x) for arctan2
+                 np.array(color)]
+        
+        cones = namedtuple('cones', ['r', 'theta', 'color'])(*polar)
+
         # Dummy function for now, need to update graph and solve graph on each timestep
         
         #input cone list & dummy dx since we are already doing that in update_graph with imu data
         
         #process all new cone messages separately while one thread is solving slam
-        cone_matrix = np.hstack(Cones.r, Cones.theta, Cones.color)
+        cone_matrix = np.hstack(cones.r, cones.theta, cones.color)
         self.slam.update_backlog_perception(cone_matrix)
 
         if(self.solving):

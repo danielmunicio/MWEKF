@@ -25,7 +25,7 @@ class FastSLAM(Node):
         # Handle IMU messages for vehicle state
         self.imu_sub = self.create_subscription(
             Imu,
-            '/odometry/Imu',
+            '/imu',
             self.imu_callback,
             1
         )
@@ -183,7 +183,7 @@ class FastSLAM(Node):
     def imu_callback(self, imu: Imu) -> None:
         if self.map_finished and self.fastslam is not None:
             # process time
-            dt = self.compute_timediff(imu.header)
+            dt = self.compute_timediff(imu.header.stamp)
             # generate current heading
             roll, pitch, yaw = self.quat_to_euler(imu.orientation)
             # generate current velocity

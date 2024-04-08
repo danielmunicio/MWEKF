@@ -83,8 +83,9 @@ class FastSLAM(Node):
         self.currentstate = State()
         self.state_seq = 0
         self.map_finished = False
-        self.last_map = None
+        self.last_map = Map()
         self.fastslam = None
+        self.usefastslam = True
 
     # Callback for IMU
     # Needs all the other functions used in the graphslam imu processing
@@ -180,14 +181,14 @@ class FastSLAM(Node):
     - float64[9] linear_acceleration_covariance
     """
 
-    def imu_callback(self, imu: Imu) -> None:
+    def imu_callback(self, msg: Imu) -> None:
         if self.map_finished and self.fastslam is not None:
             # process time
-            dt = self.compute_timediff(imu.header)
+            dt = self.compute_timediff(msg.header)
             # generate current heading
-            roll, pitch, yaw = self.quat_to_euler(imu.orientation)
+            roll, pitch, yaw = self.quat_to_euler(msg.orientation)
             # generate current velocity
-            velocity = self.compute_velocity(imu.linear_acceleration, dt)
+            velocity = self.compute_velocity(msg.linear_acceleration, dt)
             # for now, we assume velocity is in the direction of heading
 
             # generate dx [change in x, change in y] to add new pose to graph
@@ -209,37 +210,44 @@ class FastSLAM(Node):
     # Only IMU Callback will return a new state
     # Without the Cone data, there will be no changing of 
     # weights because there is nothing to compare particles to
-    def cones_callback(self, cones: Cones) -> None:
+    def cones_callback(self, msg: Cones) -> None:
         if self.map_finished and self.fastslam is not None:
-            z = cones.cones
+            z = msg.cones
             # We update the weights of the particles based on the cone data
             # remains to be seen how we need to process these depending on the perception data
             self.fastslam.update_weights(z)
 
     # Callback for Map
-    def map_callback(self, map: Map) -> None:
+    def map_callback(self, msg: Map) -> None:
         if not self.map_finished:
-            self.last_map = map
+            self.last_map = msg
         
     # Callback for State
-    def state_callback(self, state: State) -> None:
+    def state_callback(self, msg: State) -> None:
         if not self.map_finished:
-            self.currentstate = state
+            self.currentstate = msg
 
     # Signal that map is completed
     # This should initialize fastslam because graphslam is completed
-    def finish_callback(self, finished: bool) -> None:
-        if not self.map_finished:
-            self.map_finished = finished
+    def finish_callback(self, msg: Bool) -> None:
+        if not self.usefastslam:
+            return
+        if not self.map_finished and msg.data:
+            self.map_finished = msg.data
             # Above 2 lines check if the map is just being completed
             # If so, we initialize SLAM
-            if self.map_finished:
-                # Process carstate into tuple (x, y, theta)
-                x = self.currentstate.carstate[0]
-                y = self.currentstate.carstate[1]
-                theta = self.currentstate.carstate[3]
-                # Initialize FastSLAM
-                self.fastslam = FastSLAM(self.last_map, (x, y, theta))
+            # Process carstate into tuple (x, y, theta)
+            x = self.currentstate.carstate[0]
+            y = self.currentstate.carstate[1]
+            theta = self.currentstate.carstate[3]
+            # Initialize FastSLAM
+            # process map correctly
+            #NOTE: For cone color, orange cones are color 0, yellow cones are color 1, and blue cones are color 2
+            yellow_cones = [self.last_map.right_cones_x, self.last_map.right_cones_y, [1]*len(self.last_map.right_cones_x)]
+            blue_cones = [self.last_map.left_cones_x, self.last_map.left_cones_y, [2]*len(self.last_map.left_cones_x)]
+            map_of_cones = np.append(yellow_cones, blue_cones, axis=1)
+
+            self.fastslam = FastSLAM(map_of_cones, (x, y, theta))
 
 # For running node
 def main(args=None):

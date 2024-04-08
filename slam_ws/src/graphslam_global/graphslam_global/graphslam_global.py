@@ -15,27 +15,19 @@ from std_msgs.msg import Float64, Header
 from sensor_msgs.msg import Imu
 from geometry_msgs.msg import Quaternion, Vector3
 
-#import sys
-#import os 
-#print(sys.path)
+# import sys
+# import os 
+# print(sys.path)
 
-#current_dir = os.getcwd() #feb_system_integration/slam_ws/src/graphslam_global/graphslam_global
-#root_dir = os.path.dirname( #feb_system_integration
-#    os.path.dirname( #feb_system_integration/slam_ws/
-#        os.path.dirname( #install
-#            os.path.dirname( #graphs;am_global
-#                os.path.dirname( #lib
-#                    os.path.dirname( #python3.10
-#                        os.path.dirname( # site-packages
-#                                current_dir #graphslam_global
-#                        )
-#                    )
-#                )
-#            )
-#        ))) 
-#msg_path = 'comm_ws/src/feb_msgs/msg'
-#abs_msg_path = os.path.join(current_dir, msg_path)
-#print(abs_msg_path)
+# current_dir = os.getcwd() #feb_system_integration/slam_ws/src/graphslam_global/graphslam_global
+# root_dir = os.path.dirname( #feb_system_integration
+#     os.path.dirname( #feb_system_integration/slam_ws/
+#         os.path.dirname( #feb_system_integration/slam_ws/src
+#             os.path.dirname(current_dir)))) #feb_system_integration/slam_ws/src/graphslam_global
+
+# msg_path = 'comm_ws/src/feb_msgs/msg'
+# abs_msg_path = os.path.join(current_dir, msg_path)
+# print(abs_msg_path)
 #sys.path.append(abs_msg_path)
 
 
@@ -50,7 +42,7 @@ from geometry_msgs.msg import Quaternion, Vector3
 #import State.msg, FebPath, Map, Cones
 
 from feb_msgs.msg import State, FebPath, Map, Cones
-from eufs_msgs.msg import ConeArrayWithCovariance, ConeWithCovariance
+# from eufs_msgs.msg import ConeArrayWithCovariance, ConeWithCovariance
 
 class GraphSLAM_Global(Node):
     def __init__(self):
@@ -71,7 +63,7 @@ class GraphSLAM_Global(Node):
 
         # Handle new cone readings from perception
         self.cones_sub = self.create_subscription(
-            ConeArrayWithCovariance,
+            Cones,
             '/ground_truth/cones', 
             self.cones_callback,
             1
@@ -258,21 +250,22 @@ class GraphSLAM_Global(Node):
     Function that takes the list of cones, updates and solves the graph
     
     """
-    def cones_callback(self, cones: ConeArrayWithCovariance) -> None: # abt todo: we have had cones as a placeholder message structure yet to be defined (cones.r, cones.theta, cones.color) for now
+    def cones_callback(self, cones: Cones) -> None: # abt todo: we have had cones as a placeholder message structure yet to be defined (cones.r, cones.theta, cones.color) for now
         # Dummy function for now, need to update graph and solve graph on each timestep
         
         #input cone list & dummy dx since we are already doing that in update_graph with imu data
-        cone_matrix = [[], [], []]
-        for cone in cones.blue_cones:
-            r, theta = self.cartesian_to_polar(self.currentstate.carstate[:2], (cone.point.x, cone.point.y))
-            cone_matrix[0].append(r)
-            cone_matrix[1].append(theta)
-            cone_matrix[2].append(2)
-        for cone in cones.yellow_cones:
-            r, theta = self.cartesian_to_polar(self.currentstate.carstate[:2], (cone.point.x, cone.point.y))
-            cone_matrix[0].append(r)
-            cone_matrix[1].append(theta)
-            cone_matrix[2].append(1)
+        cone_matrix = np.hstack(Cones.r, Cones.theta, Cones.color)
+        # cone_matrix = [[], [], []]
+        # for cone in cones.blue_cones:
+        #     r, theta = self.cartesian_to_polar(self.currentstate.carstate[:2], (cone.point.x, cone.point.y))
+        #     cone_matrix[0].append(r)
+        #     cone_matrix[1].append(theta)
+        #     cone_matrix[2].append(2)
+        # for cone in cones.yellow_cones:
+        #     r, theta = self.cartesian_to_polar(self.currentstate.carstate[:2], (cone.point.x, cone.point.y))
+        #     cone_matrix[0].append(r)
+        #     cone_matrix[1].append(theta)
+        #     cone_matrix[2].append(1)
 
         # process all new cone messages separately while one thread is solving slam        
         

@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'graphslam-global'
+package_name = 'graphslam_global'
 
 setup(
     name=package_name,

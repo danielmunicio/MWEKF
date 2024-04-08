@@ -1,8 +1,12 @@
 from .local_opt_settings import LocalOptSettings
-import numpy as np
 from feb_msgs.msg import Map
+import numpy as np
 import scipy as sp
 from scipy.spatial import Voronoi
+import math
+from scipy.spatial import KDTree
+from shapely.geometry import Polygon, Point, LineString, MultiLineString
+from shapely.ops import nearest_points, linemerge
 
 def ConeOrdering(msg: Map, state: list[float]):
     """get cones from message and call the cone ordering algorithm and return the results
@@ -18,61 +22,406 @@ def ConeOrdering(msg: Map, state: list[float]):
         np.array([list(msg.left_cones_x), list(msg.left_cones_y)]),
         np.array([list(msg.right_cones_x), list(msg.right_cones_y)]),
     )
-    left, right = cone_ordering_algorithm(left, right, N, state)
+    left, right = cone_ordering_algorithm(left, right, state, N)
     return left, right
 #%%
-def cone_ordering_algorithm(left, right, N, state):
-    """even more dummy placeholder algorithm
-    """
+def cone_ordering_algorithm(left, right, traveled, N):
+    # have a list of all_cones for refence
+    all_cones = left.copy()
+    all_cones.extend(right.copy())
+    # figure out polygons
+    yellow_polygon, blue_polygon = find_local_yellow_polygon(all_cones, traveled, left)
+    # figure out local paths
+    local_yellow_path = remove_longest_edge_from_polygon(yellow_polygon)
+    local_blue_path = remove_longest_edge_from_polygon(blue_polygon)
+    # N point local paths
+    N_local_yellow_path = LineString(generate_N_points(local_yellow_path, N))
+    N_local_blue_path = LineString(generate_N_points(local_blue_path, N))
+    outer_boundary_vertices = list(N_local_yellow_path.coords)
+    inner_boundary_vertices = list(N_local_blue_path.coords)
+    all_vertices = outer_boundary_vertices + inner_boundary_vertices
+    # Voronoi diagram
+    vor = Voronoi(all_vertices)
+    # figure out medial line
+    green_edges = get_medial_axis(N_local_yellow_path, N_local_blue_path)
+    new_green_edges = filter_medial_line_further(green_edges)
+    # figure out closest points
+    total_green_linestring = linemerge(new_green_edges)
+    cpoml = closest_points_on_medial_line(outer_boundary_vertices, inner_boundary_vertices)
+    cpoml_2 = closest_points_on_medial_line(cpoml, N_local_blue_path)
+    # return stuff
+    blue_boundary_vertices = [(point.x, point.y) for point in cpoml_2]
+    return outer_boundary_vertices, blue_boundary_vertices
+
+def closest_points_on_medial_line(points, medial_line):
+
+    closest_points = []
+    # Iterate over each point on the outer boundary
+    for p in points:
     
-    pts = Voronoi(np.hstack([left, right]).T).vertices
-    pos = np.array(state[:2])
-    print(np.linalg.norm(np.array(pts)-np.array(pos), axis=1))
+        if isinstance(medial_line, MultiLineString):
+            closest_points_on_multiline = []
+            for line in medial_line.geoms:
+                closest_point_on_line = line.interpolate(line.project(Point(p)))
+                closest_points_on_multiline.append(closest_point_on_line)
 
-    # DOESNT TAKE ANGLE INTO ACCOUNT
-    # MIGHT GO BACKWARDS IF SLAM IS SKILL ISSUING
-    start = np.argmin(np.linalg.norm(np.array(pts)-np.array(pos), axis=1))
-
-    pts[start], pts[0] = np.copy(pts[0]), np.copy(pts[start])
-    print(pts.shape)
-    pts = order(pts)
-    print(pts)
-    pts = interp(pts)(np.linspace(0.0, 1.0, N, endpoint=False))
-
-    return pts, np.copy(pts)
-
-
-def interp(points):
-
-    dx = np.linalg.norm(np.diff(points, axis=0), axis=1)
-    dists = np.cumsum(dx)
-    dists = np.hstack([np.array([0.0]), dists])
+            closest_point = min(closest_points_on_multiline, key=lambda t: (Point(p)).distance(t))
+            closest_points.append(closest_point)
+        else:
+            closest_point_on_line = medial_line.interpolate(medial_line.project(Point(p)))
+            closest_points.append(closest_point_on_line)
     
-    def interpolate(x):
-        x = x*dists[-1]
-        i = np.where(x<dists)[0][0]
-        t=(x-dists[i-1])/dx[i-1]
-
-        return points[i-1]*(1-t) + points[i]*t
-    return lambda x: np.array([interpolate(i) for i in x])
+    return closest_points
 
 
+def filter_medial_line_further(medial_edges):
+    
+    medial_points = list(set(extract_points_from_linestrings(medial_edges)))
+    
+    medial_dict = {}
+    idx = 0
 
-def order(cones):
-    """orders the input array by selecting the nearest cone. runs in-place, assumes first cone is correct
+    for point in medial_points:
+        medial_dict[point] = idx
+        idx += 1
 
-    Args:
-        cones (ndarray): array of shape (n, 2) with cone points. will be modified in-place. first cone must be correct.
-    """
-    MAX_PATH_LENGTH=15 # meters
-    MAX_CONE_SEPARATION_DISTANCE=2.5 # meters
-    totaldist = 0.0
-    for i in range(len(cones)-2):
-        mindex = np.argmin(dists:=np.linalg.norm(cones[i+1:]-cones[i], axis=1))+i+1
-        totaldist += dists[mindex-i-1]
-        if (dists[mindex-1-i] > MAX_CONE_SEPARATION_DISTANCE) or (totaldist > MAX_PATH_LENGTH):
-            return cones[:i+1]
-        cones[i+1], cones[mindex] = np.copy(cones[mindex]), np.copy(cones[i+1])
-    return cones
-cone_ordering_algorithm(np.array([[1,2,3,4,5,6,7,8,9,10], [0,0,0,0,0,0,0,0,0,0]]), np.array([[1,2,3,4,5,6,7,8,9,10], [3,3,3,3,3,3,3,3,3,3]]), 5, [3, 1.5, 0, 0])
-# %%
+    middle_edges = []
+    for lstring in green_edges:
+        middle_edges.extend(linestring_to_edges(lstring))
+    
+    graph = Graph(len(medial_points))
+    for e in middle_edges:
+        index_of_e0 = medial_dict[e[0]]
+        index_of_e1 = medial_dict[e[1]]
+        graph.add_edge(index_of_e0, index_of_e1)
+    vertices = [i for i in range(0, len(medial_points))]
+    degrees_of_vertices = graph.degrees(vertices)
+    
+    # figure out stuff to delete
+    stuff_to_delete = []
+    
+    for key in degrees_of_vertices:
+        if degrees_of_vertices[key] == 1:
+            stuff_to_delete.append(key)
+    
+    final_edges = []
+    
+    for e in graph.get_edges():
+        if not (e[0] in stuff_to_delete or e[1] in stuff_to_delete):
+            first = medial_points[e[0]]
+            second = medial_points[e[1]]
+            final_edges.append((first, second))
+        
+    return final_edges
+    
+
+
+def get_medial_axis(yellow_line, blue_line, vor):
+    
+    # filter edges
+    non_boundary_edges = []
+    for edge in vor.ridge_vertices:
+
+        # Both indices are valid
+        if edge[0] >= 0 and edge[1] >= 0:
+            edge_line = LineString([vor.vertices[edge[0]], vor.vertices[edge[1]]])
+            if not edge_line.intersects(blue_line) and not edge_line.intersects(yellow_line):
+                non_boundary_edges.append(edge_line) 
+                
+    all_cones = list(yellow_line.coords).copy()
+    all_cones.extend(list(blue_line.coords).copy())
+    cone_polygon = LineString(all_cones).convex_hull
+
+    medial_edges = []
+    for edge in vor.ridge_vertices:
+
+        # Both indices are valid
+        if edge[0] >= 0 and edge[1] >= 0:
+            edge_line = LineString([vor.vertices[edge[0]], vor.vertices[edge[1]]])
+            if not edge_line.intersects(blue_line) and not edge_line.intersects(yellow_line):
+                endpoint1 = Point(vor.vertices[edge[0]])
+                endpoint2 = Point(vor.vertices[edge[1]])
+                if cone_polygon.contains(endpoint1) and cone_polygon.contains(endpoint2):
+                    medial_edges.append(edge_line)
+                    
+    # filter some more medial edges depending on if they are truly inside the path
+    distance_between_lines = yellow_line.distance(blue_line)
+    
+    medial_vertices = extract_points_from_linestrings(medial_edges)
+    vertices_contained = []
+    # extract points between lines
+    for point in medial_vertices:
+        distance_to_line1 = yellow_line.distance(Point(point))
+        distance_to_line2 = blue_line.distance(Point(point))
+        if distance_to_line1 < distance_between_lines and distance_to_line2 < distance_between_lines:
+            vertices_contained.append(point)
+    # filter edges that match points contained between liens
+    true_medial_edges = []
+    for edge in medial_edges:
+        list_edge = list(edge.coords)
+        first = list_edge[0]
+        second = list_edge[1]
+        if first in vertices_contained or second in vertices_contained:
+            true_medial_edges.append(edge)
+    
+    return true_medial_edges
+
+
+def distance_between_points(point1, point2):
+    return np.sqrt(np.sum((np.array(point2) - np.array(point1)) ** 2))
+
+
+def find_local_yellow_polygon(all_cones, traveled_points, yellow_points):
+    
+    yellow_polygon = None
+    blue_polygon = None
+    
+    current_diff_range = float('inf')
+    
+    for percentile_threshold in range(1, 100):
+        
+        near_cones = find_near_cones(all_cones, traveled_points, percentile_threshold)
+        
+        filtered_yellow_points = []
+        filtered_blue_points = []
+        filtered_yellow_polygon = None
+        filtered_blue_polygon = None
+        
+        for point in near_cones:
+            if point in yellow_points:
+                filtered_yellow_points.append(point)
+            else:
+                filtered_blue_points.append(point)
+                
+        if len(filtered_yellow_points) >= 4:
+            filtered_yellow_polygon = Polygon(filtered_yellow_points)
+            
+        if len(filtered_blue_points) >= 4:
+            filtered_blue_polygon = Polygon(filtered_blue_points)        
+        
+        if yellow_polygon is None and filtered_yellow_polygon is not None and filtered_yellow_polygon.is_valid:
+            
+            all_traveled_contained = True
+            for point in traveled_points:
+                shapely_point = Point(point[0], point[1])
+                if not shapely_point.within(filtered_yellow_polygon):
+                    all_traveled_contained = False
+                    break
+                
+            if all_traveled_contained:
+                yellow_polygon = filtered_yellow_polygon
+            
+        if yellow_polygon is not None:
+            min_x, min_y, max_x, max_y = yellow_polygon.bounds
+            x_range = max_x - min_x
+            y_range = max_y - min_y
+            
+#             if filtered_blue_polygon is not None and filtered_blue_polygon.is_valid:
+            if filtered_blue_polygon is not None:
+                
+                bmin_x, bmin_y, bmax_x, bmax_y = filtered_blue_polygon.bounds
+                blue_x_range = bmax_x - bmin_x
+                blue_y_range = bmax_y - bmin_y
+                
+                new_diff = abs(x_range - blue_x_range) + abs(y_range - blue_y_range)
+                
+                if new_diff < current_diff_range and filtered_blue_polygon.is_valid:
+                    current_diff_range = new_diff
+                    blue_polygon = filtered_blue_polygon
+                
+            elif filtered_blue_polygon is not None and (not filtered_blue_polygon.is_valid):
+                break
+    
+    if yellow_polygon is None:
+        yellow_polygon = filtered_yellow_polygon
+        
+    if blue_polygon is None:
+        blue_polygon = filtered_blue_polygon
+            
+    return yellow_polygon, blue_polygon
+            
+
+
+def find_near_cones(cones, traveled_points, threshold_percentile=90):
+    # Build KD-tree for traveled pointsy
+    traveled_tree = KDTree(traveled_points)
+    
+    distances = []
+    for cone in cones:
+        _, idx = traveled_tree.query(cone)
+        closest_traveled_point = traveled_points[idx]
+        distances.append(distance_between_points(cone, closest_traveled_point))
+    
+    threshold_distance = np.percentile(distances, threshold_percentile)
+    
+    near_cones = []
+    for i, cone in enumerate(cones):
+        if distances[i] < threshold_distance:
+            near_cones.append(cone)
+    return near_cones
+
+
+def remove_longest_edge_from_polygon(polygon):
+    exterior_ring = polygon.exterior
+    edges = LineString(exterior_ring).coords
+    
+    new_points = []
+    longest_edge = None
+    longest_edge_length = 0
+    
+    for i in range(len(edges) - 1):
+        edge_start = edges[i]
+        edge_end = edges[i + 1]
+        edge_length = LineString([edge_start, edge_end]).length
+        
+        if edge_length > longest_edge_length:
+            longest_edge_length = edge_length
+            longest_edge = [edge_start, edge_end]
+        
+        new_points.append(edge_start)
+
+    new_track = LineString(new_points)
+    edge_to_remove = LineString(longest_edge)
+    
+    removal_i = -1
+    
+    for i in range(len(new_points)):
+        if i == len(new_points) - 1:
+            if new_points[i] == longest_edge[0] and new_points[0] == longest_edge[1]:
+                removal_i = i
+                break
+        elif new_points[i] == longest_edge[0] and new_points[i + 1] == longest_edge[1]:
+            removal_i = i
+            break
+    
+    if removal_i == len(new_points) - 1:
+        return LineString(new_points[0:-1])
+    else:
+#         new_points.remove(new_points[i + 1])
+        new_points = new_points[:i+1]
+        return LineString(new_points)
+
+
+def generate_N_points(line, N):
+
+    total_length = line.length
+
+    step = total_length / (N - 1)
+    equidistant_points = [line.interpolate(step * i) for i in range(N)]
+
+    return equidistant_points
+
+def extract_points_from_linestrings(linestrings):
+    points = []
+    for linestring in linestrings:
+        coords = list(linestring.coords)
+        points.extend(coords)
+    return points
+
+
+class Graph:
+    def __init__(self, num_vertices):
+        self.num_vertices = num_vertices
+        self.adjacency_list = {vertex: [] for vertex in range(0, num_vertices)}
+
+    def add_edge(self, vertex1, vertex2):
+        self.adjacency_list[vertex1].append(vertex2)
+        self.adjacency_list[vertex2].append(vertex1)
+    
+    def remove_edge(self, vertex1, vertex2):
+        self.adjacency_list[vertex1].remove(vertex2)
+        self.adjacency_list[vertex2].remove(vertex1)
+
+    def display(self):
+        for vertex in self.adjacency_list:
+            print(vertex, "->", " -> ".join(map(str, self.adjacency_list[vertex])))
+            
+    def is_fully_connected(self):
+        visited = set()
+
+        def dfs(node):
+            visited.add(node)
+            for neighbor in self.adjacency_list[node]:
+                if neighbor not in visited:
+                    dfs(neighbor)
+
+        dfs(0)
+
+        return len(visited) == self.num_vertices
+    
+    def get_edges(self):
+        edges = []
+        for vertex in self.adjacency_list:
+            for neighbor in self.adjacency_list[vertex]:
+                if (neighbor, vertex) not in edges:  # Avoid duplicates in undirected graph
+                    edges.append((vertex, neighbor))
+        return edges
+    
+    def has_cycle(self):
+        
+        visited = set()
+        
+        def helper(vertex, parent):
+            visited.add(vertex)
+            for neighbor in self.adjacency_list[vertex]:
+                if neighbor not in visited:
+                    if helper(neighbor, vertex):
+                        return True
+                elif parent != neighbor:
+                    return True
+            return False
+        
+        
+        for vertex in range(self.num_vertices):
+            if vertex not in visited:
+                if helper(vertex, -1):
+                    return True
+        return False
+    
+    def connected_components(self):
+        visited = set()
+        components = []
+
+        def dfs(node, component):
+            visited.add(node)
+            component.append(node)
+            for neighbor in self.adjacency_list[node]:
+                if neighbor not in visited:
+                    dfs(neighbor, component)
+
+        for vertex in range(self.num_vertices):
+            if vertex not in visited:
+                component = []
+                dfs(vertex, component)
+                components.append(component)
+
+        # Generate edges for each component
+        result = []
+        for component in components:
+            component_edges = []
+            for vertex in component:
+                for neighbor in self.adjacency_list[vertex]:
+                    if neighbor in component and (vertex, neighbor) not in component_edges:
+                        component_edges.append((vertex, neighbor))
+            result.append(component_edges)
+
+        return result
+
+
+    def forms_polygon(self):
+        
+        if not self.has_cycle():
+            return False
+        
+        for v in range(self.num_vertices):
+            degree = len(self.adjacency_list[v])
+            if degree != 2:
+                return False
+        
+        return True
+    
+    def degrees(self, vertices):
+        degrees = {}
+        for v in vertices:
+            degrees[v] = len(self.adjacency_list[v])
+        return degrees

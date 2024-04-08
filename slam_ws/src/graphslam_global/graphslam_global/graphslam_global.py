@@ -41,7 +41,7 @@ from geometry_msgs.msg import Quaternion, Vector3
 
 #import State.msg, FebPath, Map, Cones
 
-from feb_msgs.msg import State, FebPath, Map, Cones
+from feb_msgs.msg import State, FebPath, Map
 from eufs_msgs.msg import ConeArrayWithCovariance, ConeWithCovariance
 
 class GraphSLAM_Global(Node):
@@ -107,7 +107,7 @@ class GraphSLAM_Global(Node):
         self.local_map = Map()
 
         # radius for which to include local cones ---#UPDATE, perhaps from mpc message
-        self.local_radius = 5 
+        self.local_radius = 100000 
         
         # how far into periphery of robot heading on each side to include local cones (robot has tunnel vision if this is small) (radians)
         self.local_vision_delta = np.pi/2 
@@ -267,6 +267,8 @@ class GraphSLAM_Global(Node):
             cone_matrix[1].append(theta)
             cone_matrix[2].append(1)
 
+        cone_matrix = np.array(cone_matrix).T
+        
         # process all new cone messages separately while one thread is solving slam        
         
         #lock
@@ -274,7 +276,7 @@ class GraphSLAM_Global(Node):
         #if (self.solving):
         #    return
 
-        self.slam.update_graph_color([], cone_matrix, False) # old pre-ros threading
+        self.slam.update_graph_color(cone_matrix) # old pre-ros threading
         
         #self.slam.update_graph_color(perception_backlog_imu, perception_backlog_cones)
         #self.perception_backlog_cones = []
@@ -283,16 +285,38 @@ class GraphSLAM_Global(Node):
         #x_guess, lm_guess = self.solveGraphSlamLock()
         x_guess, lm_guess = self.slam.solve_graph()
 
-        left_cones = lm_guess[lm_guess[:,2] == 2][:,:2] # blue
-        right_cones = lm_guess[lm_guess[:,2] == 1][:,:2] # yellow
+        #x and lm guess come out as lists, so change to numpy arrays
+        x_guess = np.array(x_guess)
+        lm_guess = np.array(lm_guess)
+
+        print('x_guess: ')
+        print(x_guess)
+        print('___________________________')
+        print('lm_guess: ')
+        print(lm_guess)
+        print('___________________________')
+
+        blue_array = np.array([2 for i in range(len(lm_guess[:,2]))])
+        # yellow_array = np.array([ for i in range(len(lm_guess[:,2]))])
+
+        # left_cones = lm_guess[lm_guess[:,2] == np.isclose(lm_guess[:,2], 2, rtol = 0.0001, atol = 0.0001)][:,:2] # blue
+        #print((lm_guess[:, 2])[0].type())
+        print(type(lm_guess[:, 2]))
+        left_cones = lm_guess[np.round(lm_guess[:,2]) == 2][:,:2] # blue
+        right_cones = lm_guess[np.round(lm_guess[:,2]) == 1][:,:2] # yellow
         #left_cones = lm_guess[lm_guess[:,2] == 0][:,:2] # orange
 
-
+        print('left_cones: ')
+        print(left_cones)
+        print('___________________________')
+        print('right_cones: ')
+        print(right_cones)
+        print('_____________________')
         #update map message with new map data 
-        self.global_map.left_cones_x = left_cones[:,0] 
-        self.global_map.left_cones_y = left_cones[:,1]
-        self.global_map.right_cones_x = right_cones[:,0]
-        self.global_map.right_cones_y = right_cones[:,1]
+        self.global_map.left_cones_x = list(left_cones[:,0])
+        self.global_map.left_cones_y = list(left_cones[:,1]) 
+        self.global_map.right_cones_x = list(right_cones[:,0]) 
+        self.global_map.right_cones_y = list(right_cones[:,1]) 
 
         #update message header
         self.cone_seq += 1
@@ -301,14 +325,20 @@ class GraphSLAM_Global(Node):
         self.global_map.header.frame_id = "rslidar"
 
         self.global_map_pub.publish(self.global_map)
+        print('len of left and right cones:')
+        print(len(left_cones))
+        print(len(right_cones))
 
-        local_left, local_right = self.localCones(self.radius, left_cones, right_cones)
+        local_left, local_right = self.localCones(self.local_radius, left_cones, right_cones)
 
+        print('len of local left and local right cones:')
+        print(len(local_left))
+        print(len(local_right))
         #update map message with new map data 
-        self.local_map.left_cones_x = local_left[:,0] 
-        self.local_map.left_cones_y = local_left[:,1]
-        self.local_map.right_cones_x = local_right[:,0]
-        self.local_map.right_cones_y = local_right[:,1]
+        self.local_map.left_cones_x = np.array(local_left)[:,0].tolist()
+        self.local_map.left_cones_y = np.array(local_left)[:,1].tolist()
+        self.local_map.right_cones_x = np.array(local_right)[:,0].tolist()
+        self.local_map.right_cones_y = np.array(local_right)[:,1].tolist()
 
         #update message header
         #self.local_map.header.seq = self.seq
@@ -326,8 +356,8 @@ class GraphSLAM_Global(Node):
     def localCones(self, radius, left, right):
         left = np.array(left)
         right = np.array(right)
-        curpos = np.array(self.current_state.carstate[:2]) # x,y in np
-        heading = self.current_state.carstate[3] #calibrated in beginning w initial direction being 0 at (0,0)
+        curpos = np.array(self.currentstate.carstate[:2]) # x,y in np
+        heading = self.currentstate.carstate[3] #calibrated in beginning w initial direction being 0 at (0,0)
 
         ret_localcones_left = []
         ret_localcones_right = []

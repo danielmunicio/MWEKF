@@ -7,11 +7,6 @@ from numpy.random import random
 import matplotlib.pyplot as plt
 from time import perf_counter
 
-
-
-
-
-
 class GraphSLAM:
     sinc=lambda theta: 1-(theta**2)/6 + (theta**4)/120 - (theta**6)/5040
     cosc=lambda theta: -theta/2 + (theta**3)/24 - (theta**5)/720 + (theta**7)/40320
@@ -122,7 +117,7 @@ class GraphSLAM:
     
     def update_backlog_imu(self, dx):
         self.last_loc += dx 
-        self.state_backlog += [last_loc]
+        self.state_backlog += [self.last_loc]
     
     def update_backlog_perception(self, z):
         self.perception_backlog_cones += [z]
@@ -136,9 +131,9 @@ class GraphSLAM:
             z (ndarray): vector of shape (m, 3*) describing locations of m landmarks relative to the car #* updated 2 to 3 to incorporate color - Rohan
             update_pos (boolean): whether to  position in this method (used to ignore dx for ros integration)
         """ 
-        for i in range(len(self.state_backloupdateg)):
+        for i in range(len(self.state_backlog)):
             self.x.append(MX.sym(f'x{len(self.x)}', 2))
-            self.x_edges.append((self.x[-2]+DM(dx)-self.x[-1]))
+            self.x_edges.append((self.x[-2]+DM(self.state_backlog[i])-self.x[-1]))
 
         n = len(self.perception_backlog_cones)
         for t in range(n): 
@@ -154,7 +149,10 @@ class GraphSLAM:
             # if its the first graph update, we do things a bit differently
             if len(self.lmhat)==0:
                 # set landmark guesses to absolute location of landmarks (add measurements to current pose)
-                self.lmhat = z + curpos_color # color
+                print(z)
+                print(curpos_color)
+                self.lmhat = z.tolist() + curpos_color[:, np.newaxis].tolist() # color
+                print(self.lmhat)
                 #self.lmhat = z+curpos # no color
                 # add landmark nodes (add symbolic landmark nodes)
                 #self.lm = [MX.sym(f'lm{i}', 2) for i in range(z.shape[0])] # no color

@@ -157,12 +157,20 @@ class GraphSLAM_Global(Node):
     Outputs: None
     """
     def update_state(self, dx: np.array, yaw: float, velocity: float) -> None:
-        self.currentstate.carstate[0] += dx[0]
-        self.currentstate.carstate[1] += dx[1]
-        self.currentstate.carstate[2] = velocity
-        self.currentstate.carstate[3] = yaw
+        # x = Float64()
+        # x.data = dx[0]
+        # y = Float64()
+        # y.data = dx[1]
+        v = Float64()
+        v.data = velocity
+        heading = Float64()
+        heading.data = yaw
+        self.currentstate.carstate[0].data += dx[0]
+        self.currentstate.carstate[1].data += dx[1]
+        self.currentstate.carstate[2] = v
+        self.currentstate.carstate[3] = heading
         self.state_seq += 1
-        self.currentstate.header.seq = self.state_seq
+        #self.currentstate.header.seq = self.state_seq
         self.currentstate.header.stamp = self.get_clock().now().to_msg()
         self.currentstate.header.frame_id = "rslidar"
 
@@ -186,7 +194,7 @@ class GraphSLAM_Global(Node):
         velocity = self.compute_velocity(imu.linear_acceleration, dt)
         # for now, we assume velocity is in the direction of heading
 
-        self.currentstate.velocity = velocity
+        self.currentstate.carstate[2] = velocity
 
         # generate dx [change in x, change in y] to add new pose to graph
         dx = velocity * dt * np.array([math.cos(yaw), math.sin(yaw)])
@@ -200,9 +208,9 @@ class GraphSLAM_Global(Node):
 
         self.state_pub.publish(self.currentstate)
 
-    def cartesian_to_polar(self, car_state: tuple[float, float], cone: tuple[float, float]):
-        p_x = cone[0] - car_state[0]
-        p_y = cone[1] - car_state[1]
+    def cartesian_to_polar(self, car_state, cone):
+        p_x = cone[0] - car_state[0].data
+        p_y = cone[1] - car_state[1].data
         r = math.sqrt(p_x**2 + p_y**2)
         if (p_x == 0):
             angle = math.asin(p_y/r)
@@ -220,17 +228,14 @@ class GraphSLAM_Global(Node):
         # Dummy function for now, need to update graph and solve graph on each timestep
         
         #input cone list & dummy dx since we are already doing that in update_graph with imu data
-        cone_matrix = np.array()
-        cone_matrix[0] = np.array()
-        cone_matrix[1] = np.array()
-        cone_matrix[2] = np.array()
+        cone_matrix = [[], [], []]
         for cone in cones.blue_cones:
-            r, theta = self.cartesian_to_polar(self.currentstate[:2], (cone.point.x, cone.point.y))
+            r, theta = self.cartesian_to_polar(self.currentstate.carstate[:2], (cone.point.x, cone.point.y))
             cone_matrix[0].append(r)
             cone_matrix[1].append(theta)
             cone_matrix[2].append(2)
         for cone in cones.yellow_cones:
-            r, theta = self.cartesian_to_polar(self.currentstate[:2], (cone.point.x, cone.point.y))
+            r, theta = self.cartesian_to_polar(self.currentstate.carstate[:2], (cone.point.x, cone.point.y))
             cone_matrix[0].append(r)
             cone_matrix[1].append(theta)
             cone_matrix[2].append(1)
@@ -262,7 +267,7 @@ class GraphSLAM_Global(Node):
 
         #update message header
         self.cone_seq += 1
-        self.global_map.header.seq = self.seq
+        #self.global_map.header.seq = self.seq
         self.global_map.header.stamp = self.get_clock().now().to_msg()
         self.global_map.header.frame_id = "rslidar"
 
@@ -277,7 +282,7 @@ class GraphSLAM_Global(Node):
         self.local_map.right_cones_y = local_right[:,1]
 
         #update message header
-        self.local_map.header.seq = self.seq
+        #self.local_map.header.seq = self.seq
         self.local_map.header.stamp = self.get_clock().now().to_msg()
         self.local_map.header.frame_id = "rslidar"
 

@@ -460,7 +460,7 @@ def main(args=None):
     
     
     rclpy.spin(mpc_node)
-    rclpy.spin()
+    rclpy.spin(simulatorNode)
     rclpy.shutdown()
 
 ### END - RUNNING MPC NODE ###

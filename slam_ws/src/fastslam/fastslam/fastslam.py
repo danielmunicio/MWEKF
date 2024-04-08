@@ -7,13 +7,13 @@ import math
 
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Float64, Header
+from std_msgs.msg import Float64, Header, Bool
 from sensor_msgs.msg import Imu
 from geometry_msgs.msg import Quaternion, Vector3
 
-from feb_msgs.msg import State, FebPath, Map, cones
+from feb_msgs.msg import State, FebPath, Map, Cones
 
-from fastslam_utils import *
+from .fastslam_utils import *
 
 class FastSLAM(Node):
 
@@ -32,7 +32,7 @@ class FastSLAM(Node):
 
         # Handle new cone readings from perception
         self.cones_sub = self.create_subscription(
-            cones,
+            Cones,
             '/perception/cones', # To be changed
             self.cones_callback,
             1
@@ -57,7 +57,7 @@ class FastSLAM(Node):
         )
 
         self.finish_sub = self.create_subscription(
-            bool,
+            Bool,
             '/path/finished',
             self.finish_callback,
             1
@@ -209,7 +209,7 @@ class FastSLAM(Node):
     # Only IMU Callback will return a new state
     # Without the Cone data, there will be no changing of 
     # weights because there is nothing to compare particles to
-    def cones_callback(self, cones: cones) -> None:
+    def cones_callback(self, cones: Cones) -> None:
         if self.map_finished and self.fastslam is not None:
             z = cones.cones
             # We update the weights of the particles based on the cone data
@@ -244,7 +244,7 @@ class FastSLAM(Node):
 # For running node
 def main(args=None):
     rclpy.init(args=args)
-    fastslam_node = FastSLAM(Node)
+    fastslam_node = FastSLAM()
     rclpy.spin(fastslam_node)
     rclpy.shutdown()
 

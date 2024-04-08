@@ -15,7 +15,33 @@ from std_msgs.msg import Float64, Header
 from sensor_msgs.msg import Imu
 from geometry_msgs.msg import Quaternion, Vector3
 
-from feb_msgs.msg import State, FebPath, Map, Cones
+import sys
+import os 
+print(sys.path)
+
+current_dir = os.getcwd() #feb_system_integration/slam_ws/src/graphslam_global/graphslam_global
+root_dir = os.path.dirname( #feb_system_integration
+    os.path.dirname( #feb_system_integration/slam_ws/
+        os.path.dirname( #feb_system_integration/slam_ws/src
+            os.path.dirname(current_dir)))) #feb_system_integration/slam_ws/src/graphslam_global
+
+msg_path = 'comm_ws/src/feb_msgs/msg'
+abs_msg_path = os.path.join(current_dir, msg_path)
+print(abs_msg_path)
+#sys.path.append(abs_msg_path)
+
+
+
+#file_msgdir_path = os.path.join(abs_msg_path, 'example2.txt')
+#if not os.path.exists(abs_msg_path):
+#    os.makedirs(abs_msg_path)
+#with open(file_msgdir_path, 'w') as file:
+#    file.write("example file")
+#sys.path.append(file_msgdir_path)
+
+#import State.msg, FebPath, Map, Cones
+
+from msg import State, FebPath, Map, Cones
 from eufs_msgs.msg import ConeArrayWithCovariance, ConeWithCovariance
 
 class GraphSLAM_Global(Node):
@@ -200,8 +226,8 @@ class GraphSLAM_Global(Node):
         dx = velocity * dt * np.array([math.cos(yaw), math.sin(yaw)])
 
         # add new position node to graph
-        #self.slam.update_position(dx)
-        self.slam.update_backlog_imu(dx)
+        self.slam.update_position(dx)
+        #self.slam.update_backlog_imu(dx)
 
         # update state msg
         self.update_state(dx, yaw, velocity)
@@ -241,18 +267,20 @@ class GraphSLAM_Global(Node):
             cone_matrix[2].append(1)
 
         # process all new cone messages separately while one thread is solving slam        
-        self.slam.update_backlog_perception(cone_matrix)
+        
+        #lock
+        #self.slam.update_backlog_perception(cone_matrix)
+        #if (self.solving):
+        #    return
 
-        if (self.solving):
-            return
-
-        #self.slam.update_graph_color([], latest, False) # old pre-ros threading
+        self.slam.update_graph_color([], cone_matrix, False) # old pre-ros threading
         
         #self.slam.update_graph_color(perception_backlog_imu, perception_backlog_cones)
         #self.perception_backlog_cones = []
         #self.perception_backlog_imu = []
-        self.slam.update_graph_block()
-        x_guess, lm_guess = self.solveGraphSlam()
+        #self.slam.update_graph_block()
+        #x_guess, lm_guess = self.solveGraphSlamLock()
+        x_guess, lm_guess = self.slam.solve_graph()
 
         left_cones = lm_guess[lm_guess[:,2] == 2][:,:2] # blue
         right_cones = lm_guess[lm_guess[:,2] == 1][:,:2] # yellow
@@ -332,7 +360,7 @@ class GraphSLAM_Global(Node):
         return ret_localcones_left, ret_localcones_right
         
 
-    def solveGraphSlam(self):
+    def solveGraphSlamLock(self):
         self.solving = True 
         x_guess, lm_guess = self.slam.solve_graph()
         self.solving = False

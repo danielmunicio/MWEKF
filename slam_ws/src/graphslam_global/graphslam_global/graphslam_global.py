@@ -11,7 +11,7 @@ import math
 
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Float64, Header
+from std_msgs.msg import Float64, Header, Bool
 from sensor_msgs.msg import Imu
 from geometry_msgs.msg import Quaternion, Vector3
 
@@ -69,6 +69,14 @@ class GraphSLAM_Global(Node):
             1
         )
 
+        # Once path is finished, turn this node callbacks funcs off
+        self.finish_sub = self.create_subscription(
+            Bool,
+            '/path/finished',
+            self.finish_callback,
+            1
+        )
+
         # PUBLISHERS
         
         # Publish the current vehicle's state: X, Y, Velo, Theta
@@ -114,6 +122,15 @@ class GraphSLAM_Global(Node):
 
         # for handling new messages during the solve step
         self.solving = False
+
+        self.finished = False
+        self.usefastslam = True
+
+
+
+    def finish_callback(self, msg: Bool) -> None:
+        if self.usefastslam:
+            self.finished = msg.data
 
     """
     Function that takes in message header and computes difference in time from last state msg
@@ -212,6 +229,8 @@ class GraphSLAM_Global(Node):
     """
 
     def imu_callback(self, imu: Imu) -> None:
+        if self.finished:
+            return
         # process time
         dt = self.compute_timediff(imu.header)
         # generate current heading
@@ -252,6 +271,8 @@ class GraphSLAM_Global(Node):
     """
     def cones_callback(self, cones: ConeArrayWithCovariance) -> None: # abt todo: we have had cones as a placeholder message structure yet to be defined (cones.r, cones.theta, cones.color) for now
         # Dummy function for now, need to update graph and solve graph on each timestep
+        if self.finished:
+            return
         
         #input cone list & dummy dx since we are already doing that in update_graph with imu data
         # cone_matrix = np.hstack(Cones.r, Cones.theta, Cones.color)

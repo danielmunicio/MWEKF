@@ -14,4 +14,3 @@ class GlobalOptSettings(metaclass=Settings):
     V_MIN: float = 0.0
     V_MAX: float = 25.0
     FRIC_MAX: float|Function = 12.0
-

@@ -16,6 +16,7 @@ from sensor_msgs.msg import Imu
 from geometry_msgs.msg import Quaternion, Vector3
 
 from feb_msgs.msg import State, FebPath, Map, Cones
+from eufs_msgs.msg import ConeArrayWithCovariance, ConeWithCovariance
 
 class GraphSLAM_Global(Node):
     def __init__(self):
@@ -29,15 +30,15 @@ class GraphSLAM_Global(Node):
         # Handle IMU messages for vehicle state
         self.imu_sub = self.create_subscription(
             Imu,
-            '/odometry/imu',
+            '/imu',
             self.imu_callback,
             1
         )
 
         # Handle new cone readings from perception
         self.cones_sub = self.create_subscription(
-            Cones, #reverted to Cones - line 18
-            '/perception/cones', # To be changed
+            ConeArrayWithCovariance,
+            '/ground_truth/cones', 
             self.cones_callback,
             1
         )
@@ -178,7 +179,7 @@ class GraphSLAM_Global(Node):
 
     def imu_callback(self, imu: Imu) -> None:
         # process time
-        dt = self.compute_timediff(imu.header)
+        dt = self.compute_timediff(imu.header.stamp)
         # generate current heading
         roll, pitch, yaw = self.quat_to_euler(imu.orientation)
         # generate current velocity
@@ -199,20 +200,45 @@ class GraphSLAM_Global(Node):
 
         self.state_pub.publish(self.currentstate)
 
+    def cartesian_to_polar(self, car_state: tuple[float, float], cone: tuple[float, float]):
+        p_x = cone[0] - car_state[0]
+        p_y = cone[1] - car_state[1]
+        r = math.sqrt(p_x**2 + p_y**2)
+        if (p_x == 0):
+            angle = math.asin(p_y/r)
+        else:
+            angle = math.atan(p_y / p_x)
+        if p_x < 0:
+            angle = angle + math.pi
+        return r, angle
+    
     """
     Function that takes the list of cones, updates and solves the graph
     
     """
-    def cones_callback(self, cones: Cones) -> None: # abt todo: we have had cones as a placeholder message structure yet to be defined (cones.r, cones.theta, cones.color) for now
+    def cones_callback(self, cones: ConeArrayWithCovariance) -> None: # abt todo: we have had cones as a placeholder message structure yet to be defined (cones.r, cones.theta, cones.color) for now
         # Dummy function for now, need to update graph and solve graph on each timestep
         
         #input cone list & dummy dx since we are already doing that in update_graph with imu data
-        
-        #process all new cone messages separately while one thread is solving slam
-        cone_matrix = np.hstack(Cones.r, Cones.theta, Cones.color)
+        cone_matrix = np.array()
+        cone_matrix[0] = np.array()
+        cone_matrix[1] = np.array()
+        cone_matrix[2] = np.array()
+        for cone in cones.blue_cones:
+            r, theta = self.cartesian_to_polar(self.currentstate[:2], (cone.point.x, cone.point.y))
+            cone_matrix[0].append(r)
+            cone_matrix[1].append(theta)
+            cone_matrix[2].append(2)
+        for cone in cones.yellow_cones:
+            r, theta = self.cartesian_to_polar(self.currentstate[:2], (cone.point.x, cone.point.y))
+            cone_matrix[0].append(r)
+            cone_matrix[1].append(theta)
+            cone_matrix[2].append(1)
+
+        # process all new cone messages separately while one thread is solving slam        
         self.slam.update_backlog_perception(cone_matrix)
 
-        if(self.solving):
+        if (self.solving):
             return
 
         #self.slam.update_graph_color([], latest, False) # old pre-ros threading

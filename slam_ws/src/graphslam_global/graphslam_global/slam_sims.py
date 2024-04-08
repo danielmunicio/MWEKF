@@ -15,7 +15,7 @@ from std_msgs.msg import Float64, Header
 from sensor_msgs.msg import Imu
 from geometry_msgs.msg import Quaternion, Vector3
 
-from feb_msgs.msg import carstate, FebPath, Map, cones
+from feb_msgs.msg import State, FebPath, Map, Cones
 
 class SLAMSims_In(Node):
 
@@ -38,7 +38,7 @@ class SLAMSims_In(Node):
 
         # Publish the vehicle's simulated cone readings
         self.cone_pub = self.create_publisher(
-            cones,
+            Cones,
             '/perception/cones',
             1
         )
@@ -54,4 +54,14 @@ class SLAMSims_In(Node):
 
         self.currIMU = Imu()
         self.currCones = cones()
-        
+def cartesian_to_polar(car_state: tuple[float, float], cone: tuple[float, float]):
+    p_x = cone[0] - car_state[0]
+    p_y = cone[1] - car_state[1]
+    r = math.sqrt(p_x**2 + p_y**2)
+    if (p_x == 0):
+        angle = math.asin(p_y/r)
+    else:
+        angle = math.atan(p_y / p_x)
+    if p_x < 0:
+        angle = angle + math.pi
+    return r, angle

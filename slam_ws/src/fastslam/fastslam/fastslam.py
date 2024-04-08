@@ -183,7 +183,7 @@ class FastSLAM(Node):
     def imu_callback(self, imu: Imu) -> None:
         if self.map_finished and self.fastslam is not None:
             # process time
-            dt = self.compute_timediff(imu.header.stamp)
+            dt = self.compute_timediff(imu.header)
             # generate current heading
             roll, pitch, yaw = self.quat_to_euler(imu.orientation)
             # generate current velocity

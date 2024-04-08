@@ -7,7 +7,6 @@ from numpy.linalg import *
 from .graphslam_colorsolve import GraphSLAM
 from time import perf_counter
 import math
-from collections import namedtuple
 # from numpy.random import random, randn
 
 import rclpy
@@ -16,7 +15,7 @@ from std_msgs.msg import Float64, Header
 from sensor_msgs.msg import Imu
 from geometry_msgs.msg import Quaternion, Vector3
 
-from feb_msgs.msg import State, FebPath, Map, Cones #, Cones -- Cones.msg format unspecified atm - (code uses Cones.r, Cones.theta, Cones.color, which can be adjusted)
+from feb_msgs.msg import State, FebPath, Map, Cones
 
 class GraphSLAM_Global(Node):
     def __init__(self):
@@ -204,22 +203,13 @@ class GraphSLAM_Global(Node):
     Function that takes the list of cones, updates and solves the graph
     
     """
-    def cones_callback(self, cones: Cones) -> None:
-        # TODO: fix cones data processing to match Cones datatype
-        combined = [list(cones.left_cones_x)+list(cones.right_cones_x), list(cones.left_cones_y)+list(cones.right_cones_y)]
-        color = [0]*len(list(cones.left_cones_x)) + [1]*len(list(cones.right_cones_x))
-        polar = [np.linalg.norm(np.array(combined), axis=0),
-                 np.arctan2(*combined[::-1]), # [::-1] puts them in order (y, x) for arctan2
-                 np.array(color)]
-        
-        cones = namedtuple('cones', ['r', 'theta', 'color'])(*polar)
-
+    def cones_callback(self, cones: Cones) -> None: # abt todo: we have had cones as a placeholder message structure yet to be defined (cones.r, cones.theta, cones.color) for now
         # Dummy function for now, need to update graph and solve graph on each timestep
         
         #input cone list & dummy dx since we are already doing that in update_graph with imu data
         
         #process all new cone messages separately while one thread is solving slam
-        cone_matrix = np.hstack(cones.r, cones.theta, cones.color)
+        cone_matrix = np.hstack(Cones.r, Cones.theta, Cones.color)
         self.slam.update_backlog_perception(cone_matrix)
 
         if(self.solving):
@@ -294,16 +284,16 @@ class GraphSLAM_Global(Node):
         
         delta_ang = np.arctan2(delta_vecs[:,1], delta_vecs[:,0]) # 0 to pi when y>0 and 0 to to -pi when y<0
         twopi_arr = np.array([2 * np.pi for i in range(len(delta_ang))])
-        twopi_arr[at2np>=0]=0
+        twopi_arr[delta_ang>=0]=0
         delta_ang = delta_ang + twopi_arr #0 to 2pi, except 0 is at 3pi/2 in imu perspective - so we adjust so coordinates r synced btwn cones' relative pos & imu
 
-        delta_ang = delta_ang - (np.pi/2)
-        twopi_arr = np.array([2 * np.pi for i in range(len(at2np))])
-        twopi_arr[delta_ang>=0]=0
-        delta_ang = delta_ang + twopi_arr # 0 to 2pi, same as imu (assuming 0 to 2pi for imu)
+        # delta_ang = delta_ang - (np.pi/2)
+        # twopi_arr = np.array([2 * np.pi for i in range(len(at2np))])
+        # twopi_arr[delta_ang>=0]=0
+        # delta_ang = delta_ang + twopi_arr # 0 to 2pi, same as imu (assuming 0 to 2pi for imu)
 
         for i in range(len(delta_ang)):
-            if(compareAngle(min(delta_ang[i],heading), max(delta_ang[i], heading, self.vision_delta))):
+            if(self.compareAngle(min(delta_ang[i],heading), max(delta_ang[i], heading), self.vision_delta)):
                 if(i<left_len):
                     ret_localcones_left += [close[i]]
                 else:
@@ -319,7 +309,7 @@ class GraphSLAM_Global(Node):
 
     def update_recent_cones(self, imu_state, cone_input):
         
-        self.perception_backlog_cones += [cone_matrix]
+        self.perception_backlog_cones += [cone_input]
         self.perception_backlog_imu += [[imu_state[0], imu_state[1]]]
 
 # For running node

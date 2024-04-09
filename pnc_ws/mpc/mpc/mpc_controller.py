@@ -62,6 +62,9 @@ class KinMPCPathFollower(Controller, Node):
 
         self.global_path = None
         self.local_path = None
+        self.curr_steer = 0
+        self.curr_acc = 0
+        self.path = self.global_path if self.global_path is not None else self.local_path
 
         ### START - ROS Integration Code ###
         super().__init__('mpc_node')
@@ -169,13 +172,13 @@ class KinMPCPathFollower(Controller, Node):
         '''
         Return Steering Angle from steering angle sensor on car
         '''
-        self.curr_steer = float(msg)
+        self.curr_steer = float(msg.data)
     
     def acc_callback(self, msg: Float64):
         '''
         Set curr_acc to value recieved from 
         '''
-        self.curr_acc = float(msg)
+        self.curr_acc = float(msg.data)
 
     def global_path_callback(self, msg: FebPath):
         '''
@@ -215,25 +218,26 @@ class KinMPCPathFollower(Controller, Node):
             and solves mpc problem -> stores result in self.prev_soln
         '''
         # returns the current state as an np array with these values in this order: x,y,velocity,heading
-        curr_state = np.zeros((1,4), np.float64)
-        curr_state[0] = msg.State[0] # x value
-        curr_state[1] = msg.State[1] # y value
-        curr_state[2] = msg.State[2] # velocity
-        curr_state[3] = msg.State[3] # heading
+        curr_state = msg.carstate
+        # curr_state[0] = msg.carstate[0] # x value
+        # curr_state[1] = msg.carstate[1] # y value
+        # curr_state[2] = msg.carstate[2] # velocity
+        # curr_state[3] = msg.carstate[3] # heading
         
-        prev_controls = np.array([self.curr_steer, self.curr_acc])
-        new_values = get_update_dict(pose=curr_state, prev_u=prev_controls, kmpc=self, states=self.path, prev_soln=self.prev_soln)
-        self.update(new_values)
-        self.prev_soln = self.solve()
+        if self.path is not None: 
+            prev_controls = np.array([self.curr_steer, self.curr_acc])
+            new_values = get_update_dict(pose=np.array(curr_state), prev_u=prev_controls, kmpc=self, states=self.path, prev_soln=self.prev_soln)
+            self.update(new_values)
+            self.prev_soln = self.solve()
 
-        # Publishing controls
-        throttle_msg = Float64()
-        steer_msg = Float64()
-        throttle_msg.data = self.prev_soln['u_control'][0]
-        steer_msg.data = self.prev_soln['u_control'][1]
+            # Publishing controls
+            throttle_msg = Float64()
+            steer_msg = Float64()
+            throttle_msg.data = self.prev_soln['u_control'][0]
+            steer_msg.data = self.prev_soln['u_control'][1]
 
-        self.throttle_pub.publish(throttle_msg)
-        self.steer_pub.publish(steer_msg)
+            self.throttle_pub.publish(throttle_msg)
+            self.steer_pub.publish(steer_msg)
 
     ### END - ROS Callback Functions ###
 

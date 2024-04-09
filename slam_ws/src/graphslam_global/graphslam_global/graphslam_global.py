@@ -204,14 +204,19 @@ class GraphSLAM_Global(Node):
         # x.data = dx[0]
         # y = Float64()
         # y.data = dx[1]
+
+        #This should be deleted 
         v = Float64()
         v.data = velocity
         heading = Float64()
         heading.data = yaw
-        self.currentstate.carstate[0].data += dx[0]
-        self.currentstate.carstate[1].data += dx[1]
-        self.currentstate.carstate[2] = v
-        self.currentstate.carstate[3] = heading
+        #Probably 
+
+        # All carstates should be float #'s 
+        self.currentstate.carstate[0] += dx[0]
+        self.currentstate.carstate[1] += dx[1]
+        self.currentstate.carstate[2] = velocity
+        self.currentstate.carstate[3] = yaw
         self.state_seq += 1
         #self.currentstate.header.seq = self.state_seq
         self.currentstate.header.stamp = self.get_clock().now().to_msg()
@@ -254,8 +259,8 @@ class GraphSLAM_Global(Node):
         self.state_pub.publish(self.currentstate)
 
     def cartesian_to_polar(self, car_state, cone):
-        p_x = cone[0] - car_state[0].data
-        p_y = cone[1] - car_state[1].data
+        p_x = cone[0] - car_state[0]
+        p_y = cone[1] - car_state[1]
         r = math.sqrt(p_x**2 + p_y**2)
         if (p_x == 0):
             angle = math.asin(p_y/r)
@@ -355,6 +360,10 @@ class GraphSLAM_Global(Node):
         print('len of local left and local right cones:')
         print(len(local_left))
         print(len(local_right))
+        print('local left: ')
+        print(local_left)
+        print('local right: ')
+        print(local_right)
         #update map message with new map data 
         self.local_map.left_cones_x = np.array(local_left)[:,0].tolist()
         self.local_map.left_cones_y = np.array(local_left)[:,1].tolist()
@@ -375,42 +384,56 @@ class GraphSLAM_Global(Node):
 
     # publishes all cones within given radius
     def localCones(self, radius, left, right):
+        """
+        Find cones within a given radius around the car's current position.
+
+        Parameters:
+            radius (float): The radius within which to search for cones.
+            left (list): List of left cones.
+            right (list): List of right cones.
+
+        Returns:
+            tuple: A tuple containing lists of left and right cones found within the radius.
+        """
         left = np.array(left)
         right = np.array(right)
-        curpos = np.array(self.currentstate.carstate[:2]) # x,y in np
-        heading = self.currentstate.carstate[3] #calibrated in beginning w initial direction being 0 at (0,0)
+        curpos = np.array(self.currentstate.carstate[:2])
+        heading = self.currentstate.carstate[3]
 
         ret_localcones_left = []
         ret_localcones_right = []
 
-        #cones within radius
-        close_left = left[((left - curpos) ** 2).sum(axis = 1) < radius * radius]
-        close_right = right[((right - curpos) ** 2).sum(axis = 1) < radius * radius]
+        # Cones within radius
+        close_left = left[((left - curpos) ** 2).sum(axis=1) < radius * radius]
+        close_right = right[((right - curpos) ** 2).sum(axis=1) < radius * radius]
+        
+        print('close_left cones: ')
+        print(close_left)
+        print('------------------')
+        print('close_right cones:')
+        print(close_right)
+        print('------------------')
 
-        close = close_left + close_right
+        # Concatenate close_left and close_right
+        close = np.concatenate((close_left, close_right), axis=0)
         left_len = len(close_left)
 
-        #cones within 
+        # Calculate delta vectors
         delta_vecs = close - curpos 
         
-        delta_ang = np.arctan2(delta_vecs[:,1], delta_vecs[:,0]) # 0 to pi when y>0 and 0 to to -pi when y<0
-        twopi_arr = np.array([2 * np.pi for i in range(len(delta_ang))])
-        twopi_arr[delta_ang>=0]=0
-        delta_ang = delta_ang + twopi_arr #0 to 2pi, except 0 is at 3pi/2 in imu perspective - so we adjust so coordinates r synced btwn cones' relative pos & imu
-
-        # delta_ang = delta_ang - (np.pi/2)
-        # twopi_arr = np.array([2 * np.pi for i in range(len(at2np))])
-        # twopi_arr[delta_ang>=0]=0
-        # delta_ang = delta_ang + twopi_arr # 0 to 2pi, same as imu (assuming 0 to 2pi for imu)
+        # Calculate delta angles
+        delta_ang = np.arctan2(delta_vecs[:, 1], delta_vecs[:, 0])
+        delta_ang = (delta_ang + 2*np.pi) % (2*np.pi)  # Ensure delta_ang is between 0 and 2*pi
 
         for i in range(len(delta_ang)):
-            if(self.compareAngle(min(delta_ang[i],heading), max(delta_ang[i], heading), self.vision_delta)):
-                if(i<left_len):
-                    ret_localcones_left += [close[i]]
+            if self.compareAngle(min(delta_ang[i], heading), max(delta_ang[i], heading), self.local_vision_delta):
+                if i < left_len:
+                    ret_localcones_left.append(close[i])
                 else:
-                    ret_localcones_right += [close[i]]
+                    ret_localcones_right.append(close[i])
+
         return ret_localcones_left, ret_localcones_right
-        
+
 
     def solveGraphSlamLock(self):
         self.solving = True 

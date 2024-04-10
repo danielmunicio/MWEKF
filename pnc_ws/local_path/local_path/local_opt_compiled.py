@@ -2,7 +2,8 @@
 from casadi import *
 import numpy as np
 from time import perf_counter
-from dynamics import discrete_custom_integrator
+from .dynamics import discrete_custom_integrator
+import os
 # hsl checking fuckery
 # only works on mac/linux. if you havee windows, I'm willing to bet you have bigger problems.
 hsl_avail = (

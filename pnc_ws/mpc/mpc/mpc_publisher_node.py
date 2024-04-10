@@ -24,14 +24,14 @@ class MPCPublisherNode(Node):
         '''
         Set Steering Angle based on MPC Algorithm 
         '''
-        self.steering_angle = float(msg)
+        self.steering_angle = float(msg.data)
         self.publish_message()
 
     def acceleration_callback(self, msg: Float64):
         '''
         Set acceleration callback based on MPC Algorithm 
         '''
-        self.acceleration = float(msg)
+        self.acceleration = float(msg.data)
         self.publish_message()
 
         

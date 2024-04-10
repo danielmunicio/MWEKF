@@ -12,6 +12,7 @@ from sensor_msgs.msg import Imu
 from geometry_msgs.msg import Quaternion, Vector3
 
 from feb_msgs.msg import State, FebPath, Map, Cones
+from eufs_msgs.msg import ConeArrayWithCovariance, ConeWithCovariance
 
 from .fastslam_utils import *
 
@@ -32,8 +33,8 @@ class FastSLAM(Node):
 
         # Handle new cone readings from perception
         self.cones_sub = self.create_subscription(
-            Cones,
-            '/perception/cones', # To be changed
+            ConeArrayWithCovariance,
+            '/ground_truth/cones', # To be changed
             self.cones_callback,
             1
         )
@@ -210,7 +211,7 @@ class FastSLAM(Node):
     # Only IMU Callback will return a new state
     # Without the Cone data, there will be no changing of 
     # weights because there is nothing to compare particles to
-    def cones_callback(self, msg: Cones) -> None:
+    def cones_callback(self, msg: ConeArrayWithCovariance) -> None:
         if self.map_finished and self.fastslam is not None:
             z = msg.cones
             # We update the weights of the particles based on the cone data

@@ -15,6 +15,8 @@ from std_msgs.msg import Float64, Header, Bool
 from sensor_msgs.msg import Imu
 from geometry_msgs.msg import Quaternion, Vector3
 
+import matplotlib.pyplot as plt 
+
 # import sys
 # import os 
 # print(sys.path)
@@ -284,6 +286,20 @@ class GraphSLAM_Global(Node):
     
     """
     def cones_callback(self, cones: ConeArrayWithCovariance) -> None: # abt todo: we have had cones as a placeholder message structure yet to be defined (cones.r, cones.theta, cones.color) for now
+        self.local_map.left_cones_x = [cone.point.x for cone in cones.blue_cones]
+        self.local_map.left_cones_y = [cone.point.y for cone in cones.blue_cones]
+        self.local_map.right_cones_x = [cone.point.x for cone in cones.yellow_cones]
+        self.local_map.right_cones_y = [cone.point.y for cone in cones.yellow_cones]
+        self.local_map_pub.publish(self.local_map)
+
+        # x_s = [cone.point.x for cone in cones.blue_cones] + [cone.point.x for cone in cones.yellow_cones]
+        # y_s = [cone.point.y for cone in cones.blue_cones] + [cone.point.y for cone in cones.yellow_cones]
+
+        # plt.scatter(x_s, y_s)
+        # plt.show()
+        return
+
+
         # Dummy function for now, need to update graph and solve graph on each timestep
         if self.finished:
             return
@@ -366,6 +382,7 @@ class GraphSLAM_Global(Node):
         # print(len(right_cones))
 
         local_left, local_right = self.localCones(self.local_radius, left_cones, right_cones)
+        # local_left, local_right = left_cones, right_cones
 
         # print('len of local left and local right cones:')
         # print(len(local_left))
@@ -375,6 +392,9 @@ class GraphSLAM_Global(Node):
         # print('local right: ')
         # print(local_right)
         #update map message with new map data 
+        with open("out.txt", 'a') as f: 
+            print(local_left, file=f)
+
         self.local_map.left_cones_x = np.array(local_left)[:,0].tolist()
         self.local_map.left_cones_y = np.array(local_left)[:,1].tolist()
         self.local_map.right_cones_x = np.array(local_right)[:,0].tolist()
@@ -384,6 +404,15 @@ class GraphSLAM_Global(Node):
         #self.local_map.header.seq = self.seq
         self.local_map.header.stamp = self.get_clock().now().to_msg()
         self.local_map.header.frame_id = "rslidar"
+
+        with open("out.txt", 'a') as f: 
+            print(self.local_map, file=f)
+
+        x_s = np.array(local_left)[:,0].tolist() + np.array(local_right)[:,0].tolist()
+        y_s = np.array(local_left)[:,1].tolist() + np.array(local_right)[:,1].tolist()
+
+        plt.scatter(x_s, y_s)
+        plt.show()
 
         self.local_map_pub.publish(self.local_map)
 

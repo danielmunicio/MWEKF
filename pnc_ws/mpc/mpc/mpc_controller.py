@@ -78,6 +78,7 @@ class KinMPCPathFollower(Controller, Node):
         # Publishers
         self.throttle_pub = self.create_publisher(Float64, '/control/throttle', 1)
         self.steer_pub = self.create_publisher(Float64, '/control/steer', 1)
+        self.control_pub = self.create_publisher(AckermannDriveStamped, 'cmd', 1)
 
         ### END - ROS Integration Code ###
 
@@ -226,10 +227,22 @@ class KinMPCPathFollower(Controller, Node):
         if self.path is not None: 
             prev_controls = np.array([self.curr_steer, self.curr_acc])
             new_values = get_update_dict(pose=np.array(curr_state), prev_u=prev_controls, kmpc=self, states=self.path, prev_soln=self.prev_soln)
+
+
             self.update(new_values)
             self.prev_soln = self.solve()
 
+            # print('drive message:', self.prev_soln['u_control'][0])
+            # print('steering message:', self.prev_soln['u_control'][1])
+            print()
             # Publishing controls
+            msg = AckermannDriveStamped()
+            msg.header.stamp = self.get_clock().now().to_msg()
+            msg.drive.acceleration = self.prev_soln['u_control'][0]  
+            msg.drive.steering_angle = self.prev_soln['u_control'][1]
+
+            self.control_pub.publish(msg)
+
             throttle_msg = Float64()
             steer_msg = Float64()
             throttle_msg.data = self.prev_soln['u_control'][0]
@@ -458,6 +471,7 @@ class KinMPCPathFollower(Controller, Node):
         
 def main(args=None):
     rclpy.init(args=args)
+    print("args: ", args)
     mpc_node = KinMPCPathFollower()
     simulatorNode = MPCPublisherNode()
     

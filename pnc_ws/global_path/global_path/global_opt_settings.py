@@ -4,7 +4,7 @@ from casadi import Function
 class GlobalOptSettings(metaclass=Settings):
     """settings for CompiledGlobalOpt. All in one place, so it's always synced."""
     N: int = 100
-    solver: str = 'ipopt'
+    nlp_solver: str = 'ipopt'
     car_params: dict[str:float] = {'l_r': 0.76, 'l_f':0.76, 'm': 1.}
     bbox: dict[str:float] = {'l': 2.7, 'w': 1.6}
     DF_MAX: float  =  0.5

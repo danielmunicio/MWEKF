@@ -16,8 +16,7 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float64
 
-from feb_msgs.msg import State
-from feb_msgs.msg import FebPath
+from feb_msgs.msg import State, FebPath
 
 class KinMPCPathFollower(Controller, Node):
     def __init__(self, 

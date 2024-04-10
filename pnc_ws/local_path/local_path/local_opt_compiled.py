@@ -351,12 +351,13 @@ class CompiledLocalOpt:
             DM([0.0])         # scalar
         ))
         # print(self.x0, self.x0.shape())
-        self.solver.print_options()
+        print("leo is mean!!!!!")
+        print(DM(curr_state).shape, horzcat(DM(left), DM(right)).shape)
         self.soln = self.solver(
             x0=self.x0,
             lbg=self.lbg,
             ubg=self.ubg,
-            p=vertcat(DM(curr_state), horzcat(DM(left), DM(right))),
+            p=vertcat(DM(curr_state).T, horzcat(DM(left), DM(right))),
         )
         self.soln['x'] = np.array(reshape(self.soln['x'][:-1], (self.N, 10)))
         self.soln['xy'] = (left.T*(1-self.soln['x'][:, 0])+right.T*self.soln['x'][:, 0]).T

@@ -10,8 +10,8 @@ class MPCPublisherNode(Node):
         self.steering = 0
         super().__init__('publisher_node')
         self.publisher = self.create_publisher(AckermannDriveStamped, '/cmd', 1)
-        self.curr_steer_sub = self.create_subscription(Float64, '/control/steer', self.steer_callback, 1)
-        self.curr_throttle_sub = self.create_subscription(Float64, '/control/throttle', self.acceleration_callback, 1) 
+        self.curr_throttle_sub = self.create_subscription(Float64, '/control/throttle', self.acceleration_callback, 1)
+        self.curr_steer_sub = self.create_subscription(Float64, '/control/steer', self.steer_callback, 1) 
 
     def publish_message(self):
         msg = AckermannDriveStamped()

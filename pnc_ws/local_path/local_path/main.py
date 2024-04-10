@@ -21,10 +21,13 @@ class LocalPath(Node):
         self.state_subscriber = self.create_subscription(State, '/slam/state', self.state_callback, 1)
 
         self.g = CompiledLocalOpt(**settings)
+        self.g.construct_solver()
         self.state = [0,0,0,0]
         
     def listener_cb(self, msg: Map):
-        left, right = ConeOrdering(self.msg, self.state)
+        left, right = ConeOrdering(msg, self.state)
+        print("left and right:")
+        print(left, right)
         res = self.g.solve(left, right, self.state)
         states, _ = self.g.to_constant_tgrid(0.2, **res)
         

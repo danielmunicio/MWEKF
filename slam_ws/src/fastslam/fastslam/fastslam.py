@@ -213,7 +213,7 @@ class FastSLAM(Node):
     # weights because there is nothing to compare particles to
     def cones_callback(self, msg: ConeArrayWithCovariance) -> None:
         if self.map_finished and self.fastslam is not None:
-            z = msg.cones
+            z = list(msg.cones)
             # We update the weights of the particles based on the cone data
             # remains to be seen how we need to process these depending on the perception data
             self.fastslam.update_weights(z)

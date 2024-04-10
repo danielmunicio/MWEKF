@@ -149,10 +149,10 @@ class GraphSLAM:
             # if its the first graph update, we do things a bit differently
             if len(self.lmhat)==0:
                 # set landmark guesses to absolute location of landmarks (add measurements to current pose)
-                print(z)
-                print(curpos_color)
+                #print(z)
+                #print(curpos_color)
                 self.lmhat = z.tolist() + curpos_color[:, np.newaxis].tolist() # color
-                print(self.lmhat)
+                #print(self.lmhat)
                 #self.lmhat = z+curpos # no color
                 # add landmark nodes (add symbolic landmark nodes)
                 #self.lm = [MX.sym(f'lm{i}', 2) for i in range(z.shape[0])] # no color
@@ -364,29 +364,29 @@ class GraphSLAM:
             assert f"solver_type must be 'qp' or 'nlp', not {self.solver_type}"
 
         # actually solve the QP problem
-        print('xhat.len: ')
-        print(len(self.xhat))
-        print('xhat elem shape:')
-        print((self.xhat[0].shape))
-        print('-------------')
+        #print('xhat.len: ')
+        #print(len(self.xhat))
+        #print('xhat elem shape:')
+        #print((self.xhat[0].shape))
+        #print('-------------')
 
-        print('lmhat len:')
-        print(len(self.lmhat))
-        print('lmhat element shape:')
-        print((self.lmhat[0].shape))
-        print('-------------')
+        #print('lmhat len:')
+        #print(len(self.lmhat))
+        #print('lmhat element shape:')
+        #print((self.lmhat[0].shape))
+        #print('-------------')
 
-        print('x.shape:')
-        print(len(self.x))
-        print('x element shape')
-        print((self.x[0].shape))
-        print('-------------')
+        #print('x.shape:')
+        #print(len(self.x))
+        #print('x element shape')
+        #print((self.x[0].shape))
+        #print('-------------')
 
-        print('lm len:')
-        print(len(self.lm))
-        print('lm element shape:')
-        print(self.lm[0].shape)
-        print('---------------')
+        #print('lm len:')
+        #print(len(self.lm))
+        #print('lm element shape:')
+        #print(self.lm[0].shape)
+        #print('---------------')
         soln = np.array(solver(x0=vertcat(*self.xhat, *self.lmhat))['x'])
 
         # now we need to get the solution back into a good form

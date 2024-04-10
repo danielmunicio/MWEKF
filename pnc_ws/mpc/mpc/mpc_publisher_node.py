@@ -1,6 +1,7 @@
 import rclpy
 from rclpy.node import Node
 from ackermann_msgs.msg import AckermannDriveStamped
+from ackermann_msgs.msg import AckermannDrive
 from std_msgs.msg import Float64
 
 
@@ -14,16 +15,19 @@ class MPCPublisherNode(Node):
         self.curr_steer_sub = self.create_subscription(Float64, '/control/steer', self.steer_callback, 1) 
 
     def publish_message(self):
+        print('Publishing message')
         msg = AckermannDriveStamped()
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.drive.acceleration = self.acceleration  
+        msg.drive.acceleration = self.acceleration
         msg.drive.steering_angle = self.steering_angle
+        print(msg)
         self.publisher.publish(msg)
 
     def steer_callback(self, msg: Float64):
         '''
         Set Steering Angle based on MPC Algorithm 
         '''
+        print('Recieved Steering Message')
         self.steering_angle = float(msg.data)
         self.publish_message()
 
@@ -31,5 +35,6 @@ class MPCPublisherNode(Node):
         '''
         Set acceleration callback based on MPC Algorithm 
         '''
+        print('Recieved Acceleration Message')
         self.acceleration = float(msg.data)
         self.publish_message()

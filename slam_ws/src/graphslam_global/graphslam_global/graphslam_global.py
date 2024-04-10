@@ -124,13 +124,13 @@ class GraphSLAM_Global(Node):
         self.solving = False
 
         self.finished = False
-        self.usefastslam = True
+        self.usefastslam = False
 
 
 
     def finish_callback(self, msg: Bool) -> None:
         if self.usefastslam:
-            self.finished = msg.data
+            self.finished = bool(msg.data)
 
     """
     Function that takes in message header and computes difference in time from last state msg
@@ -234,29 +234,38 @@ class GraphSLAM_Global(Node):
     """
 
     def imu_callback(self, imu: Imu) -> None:
+        times = [perf_counter()]
         if self.finished:
             return
         # process time
         dt = self.compute_timediff(imu.header)
+        times.append(perf_counter())
         # generate current heading
         roll, pitch, yaw = self.quat_to_euler(imu.orientation)
+        times.append(perf_counter())
         # generate current velocity
         velocity = self.compute_velocity(imu.linear_acceleration, dt)
+        times.append(perf_counter())
         # for now, we assume velocity is in the direction of heading
 
         self.currentstate.carstate[2] = velocity
 
         # generate dx [change in x, change in y] to add new pose to graph
         dx = velocity * dt * np.array([math.cos(yaw), math.sin(yaw)])
+        times.append(perf_counter())
 
         # add new position node to graph
         self.slam.update_position(dx)
+        times.append(perf_counter())
         #self.slam.update_backlog_imu(dx)
 
         # update state msg
         self.update_state(dx, yaw, velocity)
+        times.append(perf_counter())
 
         self.state_pub.publish(self.currentstate)
+        times.append(perf_counter())
+        print(f"TIME TAKEN FOR IMU CALLBACK: {times}")
 
     def cartesian_to_polar(self, car_state, cone):
         p_x = cone[0] - car_state[0]
@@ -315,55 +324,56 @@ class GraphSLAM_Global(Node):
         x_guess = np.array(x_guess)
         lm_guess = np.array(lm_guess)
 
-        print('x_guess: ')
-        print(x_guess)
-        print('___________________________')
-        print('lm_guess: ')
-        print(lm_guess)
-        print('___________________________')
+        # print('x_guess: ')
+        # print(x_guess)
+        # print('___________________________')
+        # print('lm_guess: ')
+        # print(lm_guess)
+        # print('___________________________')
 
         blue_array = np.array([2 for i in range(len(lm_guess[:,2]))])
         # yellow_array = np.array([ for i in range(len(lm_guess[:,2]))])
 
         # left_cones = lm_guess[lm_guess[:,2] == np.isclose(lm_guess[:,2], 2, rtol = 0.0001, atol = 0.0001)][:,:2] # blue
         #print((lm_guess[:, 2])[0].type())
-        print(type(lm_guess[:, 2]))
+        #print(type(lm_guess[:, 2]))
         left_cones = lm_guess[np.round(lm_guess[:,2]) == 2][:,:2] # blue
         right_cones = lm_guess[np.round(lm_guess[:,2]) == 1][:,:2] # yellow
         #left_cones = lm_guess[lm_guess[:,2] == 0][:,:2] # orange
 
-        print('left_cones: ')
-        print(left_cones)
-        print('___________________________')
-        print('right_cones: ')
-        print(right_cones)
-        print('_____________________')
-        #update map message with new map data 
-        self.global_map.left_cones_x = list(left_cones[:,0])
-        self.global_map.left_cones_y = list(left_cones[:,1]) 
-        self.global_map.right_cones_x = list(right_cones[:,0]) 
-        self.global_map.right_cones_y = list(right_cones[:,1]) 
+        # print('left_cones: ')
+        # print(left_cones)
+        # print('___________________________')
+        # print('right_cones: ')
+        # print(right_cones)
+        # print('_____________________')
 
-        #update message header
-        self.cone_seq += 1
-        #self.global_map.header.seq = self.seq
-        self.global_map.header.stamp = self.get_clock().now().to_msg()
-        self.global_map.header.frame_id = "rslidar"
+        # #update map message with new map data 
+        # self.global_map.left_cones_x = list(left_cones[:,0])
+        # self.global_map.left_cones_y = list(left_cones[:,1]) 
+        # self.global_map.right_cones_x = list(right_cones[:,0]) 
+        # self.global_map.right_cones_y = list(right_cones[:,1]) 
 
-        self.global_map_pub.publish(self.global_map)
-        print('len of left and right cones:')
-        print(len(left_cones))
-        print(len(right_cones))
+        # #update message header
+        # self.cone_seq += 1
+        # #self.global_map.header.seq = self.seq
+        # self.global_map.header.stamp = self.get_clock().now().to_msg()
+        # self.global_map.header.frame_id = "rslidar"
+
+        # self.global_map_pub.publish(self.global_map)
+        # print('len of left and right cones:')
+        # print(len(left_cones))
+        # print(len(right_cones))
 
         local_left, local_right = self.localCones(self.local_radius, left_cones, right_cones)
 
-        print('len of local left and local right cones:')
-        print(len(local_left))
-        print(len(local_right))
-        print('local left: ')
-        print(local_left)
-        print('local right: ')
-        print(local_right)
+        # print('len of local left and local right cones:')
+        # print(len(local_left))
+        # print(len(local_right))
+        # print('local left: ')
+        # print(local_left)
+        # print('local right: ')
+        # print(local_right)
         #update map message with new map data 
         self.local_map.left_cones_x = np.array(local_left)[:,0].tolist()
         self.local_map.left_cones_y = np.array(local_left)[:,1].tolist()
@@ -407,12 +417,12 @@ class GraphSLAM_Global(Node):
         close_left = left[((left - curpos) ** 2).sum(axis=1) < radius * radius]
         close_right = right[((right - curpos) ** 2).sum(axis=1) < radius * radius]
         
-        print('close_left cones: ')
-        print(close_left)
-        print('------------------')
-        print('close_right cones:')
-        print(close_right)
-        print('------------------')
+        # print('close_left cones: ')
+        # print(close_left)
+        # print('------------------')
+        # print('close_right cones:')
+        # print(close_right)
+        # print('------------------')
 
         # Concatenate close_left and close_right
         close = np.concatenate((close_left, close_right), axis=0)

@@ -14,18 +14,30 @@ def ConeOrdering(msg: Map, state: list[float]):
         tuple[ndarray(2, N), ndarray(2, N)]: pairs of points on the track boundary
     """
     N = LocalOptSettings.N # get size
+    
     left, right = (
         np.array([list(msg.left_cones_x), list(msg.left_cones_y)]),
         np.array([list(msg.right_cones_x), list(msg.right_cones_y)]),
     )
+    with open("out_left_right.txt", 'a') as f: 
+        print("leftn:", left, file=f)
+        print("right:", right, file=f)
+        print(file=f)
     left, right = cone_ordering_algorithm(left, right, N, state)
     return left, right
 #%%
 def cone_ordering_algorithm(left, right, N, state):
-    """even more dummy placeholder algorithm
     """
+    even more dummy placeholder algorithm
+    """
+    with open("out_pts.txt", 'a') as f: 
+        print("left:", left, file=f)
+        print("right:", right, file=f)
+        print(file=f)
     
     pts = Voronoi(np.hstack([left, right]).T).vertices
+    with open("out_pts.txt", 'a') as f: 
+        print(pts, file=f)
     pos = np.array(state[:2])
     print(np.linalg.norm(np.array(pts)-np.array(pos), axis=1))
 
@@ -34,6 +46,7 @@ def cone_ordering_algorithm(left, right, N, state):
     start = np.argmin(np.linalg.norm(np.array(pts)-np.array(pos), axis=1))
 
     pts[start], pts[0] = np.copy(pts[0]), np.copy(pts[start])
+    
     print(pts.shape)
     pts = order(pts)
     print(pts)
@@ -41,22 +54,20 @@ def cone_ordering_algorithm(left, right, N, state):
 
     return pts, np.copy(pts)
 
-
 def interp(points):
-
+    print("reid code bad", points)
     dx = np.linalg.norm(np.diff(points, axis=0), axis=1)
     dists = np.cumsum(dx)
     dists = np.hstack([np.array([0.0]), dists])
     
     def interpolate(x):
-        x = x*dists[-1]
-        i = np.where(x<dists)[0][0]
-        t=(x-dists[i-1])/dx[i-1]
+        x = x * dists[-1]
+        print(x)
+        i = np.where(x < dists)[0][0]
+        t = (x - dists[i - 1]) / dx[i - 1]
 
         return points[i-1]*(1-t) + points[i]*t
     return lambda x: np.array([interpolate(i) for i in x])
-
-
 
 def order(cones):
     """orders the input array by selecting the nearest cone. runs in-place, assumes first cone is correct
@@ -74,5 +85,5 @@ def order(cones):
             return cones[:i+1]
         cones[i+1], cones[mindex] = np.copy(cones[mindex]), np.copy(cones[i+1])
     return cones
-cone_ordering_algorithm(np.array([[1,2,3,4,5,6,7,8,9,10], [0,0,0,0,0,0,0,0,0,0]]), np.array([[1,2,3,4,5,6,7,8,9,10], [3,3,3,3,3,3,3,3,3,3]]), 5, [3, 1.5, 0, 0])
+# cone_ordering_algorithm(np.array([[1,2,3,4,5,6,7,8,9,10], [0,0,0,0,0,0,0,0,0,0]]), np.array([[1,2,3,4,5,6,7,8,9,10], [3,3,3,3,3,3,3,3,3,3]]), 5, [3, 1.5, 0, 0])
 # %%

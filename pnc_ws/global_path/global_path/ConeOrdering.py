@@ -3,8 +3,8 @@ import numpy as np
 from scipy.spatial import Voronoi
 from shapely.geometry import Polygon, Point, LineString
 from shapely.ops import nearest_points
-from MapPolygon import vertices_in_edges
-from Graph import Graph, find_longest_cycle
+from .MapPolygon import vertices_in_edges, find_polygons_from_points
+from .Graph import Graph, find_longest_cycle
 from feb_msgs.msg import Map
 
 def ConeOrdering(msg: Map):

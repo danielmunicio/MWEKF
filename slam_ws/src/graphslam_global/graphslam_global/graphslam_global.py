@@ -267,7 +267,7 @@ class GraphSLAM_Global(Node):
 
         self.state_pub.publish(self.currentstate)
         times.append(perf_counter())
-        print(f"TIME TAKEN FOR IMU CALLBACK: {times}")
+        # print(f"TIME TAKEN FOR IMU CALLBACK: {times}")
 
     def cartesian_to_polar(self, car_state, cone):
         p_x = cone[0] - car_state[0]

@@ -5,6 +5,8 @@ from feb_msgs.msg import State
 from feb_msgs.msg import FebPath
 from feb_msgs.msg import Map
 from std_msgs.msg import Bool
+from sensor_msgs.msg import PointCloud
+from geometry_msgs.msg import Point32
 from .local_opt_settings import LocalOptSettings as settings
 from .local_opt_compiled import CompiledLocalOpt
 from .ConeOrdering import ConeOrdering
@@ -16,6 +18,7 @@ class LocalPath(Node):
 
         #Publishers
         self.pc_publisher = self.create_publisher(FebPath, '/path/local', 1)
+        self.pointcloud_pub = self.create_publisher(PointCloud, 'path/local/viz', 5)
 
         #Subscribers
         self.pc_subscriber = self.create_subscription(Map, '/slam/map/local', self.listener_cb, 1)
@@ -45,6 +48,17 @@ class LocalPath(Node):
         path_msg.v = states[:, 3].flatten().tolist()
         print('MAP Message About to Publish')
         self.pc_publisher.publish(path_msg)
+        pc_msg = PointCloud()
+        pts = []
+        for x in states:
+            pts.append(Point32())
+            pts[-1].x = x[0]
+            pts[-1].y = x[1]
+            pts[-1].z = 0.0
+        pc_msg.points = pts
+        pc_msg.header.frame_id = "base_footprint"
+        pc_msg.header.stamp = self.get_clock().now().to_msg()
+        self.pointcloud_pub.publish(pc_msg)
 
         with open('out.txt', 'a') as f:
             print('finished publishing!', file=f)

@@ -23,7 +23,18 @@ def ConeOrdering(msg: Map, state: list[float]):
         np.array([list(msg.left_cones_x), list(msg.left_cones_y)]),
         np.array([list(msg.right_cones_x), list(msg.right_cones_y)]),
     )
-    left, right = N_point_generator(left, right, state, N)
+
+    # fix the case if there is not enough points
+    if len(left) < 5 or len(right) < 5:
+        yellow_line = LineString(left)
+        blue_line = LineString(right)
+        yellow_more = generate_N_points(yellow_line, 8)
+        yellow_more = [(p.x, p.y) for p in yellow_more]
+        blue_more = generate_N_points(blue_line, 8)
+        blue_more = [(p.x, p.y) for p in blue_more]
+        left, right = N_point_generator(yellow_more, blue_more, state, N)
+    else:
+        left, right = N_point_generator(left, right, state, N)
     return left, right
 
 def N_point_generator(left, right, traveled, N):

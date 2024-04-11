@@ -21,6 +21,7 @@ class GlobalPath(Node):
         self.pc_subscriber = self.create_subscription(Map, '/slam/map/global', self.listener_cb, 1)
 
         self.g = CompiledGlobalOpt(**settings)
+        self.g.construct_solver()
 
     def listener_cb(self, msg: Map):
         left, right = ConeOrdering(msg)

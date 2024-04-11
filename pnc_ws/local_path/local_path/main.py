@@ -8,6 +8,7 @@ from std_msgs.msg import Bool
 from .local_opt_settings import LocalOptSettings as settings
 from .local_opt_compiled import CompiledLocalOpt
 from .ConeOrdering import ConeOrdering
+import matplotlib.pyplot as plt
 
 class LocalPath(Node):
     def __init__(self):
@@ -21,22 +22,36 @@ class LocalPath(Node):
         self.state_subscriber = self.create_subscription(State, '/slam/state', self.state_callback, 1)
 
         self.g = CompiledLocalOpt(**settings)
-        self.state = [0,0,0,0]
+        self.g.construct_solver()
+        self.state = [0.,0.,0.,0.]
         
     def listener_cb(self, msg: Map):
-        left, right = ConeOrdering(self.msg, self.state)
+        print('MAP Message Received')
+        left, right = ConeOrdering(msg, self.state)
+        with open('out.txt', 'a') as f:
+            print(left, file=f)
         res = self.g.solve(left, right, self.state)
+        with open('out.txt', 'a') as f:
+            print(res, file=f)
         states, _ = self.g.to_constant_tgrid(0.2, **res)
-        
-        msg = FebPath()
-        msg.x = states[:, 0].flatten().tolist()
-        msg.y = states[:, 1].flatten().tolist()
-        msg.psi = states[:, 2].flatten().tolist()
-        msg.v = states[:, 3].flatten().tolist()
-        
-        self.pc_publisher.publish(msg)
+        with open('out.txt', 'a') as f:
+            print(states, file=f)
+            print('\n\n\n\n\n')
+        # states = np.zeros((50, 4))
+        path_msg = FebPath()
+        path_msg.x = states[:, 0].flatten().tolist()
+        path_msg.y = states[:, 1].flatten().tolist()
+        path_msg.psi = states[:, 2].flatten().tolist()
+        path_msg.v = states[:, 3].flatten().tolist()
+        print('MAP Message About to Publish')
+        self.pc_publisher.publish(path_msg)
+
+        with open('out.txt', 'a') as f:
+            print('finished publishing!', file=f)
 
     def state_callback(self, msg: State):
+        with open('out.txt', 'a') as f:
+            print(f"state received: {list(msg.carstate)}", file=f)
         self.state = list(msg.carstate)
 
 

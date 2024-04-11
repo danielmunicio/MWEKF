@@ -235,36 +235,34 @@ class GraphSLAM_Global(Node):
     - float64[9] linear_acceleration_covariance
     """
 
-    def imu_callback(self, imu: Imu) -> None:
+def imu_callback(self, imu: Imu) -> None:
         times = [perf_counter()]
         if self.finished:
             return
         # process time
         dt = self.compute_timediff(imu.header)
+        if (dt > 1):
+            return
         times.append(perf_counter())
         # generate current heading
         roll, pitch, yaw = self.quat_to_euler(imu.orientation)
         times.append(perf_counter())
         # generate current velocity
-        velocity = self.compute_velocity(imu.linear_acceleration, dt)
+        delta_velocity = self.compute_velocity(imu.linear_acceleration, dt)
+        velocity += self.currentstate.carstate[2]
         times.append(perf_counter())
         # for now, we assume velocity is in the direction of heading
-
         self.currentstate.carstate[2] = velocity
-
         # generate dx [change in x, change in y] to add new pose to graph
         dx = velocity * dt * np.array([math.cos(yaw), math.sin(yaw)])
         times.append(perf_counter())
-
         # add new position node to graph
         self.slam.update_position(dx)
         times.append(perf_counter())
         #self.slam.update_backlog_imu(dx)
-
         # update state msg
         self.update_state(dx, yaw, velocity)
         times.append(perf_counter())
-
         self.state_pub.publish(self.currentstate)
         times.append(perf_counter())
         # print(f"TIME TAKEN FOR IMU CALLBACK: {times}")

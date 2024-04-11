@@ -31,15 +31,8 @@ class LocalPath(Node):
     def listener_cb(self, msg: Map):
         print('MAP Message Received')
         left, right = ConeOrdering(msg, self.state)
-        with open('out.txt', 'a') as f:
-            print(left, file=f)
-        res = self.g.solve(left, right, self.state)
-        with open('out.txt', 'a') as f:
-            print(res, file=f)
+        res = self.g.solve((left+right)/2, (left+right)/2, self.state)
         states, _ = self.g.to_constant_tgrid(0.2, **res)
-        with open('out.txt', 'a') as f:
-            print(states, file=f)
-            print('\n\n\n\n\n')
         # states = np.zeros((50, 4))
         path_msg = FebPath()
         path_msg.x = states[:, 0].flatten().tolist()
@@ -61,12 +54,8 @@ class LocalPath(Node):
         pc_msg.header.stamp = self.get_clock().now().to_msg()
         self.pointcloud_pub.publish(pc_msg)
 
-        with open('out.txt', 'a') as f:
-            print('finished publishing!', file=f)
 
     def state_callback(self, msg: State):
-        with open('out.txt', 'a') as f:
-            print(f"state received: {list(msg.carstate)}", file=f)
         self.state = list(msg.carstate)
 
 

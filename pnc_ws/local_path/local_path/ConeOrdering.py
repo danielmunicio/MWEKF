@@ -7,6 +7,8 @@ import math
 from scipy.spatial import KDTree
 from shapely.geometry import Polygon, Point, LineString, MultiLineString
 from shapely.ops import linemerge
+from .MapPolygon import find_polygons_from_points
+from .Graph import Graph
 
 def ConeOrdering(msg: Map, state: list[float]):
     """get cones from message and call the cone ordering algorithm and return the results
@@ -20,29 +22,31 @@ def ConeOrdering(msg: Map, state: list[float]):
     N = LocalOptSettings.N # get size
     
     left, right = (
-        np.array([list(msg.left_cones_x), list(msg.left_cones_y)]),
-        np.array([list(msg.right_cones_x), list(msg.right_cones_y)]),
+        np.array([list(msg.left_cones_x), list(msg.left_cones_y)]).T.tolist(),
+        np.array([list(msg.right_cones_x), list(msg.right_cones_y)]).T.tolist(),
     )
-
+    print(f"Received state {state}")
     # fix the case if there is not enough points
     if len(left) < 5 or len(right) < 5:
+        print(left)
         yellow_line = LineString(left)
         blue_line = LineString(right)
         yellow_more = generate_N_points(yellow_line, 8)
         yellow_more = [(p.x, p.y) for p in yellow_more]
         blue_more = generate_N_points(blue_line, 8)
         blue_more = [(p.x, p.y) for p in blue_more]
-        left, right = N_point_generator(yellow_more, blue_more, state, N)
+        left, right = N_point_generator(yellow_more, blue_more, [state[:2]], N)
     else:
-        left, right = N_point_generator(left, right, state, N)
-    return left, right
+        left, right = N_point_generator(left, right, [state[:2]], N)
+    return np.array(left), np.array(right)
 
 def N_point_generator(left, right, traveled, N):
     # have a list of all_cones for refence
     all_cones = left.copy()
     all_cones.extend(right.copy())
     # figure out polygons
-    yellow_polygon, blue_polygon = find_local_polygons(all_cones, traveled, left)
+    # yellow_polygon, blue_polygon = find_local_polygons(all_cones, traveled, left)
+    yellow_polygon, blue_polygon = find_local_polygons(all_cones, traveled, left, right)
     # figure out local paths
     local_yellow_path = remove_longest_edge_from_polygon(yellow_polygon)
     local_blue_path = remove_longest_edge_from_polygon(blue_polygon)
@@ -86,6 +90,15 @@ def closest_points_on_medial_line(points, medial_line):
     
     return closest_points
 
+def linestring_to_edges(linestring):
+    edges = []
+    coords = list(linestring.coords)
+    num_coords = len(coords)
+    for i in range(num_coords - 1):
+        edges.append((coords[i], coords[i+1]))
+    if linestring.is_closed:
+        edges.append((coords[-1], coords[0]))
+    return edges
 
 def filter_medial_line_further(medial_edges):
     
@@ -185,8 +198,8 @@ def distance_between_points(point1, point2):
     return np.sqrt(np.sum((np.array(point2) - np.array(point1)) ** 2))
 
 
-def find_local_polygons(all_cones, traveled_points, yellow_points):
-    
+def find_local_polygons(all_cones, traveled_points, yellow_points, blue_points):
+        
     yellow_polygon = None
     blue_polygon = None
     
@@ -258,6 +271,7 @@ def find_local_polygons(all_cones, traveled_points, yellow_points):
 
 def find_near_cones(cones, traveled_points, threshold_percentile=90):
     # Build KD-tree for traveled pointsy
+    print("traveled_points: ", traveled_points)
     traveled_tree = KDTree(traveled_points)
     
     distances = []

@@ -323,12 +323,22 @@ def remove_longest_edge_from_polygon(polygon):
             break
     
     if removal_i == len(new_points) - 1:
+        print(f"STUFFFFFF HEREEEE {new_points}")
+
         return LineString(new_points[0:-1])
     else:
         last_point = new_points[-1]
         first_point = new_points[0]
-        return linemerge([new_points[i+1:], [last_point, first_point], new_points[:i]])
 
+        stuff = [new_points[i+1:], [last_point, first_point], new_points[:i]]
+        if len(new_points[i+1:]) == 0:
+            stuff.remove(new_points[i+1:])
+        if first_point == last_point:
+            stuff.remove([last_point, first_point])
+        if len(new_points[:i]) == 0:
+            stuff.remove(new_points[:i])
+        print(f"STUFFFFFF {stuff}")
+        return LineString(sum(stuff, start=[]))
 
 def generate_N_points(line, N):
 

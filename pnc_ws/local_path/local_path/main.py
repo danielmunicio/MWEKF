@@ -33,7 +33,7 @@ class LocalPath(Node):
         left, right = ConeOrdering(msg, self.state)
         with open('out.txt', 'a') as f:
             print(left, file=f)
-        res = self.g.solve((left+right)/2, (left+right)/2, self.state)
+        res = self.g.solve(left, right, self.state)
         with open('out.txt', 'a') as f:
             print(res, file=f)
         states, _ = self.g.to_constant_tgrid(0.2, **res)

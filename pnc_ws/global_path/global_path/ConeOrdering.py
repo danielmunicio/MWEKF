@@ -3,7 +3,8 @@ import numpy as np
 from scipy.spatial import Voronoi
 from shapely.geometry import Polygon, Point, LineString
 from shapely.ops import nearest_points
-
+from MapPolygon import vertices_in_edges
+from Graph import Graph, find_longest_cycle
 from feb_msgs.msg import Map
 
 def ConeOrdering(msg: Map):
@@ -15,19 +16,16 @@ def ConeOrdering(msg: Map):
     Returns:
         tuple[ndarray(2, N), ndarray(2, N), N]: pairs of points on the track boundary
     """
-    N = GlobalOptSettings.N # get size
+    # N = GlobalOptSettings.N # get size
+    N = 10
     left, right = (
         np.array([list(msg.left_cones_x), list(msg.left_cones_y)]),
         np.array([list(msg.right_cones_x), list(msg.right_cones_y)]),
     )
-    left, right = cone_ordering_algorithm(left, right, N)
+    left, right = N_point_generator(left, right, N)
     return left, right, len(left)
 
-def cone_ordering_algorithm(left, right, N):
-
-    # create initial polygons
-    yellow_polygon = Polygon(left)
-    blue_polygon = Polygon(right)
+def N_point_generator(yellow_polygon, blue_polygon, N):
     # generate N points on those polygons
     new_yellow_points = generate_N_points(yellow_polygon, N)
     new_blue_points = generate_N_points(blue_polygon, N)
@@ -43,8 +41,14 @@ def cone_ordering_algorithm(left, right, N):
     medial_edges = get_medial_line(y_polygon, b_polygon, vor, N)
     medial_points = list(set(extract_points_from_linestrings(medial_edges)))
     # filter medial edges further
-    points_in_longest_cycle = filter_medial_line_further(medial_edges, medial_edges)
+    points_in_longest_cycle = filter_medial_line_further(medial_edges, medial_points)
     mid_polygon = Polygon(points_in_longest_cycle)
+    # in cases where our reconstruction isn't perfect and cannot get a full cycle
+    # we have to filter a different way
+    if points_in_longest_cycle == []:
+        filtered_medial_line = filter_medial_line_by_degree(medial_edges)
+        filtered_medial_points = vertices_in_edges(filtered_medial_line)
+        mid_polygon = Polygon(filtered_medial_points)
     # find closest points on medial line
     cpoml = closest_points_on_medial_line(new_yellow_points, mid_polygon)
     all_points = list(cpoml.keys())
@@ -57,6 +61,47 @@ def cone_ordering_algorithm(left, right, N):
     N_blues = all_closest_points_2
     # return
     return N_yellows, N_blues
+
+def filter_medial_line_by_degree(medial_edges):
+    
+    medial_points = list(set(extract_points_from_linestrings(medial_edges)))
+    
+    medial_dict = {}
+    idx = 0
+
+    for point in medial_points:
+        medial_dict[point] = idx
+        idx += 1
+
+    middle_edges = []
+    for lstring in medial_edges:
+        middle_edges.extend(linestring_to_edges(lstring))
+    
+    graph = Graph(len(medial_points))
+    for e in middle_edges:
+        index_of_e0 = medial_dict[e[0]]
+        index_of_e1 = medial_dict[e[1]]
+        graph.add_edge(index_of_e0, index_of_e1)
+    vertices = [i for i in range(0, len(medial_points))]
+    degrees_of_vertices = graph.degrees(vertices)
+    
+    # figure out stuff to delete
+    stuff_to_delete = []
+    
+    for key in degrees_of_vertices:
+        if degrees_of_vertices[key] == 1:
+            stuff_to_delete.append(key)
+    
+    final_edges = []
+    
+    for e in graph.get_edges():
+        if not (e[0] in stuff_to_delete or e[1] in stuff_to_delete):
+            first = medial_points[e[0]]
+            second = medial_points[e[1]]
+            final_edges.append((first, second))
+        
+    return final_edges
+    
 
 def filter_medial_line_further(medial_edges, medial_points):
     medial_dict = {}
@@ -124,30 +169,6 @@ def extract_points_from_linestrings(linestrings):
         points.extend(coords)
     return points
 
-def vertices_in_edges(edges):
-    return set([num for tup in edges for num in tup])
-
-def dfs_cycle(graph, start, current, visited, path, longest_cycle):
-    visited.add(current)
-    path.append(current)
-
-    for neighbor in graph.adjacency_list[current]:
-        if neighbor not in visited:
-            dfs_cycle(graph, start, neighbor, visited, path, longest_cycle)
-        elif neighbor == start and len(path) > 2:
-            cycle_length = len(path)
-            if cycle_length > len(longest_cycle):
-                longest_cycle[:] = path[:]
-    path.pop()
-    visited.remove(current)
-
-
-def find_longest_cycle(graph):
-    longest_cycle = []
-    for vertex in graph.adjacency_list:
-        dfs_cycle(graph, vertex, vertex, set(), [], longest_cycle)
-    return longest_cycle
-
 
 def linestring_to_edges(linestring):
     edges = []
@@ -184,111 +205,3 @@ def closest_points_on_medial_line(points, medial_line):
         closest_points[p] = (closest_point_on_medial, distance)
     
     return closest_points
-
-
-class Graph:
-    def __init__(self, num_vertices):
-        self.num_vertices = num_vertices
-        self.adjacency_list = {vertex: [] for vertex in range(0, num_vertices)}
-
-    def add_edge(self, vertex1, vertex2):
-        self.adjacency_list[vertex1].append(vertex2)
-        self.adjacency_list[vertex2].append(vertex1)
-    
-    def remove_edge(self, vertex1, vertex2):
-        self.adjacency_list[vertex1].remove(vertex2)
-        self.adjacency_list[vertex2].remove(vertex1)
-
-    def display(self):
-        for vertex in self.adjacency_list:
-            print(vertex, "->", " -> ".join(map(str, self.adjacency_list[vertex])))
-            
-    def is_fully_connected(self):
-        visited = set()
-
-        def dfs(node):
-            visited.add(node)
-            for neighbor in self.adjacency_list[node]:
-                if neighbor not in visited:
-                    dfs(neighbor)
-
-        dfs(0)
-
-        return len(visited) == self.num_vertices
-    
-    def get_edges(self):
-        edges = []
-        for vertex in self.adjacency_list:
-            for neighbor in self.adjacency_list[vertex]:
-                if (neighbor, vertex) not in edges:  # Avoid duplicates in undirected graph
-                    edges.append((vertex, neighbor))
-        return edges
-    
-    def has_cycle(self):
-        
-        visited = set()
-        
-        def helper(vertex, parent):
-            visited.add(vertex)
-            for neighbor in self.adjacency_list[vertex]:
-                if neighbor not in visited:
-                    if helper(neighbor, vertex):
-                        return True
-                elif parent != neighbor:
-                    return True
-            return False
-        
-        
-        for vertex in range(self.num_vertices):
-            if vertex not in visited:
-                if helper(vertex, -1):
-                    return True
-        return False
-    
-    def connected_components(self):
-        visited = set()
-        components = []
-
-        def dfs(node, component):
-            visited.add(node)
-            component.append(node)
-            for neighbor in self.adjacency_list[node]:
-                if neighbor not in visited:
-                    dfs(neighbor, component)
-
-        for vertex in range(self.num_vertices):
-            if vertex not in visited:
-                component = []
-                dfs(vertex, component)
-                components.append(component)
-
-        # Generate edges for each component
-        result = []
-        for component in components:
-            component_edges = []
-            for vertex in component:
-                for neighbor in self.adjacency_list[vertex]:
-                    if neighbor in component and (vertex, neighbor) not in component_edges:
-                        component_edges.append((vertex, neighbor))
-            result.append(component_edges)
-
-        return result
-
-
-    def forms_polygon(self):
-        
-        if not self.has_cycle():
-            return False
-        
-        for v in range(self.num_vertices):
-            degree = len(self.adjacency_list[v])
-            if degree != 2:
-                return False
-        
-        return True
-    
-    def degrees(self, vertices):
-        degrees = {}
-        for v in vertices:
-            degrees[v] = len(self.adjacency_list[v])
-        return degrees

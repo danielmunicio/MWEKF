@@ -6,7 +6,7 @@ from scipy.spatial import Voronoi
 import math
 from scipy.spatial import KDTree
 from shapely.geometry import Polygon, Point, LineString, MultiLineString
-from shapely.ops import nearest_points, linemerge
+from shapely.ops import linemerge
 
 def ConeOrdering(msg: Map, state: list[float]):
     """get cones from message and call the cone ordering algorithm and return the results
@@ -22,15 +22,15 @@ def ConeOrdering(msg: Map, state: list[float]):
         np.array([list(msg.left_cones_x), list(msg.left_cones_y)]),
         np.array([list(msg.right_cones_x), list(msg.right_cones_y)]),
     )
-    left, right = cone_ordering_algorithm(left, right, state, N)
+    left, right = N_point_generator(left, right, state, N)
     return left, right
-#%%
-def cone_ordering_algorithm(left, right, traveled, N):
+
+def N_point_generator(left, right, traveled, N):
     # have a list of all_cones for refence
     all_cones = left.copy()
     all_cones.extend(right.copy())
     # figure out polygons
-    yellow_polygon, blue_polygon = find_local_yellow_polygon(all_cones, traveled, left)
+    yellow_polygon, blue_polygon = find_local_polygons(all_cones, traveled, left)
     # figure out local paths
     local_yellow_path = remove_longest_edge_from_polygon(yellow_polygon)
     local_blue_path = remove_longest_edge_from_polygon(blue_polygon)
@@ -43,7 +43,7 @@ def cone_ordering_algorithm(left, right, traveled, N):
     # Voronoi diagram
     vor = Voronoi(all_vertices)
     # figure out medial line
-    green_edges = get_medial_axis(N_local_yellow_path, N_local_blue_path)
+    green_edges = get_medial_axis(N_local_yellow_path, N_local_blue_path, vor)
     new_green_edges = filter_medial_line_further(green_edges)
     # figure out closest points
     total_green_linestring = linemerge(new_green_edges)
@@ -68,7 +68,8 @@ def closest_points_on_medial_line(points, medial_line):
             closest_point = min(closest_points_on_multiline, key=lambda t: (Point(p)).distance(t))
             closest_points.append(closest_point)
         else:
-            closest_point_on_line = medial_line.interpolate(medial_line.project(Point(p)))
+            medial_linestring = LineString(medial_line)
+            closest_point_on_line = medial_linestring.interpolate(medial_linestring.project(Point(p)))
             closest_points.append(closest_point_on_line)
     
     return closest_points
@@ -86,7 +87,7 @@ def filter_medial_line_further(medial_edges):
         idx += 1
 
     middle_edges = []
-    for lstring in green_edges:
+    for lstring in medial_edges:
         middle_edges.extend(linestring_to_edges(lstring))
     
     graph = Graph(len(medial_points))
@@ -145,15 +146,15 @@ def get_medial_axis(yellow_line, blue_line, vor):
                     medial_edges.append(edge_line)
                     
     # filter some more medial edges depending on if they are truly inside the path
-    distance_between_lines = yellow_line.distance(blue_line)
-    
+    buffer_amount = yellow_line.distance(blue_line)
+    polygon1 = yellow_line.buffer(buffer_amount)
+    polygon2 = blue_line.buffer(buffer_amount)
+    merged_polygon = polygon1.union(polygon2)
+
     medial_vertices = extract_points_from_linestrings(medial_edges)
     vertices_contained = []
-    # extract points between lines
     for point in medial_vertices:
-        distance_to_line1 = yellow_line.distance(Point(point))
-        distance_to_line2 = blue_line.distance(Point(point))
-        if distance_to_line1 < distance_between_lines and distance_to_line2 < distance_between_lines:
+        if merged_polygon.contains(Point(point)):
             vertices_contained.append(point)
     # filter edges that match points contained between liens
     true_medial_edges = []
@@ -171,7 +172,7 @@ def distance_between_points(point1, point2):
     return np.sqrt(np.sum((np.array(point2) - np.array(point1)) ** 2))
 
 
-def find_local_yellow_polygon(all_cones, traveled_points, yellow_points):
+def find_local_polygons(all_cones, traveled_points, yellow_points):
     
     yellow_polygon = None
     blue_polygon = None
@@ -179,6 +180,8 @@ def find_local_yellow_polygon(all_cones, traveled_points, yellow_points):
     current_diff_range = float('inf')
     
     for percentile_threshold in range(1, 100):
+        
+        print("current percentile: ", percentile_threshold)
         
         near_cones = find_near_cones(all_cones, traveled_points, percentile_threshold)
         
@@ -193,23 +196,27 @@ def find_local_yellow_polygon(all_cones, traveled_points, yellow_points):
             else:
                 filtered_blue_points.append(point)
                 
-        if len(filtered_yellow_points) >= 4:
-            filtered_yellow_polygon = Polygon(filtered_yellow_points)
-            
-        if len(filtered_blue_points) >= 4:
-            filtered_blue_polygon = Polygon(filtered_blue_points)        
+        if len(filtered_yellow_points) >= 4 and len(filtered_blue_points) >= 4:
+            filtered_yellow_polygon, filtered_blue_polygon = find_polygons_from_points(yellow_points, blue_points)    
         
-        if yellow_polygon is None and filtered_yellow_polygon is not None and filtered_yellow_polygon.is_valid:
+#         if yellow_polygon is None and filtered_yellow_polygon is not None and filtered_yellow_polygon.is_valid:
+            
+        if yellow_polygon is None and filtered_yellow_polygon is not None:
+            
+            print("going inside yellow if")
             
             all_traveled_contained = True
             for point in traveled_points:
                 shapely_point = Point(point[0], point[1])
                 if not shapely_point.within(filtered_yellow_polygon):
                     all_traveled_contained = False
+                    print("a traveled point is causing cancellation")
+                    print(shapely_point)
                     break
                 
             if all_traveled_contained:
                 yellow_polygon = filtered_yellow_polygon
+                print("replaced yellow_polygon")
             
         if yellow_polygon is not None:
             min_x, min_y, max_x, max_y = yellow_polygon.bounds
@@ -218,16 +225,21 @@ def find_local_yellow_polygon(all_cones, traveled_points, yellow_points):
             
 #             if filtered_blue_polygon is not None and filtered_blue_polygon.is_valid:
             if filtered_blue_polygon is not None:
+        
+                print("going inside blue if")
                 
                 bmin_x, bmin_y, bmax_x, bmax_y = filtered_blue_polygon.bounds
-                blue_x_range = bmax_x - bmin_x
-                blue_y_range = bmax_y - bmin_y
+                blue_x_range = abs(bmax_x - bmin_x)
+                blue_y_range = abs(bmax_y - bmin_y)
                 
                 new_diff = abs(x_range - blue_x_range) + abs(y_range - blue_y_range)
                 
-                if new_diff < current_diff_range and filtered_blue_polygon.is_valid:
+#                 if new_diff < current_diff_range and filtered_blue_polygon.is_valid:
+                print("new diff: ", new_diff, " current diff: ", current_diff_range)
+                if new_diff < current_diff_range:
                     current_diff_range = new_diff
                     blue_polygon = filtered_blue_polygon
+                    print("replaced blue_polygon")
                 
             elif filtered_blue_polygon is not None and (not filtered_blue_polygon.is_valid):
                 break
@@ -237,6 +249,21 @@ def find_local_yellow_polygon(all_cones, traveled_points, yellow_points):
         
     if blue_polygon is None:
         blue_polygon = filtered_blue_polygon
+        
+    x, y = yellow_polygon.exterior.xy
+    plt.plot(x, y, color="khaki")
+    plt.fill(x, y, alpha=0.5, color="khaki")
+    plt.grid(True)
+
+    x, y = blue_polygon.exterior.xy
+    plt.plot(x, y, color="skyblue")
+    plt.fill(x, y, alpha=0.5, color="skyblue")
+    plt.grid(True)
+    
+    print("yellow polygon")
+    print(yellow_polygon.exterior.xy)
+    print("blue polygon")
+    print(blue_polygon.exterior.xy)
             
     return yellow_polygon, blue_polygon
             
@@ -294,12 +321,20 @@ def remove_longest_edge_from_polygon(polygon):
             removal_i = i
             break
     
+    print(longest_edge)
+    print("the length: ", edge_to_remove.length)
+    print(new_points)
+    print(removal_i)
+    print(len(new_points))
+    
     if removal_i == len(new_points) - 1:
+        print("first condition")
         return LineString(new_points[0:-1])
     else:
-#         new_points.remove(new_points[i + 1])
-        new_points = new_points[:i+1]
-        return LineString(new_points)
+        print("second condition")
+        last_point = new_points[-1]
+        first_point = new_points[0]
+        return linemerge([new_points[i+1:], [last_point, first_point], new_points[:i]])
 
 
 def generate_N_points(line, N):
@@ -317,111 +352,3 @@ def extract_points_from_linestrings(linestrings):
         coords = list(linestring.coords)
         points.extend(coords)
     return points
-
-
-class Graph:
-    def __init__(self, num_vertices):
-        self.num_vertices = num_vertices
-        self.adjacency_list = {vertex: [] for vertex in range(0, num_vertices)}
-
-    def add_edge(self, vertex1, vertex2):
-        self.adjacency_list[vertex1].append(vertex2)
-        self.adjacency_list[vertex2].append(vertex1)
-    
-    def remove_edge(self, vertex1, vertex2):
-        self.adjacency_list[vertex1].remove(vertex2)
-        self.adjacency_list[vertex2].remove(vertex1)
-
-    def display(self):
-        for vertex in self.adjacency_list:
-            print(vertex, "->", " -> ".join(map(str, self.adjacency_list[vertex])))
-            
-    def is_fully_connected(self):
-        visited = set()
-
-        def dfs(node):
-            visited.add(node)
-            for neighbor in self.adjacency_list[node]:
-                if neighbor not in visited:
-                    dfs(neighbor)
-
-        dfs(0)
-
-        return len(visited) == self.num_vertices
-    
-    def get_edges(self):
-        edges = []
-        for vertex in self.adjacency_list:
-            for neighbor in self.adjacency_list[vertex]:
-                if (neighbor, vertex) not in edges:  # Avoid duplicates in undirected graph
-                    edges.append((vertex, neighbor))
-        return edges
-    
-    def has_cycle(self):
-        
-        visited = set()
-        
-        def helper(vertex, parent):
-            visited.add(vertex)
-            for neighbor in self.adjacency_list[vertex]:
-                if neighbor not in visited:
-                    if helper(neighbor, vertex):
-                        return True
-                elif parent != neighbor:
-                    return True
-            return False
-        
-        
-        for vertex in range(self.num_vertices):
-            if vertex not in visited:
-                if helper(vertex, -1):
-                    return True
-        return False
-    
-    def connected_components(self):
-        visited = set()
-        components = []
-
-        def dfs(node, component):
-            visited.add(node)
-            component.append(node)
-            for neighbor in self.adjacency_list[node]:
-                if neighbor not in visited:
-                    dfs(neighbor, component)
-
-        for vertex in range(self.num_vertices):
-            if vertex not in visited:
-                component = []
-                dfs(vertex, component)
-                components.append(component)
-
-        # Generate edges for each component
-        result = []
-        for component in components:
-            component_edges = []
-            for vertex in component:
-                for neighbor in self.adjacency_list[vertex]:
-                    if neighbor in component and (vertex, neighbor) not in component_edges:
-                        component_edges.append((vertex, neighbor))
-            result.append(component_edges)
-
-        return result
-
-
-    def forms_polygon(self):
-        
-        if not self.has_cycle():
-            return False
-        
-        for v in range(self.num_vertices):
-            degree = len(self.adjacency_list[v])
-            if degree != 2:
-                return False
-        
-        return True
-    
-    def degrees(self, vertices):
-        degrees = {}
-        for v in vertices:
-            degrees[v] = len(self.adjacency_list[v])
-        return degrees

@@ -50,6 +50,7 @@ class LocalPath(Node):
         self.pc_publisher.publish(path_msg)
         pc_msg = PointCloud()
         pts = []
+
         for x in states:
             pts.append(Point32())
             pts[-1].x = x[0]

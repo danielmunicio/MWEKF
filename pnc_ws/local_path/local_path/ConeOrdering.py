@@ -181,9 +181,7 @@ def find_local_polygons(all_cones, traveled_points, yellow_points):
     
     current_diff_range = float('inf')
     
-    for percentile_threshold in range(1, 100):
-        
-        print("current percentile: ", percentile_threshold)
+    for percentile_threshold in range(1, 100, 5):
         
         near_cones = find_near_cones(all_cones, traveled_points, percentile_threshold)
         
@@ -205,20 +203,15 @@ def find_local_polygons(all_cones, traveled_points, yellow_points):
             
         if yellow_polygon is None and filtered_yellow_polygon is not None:
             
-            print("going inside yellow if")
-            
             all_traveled_contained = True
             for point in traveled_points:
                 shapely_point = Point(point[0], point[1])
                 if not shapely_point.within(filtered_yellow_polygon):
                     all_traveled_contained = False
-                    print("a traveled point is causing cancellation")
-                    print(shapely_point)
                     break
                 
             if all_traveled_contained:
                 yellow_polygon = filtered_yellow_polygon
-                print("replaced yellow_polygon")
             
         if yellow_polygon is not None:
             min_x, min_y, max_x, max_y = yellow_polygon.bounds
@@ -227,8 +220,6 @@ def find_local_polygons(all_cones, traveled_points, yellow_points):
             
 #             if filtered_blue_polygon is not None and filtered_blue_polygon.is_valid:
             if filtered_blue_polygon is not None:
-        
-                print("going inside blue if")
                 
                 bmin_x, bmin_y, bmax_x, bmax_y = filtered_blue_polygon.bounds
                 blue_x_range = abs(bmax_x - bmin_x)
@@ -237,11 +228,9 @@ def find_local_polygons(all_cones, traveled_points, yellow_points):
                 new_diff = abs(x_range - blue_x_range) + abs(y_range - blue_y_range)
                 
 #                 if new_diff < current_diff_range and filtered_blue_polygon.is_valid:
-                print("new diff: ", new_diff, " current diff: ", current_diff_range)
                 if new_diff < current_diff_range:
                     current_diff_range = new_diff
                     blue_polygon = filtered_blue_polygon
-                    print("replaced blue_polygon")
                 
             elif filtered_blue_polygon is not None and (not filtered_blue_polygon.is_valid):
                 break
@@ -251,21 +240,6 @@ def find_local_polygons(all_cones, traveled_points, yellow_points):
         
     if blue_polygon is None:
         blue_polygon = filtered_blue_polygon
-        
-    x, y = yellow_polygon.exterior.xy
-    plt.plot(x, y, color="khaki")
-    plt.fill(x, y, alpha=0.5, color="khaki")
-    plt.grid(True)
-
-    x, y = blue_polygon.exterior.xy
-    plt.plot(x, y, color="skyblue")
-    plt.fill(x, y, alpha=0.5, color="skyblue")
-    plt.grid(True)
-    
-    print("yellow polygon")
-    print(yellow_polygon.exterior.xy)
-    print("blue polygon")
-    print(blue_polygon.exterior.xy)
             
     return yellow_polygon, blue_polygon
             
@@ -323,17 +297,9 @@ def remove_longest_edge_from_polygon(polygon):
             removal_i = i
             break
     
-    print(longest_edge)
-    print("the length: ", edge_to_remove.length)
-    print(new_points)
-    print(removal_i)
-    print(len(new_points))
-    
     if removal_i == len(new_points) - 1:
-        print("first condition")
         return LineString(new_points[0:-1])
     else:
-        print("second condition")
         last_point = new_points[-1]
         first_point = new_points[0]
         return linemerge([new_points[i+1:], [last_point, first_point], new_points[:i]])

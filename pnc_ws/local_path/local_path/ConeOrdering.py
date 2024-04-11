@@ -18,6 +18,7 @@ def ConeOrdering(msg: Map, state: list[float]):
         tuple[ndarray(2, N), ndarray(2, N)]: pairs of points on the track boundary
     """
     N = LocalOptSettings.N # get size
+    
     left, right = (
         np.array([list(msg.left_cones_x), list(msg.left_cones_y)]),
         np.array([list(msg.right_cones_x), list(msg.right_cones_y)]),
@@ -132,6 +133,7 @@ def get_medial_axis(yellow_line, blue_line, vor):
     all_cones = list(yellow_line.coords).copy()
     all_cones.extend(list(blue_line.coords).copy())
     cone_polygon = LineString(all_cones).convex_hull
+
 
     medial_edges = []
     for edge in vor.ridge_vertices:

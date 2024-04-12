@@ -110,6 +110,10 @@ class GraphSLAM_Global(Node):
         # used to calculate the state of the vehicle
         self.statetimestamp = 0.0
         self.currentstate = State()
+        self.currentstate.carstate[0] = 0 
+        self.currentstate.carstate[1] = 0
+        self.currentstate.carstate[2] = 0
+        self.currentstate.carstate[3] = 0
         self.state_seq = 0
         self.cone_seq = 0
 
@@ -146,8 +150,6 @@ class GraphSLAM_Global(Node):
         newtime = header.stamp.sec + 1e-9 * header.stamp.nanosec
         timediff = newtime - self.statetimestamp
         self.statetimestamp = newtime
-
-        timediff = np.round(timediff, 4)
 
         return timediff
     
@@ -186,6 +188,7 @@ class GraphSLAM_Global(Node):
             depending on how IMU is providing this data, change accordingly
     """
     def compute_velocity(self, acc: Vector3, dt: float) -> float:
+        # longitudinal_acc = np.linalg.norm([acc.x, acc.y])
         longitudinal_acc = acc.x
         # lateral_acc = acc.y # May be needed in the future if  
         #                       straightline model is not accurate enough
@@ -224,6 +227,7 @@ class GraphSLAM_Global(Node):
         self.currentstate.header.stamp = self.get_clock().now().to_msg()
         self.currentstate.header.frame_id = "rslidar"
 
+
     """
     Function that takes in IMU messages and processes GraphSLAM based upon 
     Input: imu (Imu_msg)
@@ -235,7 +239,8 @@ class GraphSLAM_Global(Node):
     - float64[9] linear_acceleration_covariance
     """
 
-def imu_callback(self, imu: Imu) -> None:
+    def imu_callback(self, imu: Imu) -> None:
+
         times = [perf_counter()]
         if self.finished:
             return
@@ -243,16 +248,17 @@ def imu_callback(self, imu: Imu) -> None:
         dt = self.compute_timediff(imu.header)
         if (dt > 1):
             return
+
         times.append(perf_counter())
         # generate current heading
         roll, pitch, yaw = self.quat_to_euler(imu.orientation)
         times.append(perf_counter())
         # generate current velocity
         delta_velocity = self.compute_velocity(imu.linear_acceleration, dt)
-        velocity += self.currentstate.carstate[2]
+        velocity = self.currentstate.carstate[2] + delta_velocity
+        self.currentstate.carstate[2] = velocity
         times.append(perf_counter())
         # for now, we assume velocity is in the direction of heading
-        self.currentstate.carstate[2] = velocity
         # generate dx [change in x, change in y] to add new pose to graph
         dx = velocity * dt * np.array([math.cos(yaw), math.sin(yaw)])
         times.append(perf_counter())
@@ -265,6 +271,9 @@ def imu_callback(self, imu: Imu) -> None:
         times.append(perf_counter())
         self.state_pub.publish(self.currentstate)
         times.append(perf_counter())
+
+        with open("boobies.txt", "a") as f:
+            print(f"acceleration: {imu.linear_acceleration} \n dt: {dt} \n currstate: {self.currentstate}", file=f)
         # print(f"TIME TAKEN FOR IMU CALLBACK: {times}")
 
     def cartesian_to_polar(self, car_state, cone):
@@ -289,6 +298,10 @@ def imu_callback(self, imu: Imu) -> None:
         self.local_map.right_cones_x = [cone.point.x for cone in cones.yellow_cones]
         self.local_map.right_cones_y = [cone.point.y for cone in cones.yellow_cones]
         self.local_map_pub.publish(self.local_map)
+
+        with open("cones.txt", "a") as f:
+            print("cones map:", self.local_map, file=f)
+            print(file=f)
 
         # x_s = [cone.point.x for cone in cones.blue_cones] + [cone.point.x for cone in cones.yellow_cones]
         # y_s = [cone.point.y for cone in cones.blue_cones] + [cone.point.y for cone in cones.yellow_cones]

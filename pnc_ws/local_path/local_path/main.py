@@ -30,7 +30,19 @@ class LocalPath(Node):
         
     def listener_cb(self, msg: Map):
         print('MAP Message Received')
-        left, right = ConeOrdering(msg, self.state)
+        #lists are reversed
+        reverse_left, reverse_right = ConeOrdering(msg, self.state)
+
+        reverse_left = np.vstack(sorted(np.array(reverse_left), key = lambda x: np.linalg.norm(x-self.state[:2])))
+        reverse_right = np.vstack(sorted(np.array(reverse_right), key = lambda x: np.linalg.norm(x-self.state[:2])))
+
+        #Reverse lists
+        left = reverse_left#[::-1]
+        right = reverse_right#[::-1]
+        with open("path_values.txt", "a") as f:
+            print("left: ", left, file=f)
+            print("right: ", right, file=f)
+            print(file=f)
         res = self.g.solve((left+right)/2, (left+right)/2, self.state)
         states, _ = self.g.to_constant_tgrid(0.2, **res)
         # states = np.zeros((50, 4))
@@ -40,6 +52,8 @@ class LocalPath(Node):
         path_msg.psi = states[:, 2].flatten().tolist()
         path_msg.v = states[:, 3].flatten().tolist()
         print('MAP Message About to Publish')
+        with open("local_path.txt", "a") as f:
+            print("local path:", path_msg, file=f)
         self.pc_publisher.publish(path_msg)
         pc_msg = PointCloud()
         pts = []
@@ -56,7 +70,12 @@ class LocalPath(Node):
 
 
     def state_callback(self, msg: State):
-        self.state = list(msg.carstate)
+        self.state = [0, 0, 0, 0]
+        self.state[0] = msg.carstate[0] # x value
+        self.state[1] = msg.carstate[1] # y value
+        ### MPC Assumes the veloccity and heading are flipped
+        self.state[2] = msg.carstate[3] # velocity
+        self.state[3] = msg.carstate[2] # heading
 
 
 def main(args=None):

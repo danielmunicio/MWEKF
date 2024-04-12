@@ -39,10 +39,13 @@ class LocalPath(Node):
         #Reverse lists
         left = reverse_left#[::-1]
         right = reverse_right#[::-1]
-        with open("path_values.txt", "a") as f:
-            print(f"state:\t{self.state}", file=f)
+        with open("sim_data.txt", "a") as f:
+            print("---------------------------------------------", file = f)
+            print("FROM PNC: ", file =f)
+            print(f"state:\t{self.state}", file = f)
             print(f"left:\t{left}", file=f)
             print(f"right:\t{right}", file=f)
+            print("--------------------------------------------", file = f)
             print(file=f)
         res = self.g.solve((left+right)/2, (left+right)/2, self.state)
         states, _ = self.g.to_constant_tgrid(0.2, **res)
@@ -53,8 +56,11 @@ class LocalPath(Node):
         path_msg.psi = states[:, 2].flatten().tolist()
         path_msg.v = states[:, 3].flatten().tolist()
         print('MAP Message About to Publish')
-        with open("local_path.txt", "a") as f:
+        with open("sim_data.txt", "a") as f:
+            print("---------------------------------------")
+            print("From PNC: ")
             print("local path:", path_msg, file=f)
+            print("----------------------------------------")
         self.pc_publisher.publish(path_msg)
         pc_msg = PointCloud()
         pts = []

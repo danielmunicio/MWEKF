@@ -273,7 +273,10 @@ class GraphSLAM_Global(Node):
         times.append(perf_counter())
 
         with open("sim_data.txt", "a") as f:
-            print(f"FROM THE IMU: current x acceleration: {imu.linear_acceleration.x} \n dt: {dt} \n current state: {self.currentstate}", file=f)
+            print("----------------------------------------------------------", file=f)
+            print(f"FROM THE IMU: current x acceleration: {imu.linear_acceleration.x} \n dt: {dt}", file = f)
+            print(f"current x position: {self.currentstate.carstate[0]} \n current y position: {self.currentstate.carstate[1]} \n current velocity: {self.currentstate.carstate[2]} \n current yaw: {self.currentstate.carstate[3]}", file=f)
+            print("-----------------------------------------------------------")
             print(file=f)
         # print(f"TIME TAKEN FOR IMU CALLBACK: {times}")
 
@@ -300,9 +303,9 @@ class GraphSLAM_Global(Node):
         self.local_map.right_cones_y = [cone.point.y for cone in cones.yellow_cones]
         self.local_map_pub.publish(self.local_map)
 
-        with open("sim_data.txt", "a") as f:
-            print("From SLAM cones map:", self.local_map, file=f)
-            print(file=f)
+        # with open("sim_data.txt", "a") as f:
+        #     print("From SLAM cones map:", self.local_map, file=f)
+        #     print(file=f)
 
     
         # x_s = [cone.point.x for cone in cones.blue_cones] + [cone.point.x for cone in cones.yellow_cones]

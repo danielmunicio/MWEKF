@@ -40,8 +40,9 @@ class LocalPath(Node):
         left = reverse_left#[::-1]
         right = reverse_right#[::-1]
         with open("path_values.txt", "a") as f:
-            print("left: ", left, file=f)
-            print("right: ", right, file=f)
+            print(f"state:\t{self.state}", file=f)
+            print(f"left:\t{left}", file=f)
+            print(f"right:\t{right}", file=f)
             print(file=f)
         res = self.g.solve((left+right)/2, (left+right)/2, self.state)
         states, _ = self.g.to_constant_tgrid(0.2, **res)

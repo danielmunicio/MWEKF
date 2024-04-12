@@ -31,6 +31,9 @@ class LocalPath(Node):
     def listener_cb(self, msg: Map):
         print('MAP Message Received')
         #lists are reversed
+        if len(list(msg.left_cones_x))<=1 or len(list(msg.right_cones_x))<=1:
+            return
+        
         reverse_left, reverse_right = ConeOrdering(msg, self.state)
 
         reverse_left = np.vstack(sorted(np.array(reverse_left), key = lambda x: np.linalg.norm(x-self.state[:2])))
@@ -64,14 +67,20 @@ class LocalPath(Node):
         self.pc_publisher.publish(path_msg)
         pc_msg = PointCloud()
         pts = []
-
-        for x in states:
+        
+        leftmap, rightmap = (
+            np.array([list(msg.left_cones_x), list(msg.left_cones_y)]).T,
+            np.array([list(msg.right_cones_x), list(msg.right_cones_y)]).T,
+        )
+        fwd = np.array([self.state[:2]]) + 0.5*np.array([[np.cos(self.state[2]), np.sin(self.state[2])]])
+        print(fwd.shape)
+        for x in np.vstack([left, right, states[:, :2], np.array([self.state[:2]]), fwd]):
             pts.append(Point32())
             pts[-1].x = x[0]
             pts[-1].y = x[1]
             pts[-1].z = 0.0
         pc_msg.points = pts
-        pc_msg.header.frame_id = "base_footprint"
+        pc_msg.header.frame_id = "map"
         pc_msg.header.stamp = self.get_clock().now().to_msg()
         self.pointcloud_pub.publish(pc_msg)
 

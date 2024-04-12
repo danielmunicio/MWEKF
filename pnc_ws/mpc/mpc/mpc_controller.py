@@ -8,8 +8,6 @@ from .controller import Controller
 from .utils import discrete_dynamics
 from .utils import get_update_dict
 from ackermann_msgs.msg import AckermannDriveStamped
-from .mpc_publisher_node import MPCPublisherNode
-
 
 # ROS Imports
 import rclpy
@@ -218,11 +216,13 @@ class KinMPCPathFollower(Controller, Node):
             and solves mpc problem -> stores result in self.prev_soln
         '''
         # returns the current state as an np array with these values in this order: x,y,velocity,heading
-        curr_state = msg.carstate
-        # curr_state[0] = msg.carstate[0] # x value
-        # curr_state[1] = msg.carstate[1] # y value
-        # curr_state[2] = msg.carstate[2] # velocity
-        # curr_state[3] = msg.carstate[3] # heading
+        #curr_state = msg.carstate
+        curr_state = [0, 0, 0, 0]
+        curr_state[0] = msg.carstate[0] # x value
+        curr_state[1] = msg.carstate[1] # y value
+        ### MPC Assumes the veloccity and heading are flipped
+        curr_state[2] = msg.carstate[3] # velocity
+        curr_state[3] = msg.carstate[2] # heading
         
         if self.path is not None: 
             prev_controls = np.array([self.curr_steer, self.curr_acc])
@@ -240,6 +240,10 @@ class KinMPCPathFollower(Controller, Node):
             msg.header.stamp = self.get_clock().now().to_msg()
             msg.drive.acceleration = self.prev_soln['u_control'][0]  
             msg.drive.steering_angle = self.prev_soln['u_control'][1]
+
+            with open("mpc.txt", "a") as f:
+                print("acceleration:", msg.drive.acceleration, file=f)
+                print("steering:", msg.drive.steering_angle, file=f)
 
             self.control_pub.publish(msg)
 
@@ -473,11 +477,9 @@ def main(args=None):
     rclpy.init(args=args)
     print("args: ", args)
     mpc_node = KinMPCPathFollower()
-    simulatorNode = MPCPublisherNode()
     
     
     rclpy.spin(mpc_node)
-    rclpy.spin(simulatorNode)
     rclpy.shutdown()
 
 ### END - RUNNING MPC NODE ###

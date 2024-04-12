@@ -2,6 +2,8 @@ import numpy as np
 from scipy.spatial import Delaunay
 import math
 from shapely.geometry import Polygon, LineString
+from itertools import permutations
+from .Graph import Graph
 
 def find_polygons_from_points(yellow_points, blue_points):
     total_points = construct_total_points(yellow_points, blue_points)[1]
@@ -55,12 +57,18 @@ def find_total_shape(yellow_points, blue_points):
     all_points, total_points = construct_total_points(yellow_points, blue_points)
     np_yellow = np.array(yellow_points)
     np_blue = np.array(blue_points)
+
+    np_yellow += np.random.random(np_yellow.shape) * 0.3
+    np_blue += np.random.random(np_blue.shape) * 0.3
+
+    print('np_yellow:', np_yellow)
+    print('np_bloobies:', np_blue)
     # triangulations
     tri = Delaunay(total_points)
     yellow_tri = Delaunay(np_yellow)
     blue_tri = Delaunay(np_blue)
     # categorize edges
-    yellow_edges, blue_edges, green_edges = categorize_edges(tri)
+    yellow_edges, blue_edges, green_edges = categorize_edges(tri, len(yellow_points))
     purple_edges = find_purple_edges(tri, blue_points, total_points)
     # remove duplicates
     yellow_edges = remove_duplicates(yellow_edges)

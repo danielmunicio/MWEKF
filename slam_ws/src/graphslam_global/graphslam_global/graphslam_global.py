@@ -272,8 +272,9 @@ class GraphSLAM_Global(Node):
         self.state_pub.publish(self.currentstate)
         times.append(perf_counter())
 
-        with open("boobies.txt", "a") as f:
-            print(f"acceleration: {imu.linear_acceleration} \n dt: {dt} \n currstate: {self.currentstate}", file=f)
+        with open("sim_data.txt", "a") as f:
+            print(f"FROM THE IMU: current x acceleration: {imu.linear_acceleration.x} \n dt: {dt} \n current state: {self.currentstate}", file=f)
+            print(file=f)
         # print(f"TIME TAKEN FOR IMU CALLBACK: {times}")
 
     def cartesian_to_polar(self, car_state, cone):
@@ -299,10 +300,11 @@ class GraphSLAM_Global(Node):
         self.local_map.right_cones_y = [cone.point.y for cone in cones.yellow_cones]
         self.local_map_pub.publish(self.local_map)
 
-        with open("cones.txt", "a") as f:
-            print("cones map:", self.local_map, file=f)
+        with open("sim_data.txt", "a") as f:
+            print("From SLAM cones map:", self.local_map, file=f)
             print(file=f)
 
+    
         # x_s = [cone.point.x for cone in cones.blue_cones] + [cone.point.x for cone in cones.yellow_cones]
         # y_s = [cone.point.y for cone in cones.blue_cones] + [cone.point.y for cone in cones.yellow_cones]
 

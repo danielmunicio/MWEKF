@@ -8,6 +8,7 @@ from .controller import Controller
 from .utils import discrete_dynamics
 from .utils import get_update_dict
 from ackermann_msgs.msg import AckermannDriveStamped
+from eufs_msgs.msg import WheelSpeeds
 
 # ROS Imports
 import rclpy
@@ -67,7 +68,7 @@ class KinMPCPathFollower(Controller, Node):
         super().__init__('mpc_node')
 
         # Subscribers
-        self.curr_steer_sub = self.create_subscription(Float64, '/odometry/steer', self.steer_callback, 1)
+        self.curr_steer_sub = self.create_subscription(Float64, '/ground_truth/wheel_speeds', self.steer_callback, 1)
         self.curr_acc_sub = self.create_subscription(Float64, '/odometry/wss', self.acc_callback, 1) 
         self.global_path_sub = self.create_subscription(FebPath, '/path/global', self.global_path_callback, 1)
         self.local_path_sub = self.create_subscription(FebPath, '/path/local', self.local_path_callback, 1)
@@ -166,11 +167,11 @@ class KinMPCPathFollower(Controller, Node):
         
     ### START - ROS Callback Functions ###
         
-    def steer_callback(self, msg: Float64):
+    def steer_callback(self, msg: WheelSpeeds):
         '''
         Return Steering Angle from steering angle sensor on car
         '''
-        self.curr_steer = float(msg.data)
+        self.curr_steer = float(msg.steer)
     
     def acc_callback(self, msg: Float64):
         '''

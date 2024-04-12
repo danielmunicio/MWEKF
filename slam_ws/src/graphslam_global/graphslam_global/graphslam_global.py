@@ -149,8 +149,8 @@ class GraphSLAM_Global(Node):
         self.usefastslam = False
 
     def state_sub(self, msg: CarState):
-        self.currentstate.carstate[0] = msg.pose.pose.point.x
-        self.currentstate.carstate[1] = msg.pose.pose.point.y
+        self.currentstate.carstate[0] = msg.pose.pose.position.x
+        self.currentstate.carstate[1] = msg.pose.pose.position.y
         self.currentstate.carstate[3] = self.quat_to_euler(msg.pose.pose.orientation)[-1]
     
     def wheelspeed_sub(self, msg: WheelSpeedsStamped):

@@ -2,7 +2,7 @@ from .Settings import Settings
     
 class MPCSettings(metaclass=Settings):
     """settings for CompiledGlobalOpt. All in one place, so it's always synced."""
-    N: int = 100
+    N: int = 10
     DT: float = 0.2
     L_F: float = 1.5213
     L_R: float = 1.4987
@@ -16,8 +16,8 @@ class MPCSettings(metaclass=Settings):
     A_DOT_MAX: float = 1.5
     DF_DOT_MIN: float = -0.5
     DF_DOT_MAX: float =  0.5
-    Q: list[float] = [1., 1., 10., 0.1]
-    R: list[float] = [10., 100.]     
+    Q: list[float] = [1.0, 1.0, 10.0, 0.1]# [1., 1., 10., 0.1]
+    R: list[float] = [10., 100.] 
     F: list[float] = [0., 0., 0., 10.]
     TRACK_SLACK_WEIGHT: float = 5e5
     use_rk_dynamics: bool = False

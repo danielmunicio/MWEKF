@@ -9,7 +9,7 @@ from .utils import discrete_dynamics
 from .utils import get_update_dict
 from ackermann_msgs.msg import AckermannDriveStamped
 from eufs_msgs.msg import WheelSpeeds
-
+from .mpc_settings import MPCSettings
 # ROS Imports
 import rclpy
 from rclpy.node import Node
@@ -477,7 +477,7 @@ class KinMPCPathFollower(Controller, Node):
 def main(args=None):
     rclpy.init(args=args)
     print("args: ", args)
-    mpc_node = KinMPCPathFollower()
+    mpc_node = KinMPCPathFollower(**MPCSettings)
     
     
     rclpy.spin(mpc_node)

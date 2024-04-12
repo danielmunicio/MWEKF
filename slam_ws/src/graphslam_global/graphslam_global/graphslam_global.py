@@ -189,7 +189,7 @@ class GraphSLAM_Global(Node):
     """
     def compute_velocity(self, acc: Vector3, dt: float) -> float:
         # longitudinal_acc = np.linalg.norm([acc.x, acc.y])
-        longitudinal_acc = acc.x
+        longitudinal_acc = -acc.x
         # lateral_acc = acc.y # May be needed in the future if  
         #                       straightline model is not accurate enough
 

@@ -149,12 +149,23 @@ class GraphSLAM_Global(Node):
         self.usefastslam = False
 
     def state_sub(self, msg: CarState):
+        dt = self.compute_timediff(msg.header)
+        if (dt > 1):
+            return
+        dx = np.array([msg.pose.pose.position.x-self.currentstate.carstate[0],
+                       msg.pose.pose.position.y-self.currentstate.carstate[1]])
+
         self.currentstate.carstate[0] = msg.pose.pose.position.x
         self.currentstate.carstate[1] = msg.pose.pose.position.y
         self.currentstate.carstate[3] = self.quat_to_euler(msg.pose.pose.orientation)[-1]
-    
+        self.currentstate.header.stamp = self.get_clock().now().to_msg()
+
+        self.slam.update_position(dx)
+        self.state_pub.publish(self.currentstate)
+
     def wheelspeed_sub(self, msg: WheelSpeedsStamped):
         self.currentstate.carstate[2] = ((msg.speeds.lb_speed + msg.speeds.rb_speed)/2)*np.pi*0.505/60
+        
 
     def finish_callback(self, msg: Bool) -> None:
         if self.usefastslam:
@@ -247,7 +258,7 @@ class GraphSLAM_Global(Node):
         self.state_seq += 1
         #self.currentstate.header.seq = self.state_seq
         self.currentstate.header.stamp = self.get_clock().now().to_msg()
-        self.currentstate.header.frame_id = "rslidar"
+        self.currentstate.header.frame_id = "map"
 
 
     """
@@ -319,10 +330,25 @@ class GraphSLAM_Global(Node):
     
     """
     def cones_callback(self, cones: ConeArrayWithCovariance) -> None: # abt todo: we have had cones as a placeholder message structure yet to be defined (cones.r, cones.theta, cones.color) for now
-        self.local_map.left_cones_x = [cone.point.x for cone in cones.blue_cones]
-        self.local_map.left_cones_y = [cone.point.y for cone in cones.blue_cones]
-        self.local_map.right_cones_x = [cone.point.x for cone in cones.yellow_cones]
-        self.local_map.right_cones_y = [cone.point.y for cone in cones.yellow_cones]
+        bloobs = np.array([[i.point.x for i in cones.blue_cones],
+                           [i.point.y for i in cones.blue_cones]])
+        yellow = np.array([[i.point.x for i in cones.yellow_cones],
+                           [i.point.y for i in cones.yellow_cones]])
+        
+        with open("bloobsnyellers.txt", "a") as f:
+            print(bloobs, file=f)
+            print(yellow, file=f)
+            print("\n"*2, file=f)
+
+        rot = lambda theta: np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
+        pos = np.array(list(self.currentstate.carstate)[:2])[:, np.newaxis]
+        bloobs = rot(self.currentstate.carstate[3])@bloobs + pos
+        yellow = rot(self.currentstate.carstate[3])@yellow + pos
+
+        self.local_map.left_cones_x = list(bloobs[0])
+        self.local_map.left_cones_y = list(bloobs[1])
+        self.local_map.right_cones_x = list(yellow[0])
+        self.local_map.right_cones_y = list(yellow[1])
         self.local_map_pub.publish(self.local_map)
 
         # with open("sim_data.txt", "a") as f:

@@ -482,7 +482,6 @@ def main(args=None):
     print("args: ", args)
     mpc_node = KinMPCPathFollower(**MPCSettings)
     
-    
     rclpy.spin(mpc_node)
     rclpy.shutdown()
 

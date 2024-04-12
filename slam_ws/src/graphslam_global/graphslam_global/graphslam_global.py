@@ -13,6 +13,8 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float64, Header, Bool
 from sensor_msgs.msg import Imu
+from eufs_msgs.msg import WheelSpeedsStamped
+from eufs_msgs.msg import CarState
 from geometry_msgs.msg import Quaternion, Vector3
 
 import matplotlib.pyplot as plt 
@@ -56,12 +58,12 @@ class GraphSLAM_Global(Node):
         # SUBSCRIBERS
 
         # Handle IMU messages for vehicle state
-        self.imu_sub = self.create_subscription(
-            Imu,
-            '/imu',
-            self.imu_callback,
-            1
-        )
+        # self.imu_sub = self.create_subscription(
+        #     Imu,
+        #     '/imu',
+        #     self.imu_callback,
+        #     1
+        # )
 
         # Handle new cone readings from perception
         self.cones_sub = self.create_subscription(
@@ -101,6 +103,20 @@ class GraphSLAM_Global(Node):
             1
         )
 
+        self.wheelspeeds = self.create_subscription(
+            WheelSpeedsStamped,
+            '/ground_truth/wheel_speeds',
+            self.wheelspeed_sub,
+            1
+        )
+
+        self.state_subby = self.create_subscription(
+            CarState,
+            '/ground_truth/state',
+            self.state_sub,
+            1,
+        )
+
         # SLAM Initialization
 
         # Initializes a new instance of graphslam from the graphslam
@@ -132,7 +148,13 @@ class GraphSLAM_Global(Node):
         self.finished = False
         self.usefastslam = False
 
-
+    def state_sub(self, msg: CarState):
+        self.currentstate.carstate[0] = msg.pose.pose.point.x
+        self.currentstate.carstate[1] = msg.pose.pose.point.y
+        self.currentstate.carstate[3] = self.quat_to_euler(msg.pose.pose.orientation)[-1]
+    
+    def wheelspeed_sub(self, msg: WheelSpeedsStamped):
+        self.currentstate.carstate[2] = ((msg.speeds.lb_speed + msg.speeds.rb_speed)/2)*np.pi*0.505/60
 
     def finish_callback(self, msg: Bool) -> None:
         if self.usefastslam:

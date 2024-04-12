@@ -242,10 +242,13 @@ class KinMPCPathFollower(Controller, Node):
             msg.drive.acceleration = self.prev_soln['u_control'][0]  
             msg.drive.steering_angle = self.prev_soln['u_control'][1]
 
-            with open("mpc.txt", "a") as f:
-                print("acceleration:", msg.drive.acceleration, file=f)
-                print("steering:", msg.drive.steering_angle, file=f)
-
+            with open("sim_data.txt", "a") as f:
+                print("------------------------------------------------", file=f)
+                print("FROM MPC:", file=f)
+                print("Sending Acceleration Of:", msg.drive.acceleration, file=f)
+                print("Sending Steering Of:", msg.drive.steering_angle, file=f)
+                print("-------------------------------------------------", file=f)
+                
             self.control_pub.publish(msg)
 
             throttle_msg = Float64()

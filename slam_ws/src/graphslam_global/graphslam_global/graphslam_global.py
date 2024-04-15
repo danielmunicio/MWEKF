@@ -414,6 +414,11 @@ class GraphSLAM_Global(Node):
             cone_matrix[2].append(1)
 
         cone_matrix = np.array(cone_matrix).T
+        cone_dx = cone_matrix[:,0] * np.cos(cone_matrix[:,1]) # r * cos(theta) element wise
+        cone_dy = cone_matrix[:,0] * np.sin(cone_matrix[:,1]) # r * sin(theta) element_wise
+        cartesian_cones = np.vstack((cone_dx, cone_dy, cone_matrix[:,2])).T # n x 3 array of n cones and dx, dy, color   -- input for update_graph
+
+
         # cone_matrix = np.hstack([np.vstack([bloobs.T, yellow.T]), np.array([[0]*len(bloobs[0]) + [1]*len(yellow[0])]).T])
         # process all new cone messages separately while one thread is solving slam        
         
@@ -422,7 +427,7 @@ class GraphSLAM_Global(Node):
         #if (self.solving):
         #    return
 
-        self.slam.update_graph_color(cone_matrix) # old pre-ros threading
+        self.slam.update_graph_color(cartesian_cones) # old pre-ros threading
         
         #self.slam.update_graph_color(perception_backlog_imu, perception_backlog_cones)
         #self.perception_backlog_cones = []

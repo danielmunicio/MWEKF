@@ -126,12 +126,12 @@ class GraphSLAM_Global(Node):
         # used to calculate the state of the vehicle
         self.statetimestamp = 0.0
         self.currentstate = State()
-        self.currentstate.carstate[0] = 0 
-        self.currentstate.carstate[1] = 0
-        self.currentstate.carstate[2] = 0
-        self.currentstate.carstate[3] = 0
-        self.state_seq = 0
-        self.cone_seq = 0
+        self.currentstate.x = 0.0 
+        self.currentstate.y = 0.0
+        self.currentstate.velocity = 0.0
+        self.currentstate.heading = 0.0
+        self.state_seq = 0.0
+        self.cone_seq = 0.0
 
         self.global_map = Map()
         self.local_map = Map()
@@ -152,19 +152,19 @@ class GraphSLAM_Global(Node):
         dt = self.compute_timediff(msg.header)
         if (dt > 1):
             return
-        dx = np.array([msg.pose.pose.position.x-self.currentstate.carstate[0],
-                       msg.pose.pose.position.y-self.currentstate.carstate[1]])
+        dx = np.array([msg.pose.pose.position.x-self.currentstate.x,
+                       msg.pose.pose.position.y-self.currentstate.y])
 
-        self.currentstate.carstate[0] = msg.pose.pose.position.x
-        self.currentstate.carstate[1] = msg.pose.pose.position.y
-        self.currentstate.carstate[3] = self.quat_to_euler(msg.pose.pose.orientation)[-1]
+        self.currentstate.x = msg.pose.pose.position.x
+        self.currentstate.y = msg.pose.pose.position.y
+        self.currentstate.heading = self.quat_to_euler(msg.pose.pose.orientation)[-1]
         self.currentstate.header.stamp = self.get_clock().now().to_msg()
 
         self.slam.update_position(dx)
         self.state_pub.publish(self.currentstate)
 
     def wheelspeed_sub(self, msg: WheelSpeedsStamped):
-        self.currentstate.carstate[2] = ((msg.speeds.lb_speed + msg.speeds.rb_speed)/2)*np.pi*0.505/60
+        self.currentstate.velocity = ((msg.speeds.lb_speed + msg.speeds.rb_speed)/2)*np.pi*0.505/60
         
 
     def finish_callback(self, msg: Bool) -> None:
@@ -251,10 +251,10 @@ class GraphSLAM_Global(Node):
         #Probably 
 
         # All carstates should be float #'s 
-        self.currentstate.carstate[0] += dx[0]
-        self.currentstate.carstate[1] += dx[1]
-        self.currentstate.carstate[2] = velocity
-        self.currentstate.carstate[3] = yaw
+        self.currentstate.x += dx[0]
+        self.currentstate.y += dx[1]
+        self.currentstate.velocity = velocity
+        self.currentstate.heading = yaw
         self.state_seq += 1
         #self.currentstate.header.seq = self.state_seq
         self.currentstate.header.stamp = self.get_clock().now().to_msg()
@@ -288,8 +288,8 @@ class GraphSLAM_Global(Node):
         times.append(perf_counter())
         # generate current velocity
         delta_velocity = self.compute_velocity(imu.linear_acceleration, dt)
-        velocity = self.currentstate.carstate[2] + delta_velocity
-        self.currentstate.carstate[2] = velocity
+        velocity = self.currentstate.velocity + delta_velocity
+        self.currentstate.velocity = velocity
         times.append(perf_counter())
         # for now, we assume velocity is in the direction of heading
         # generate dx [change in x, change in y] to add new pose to graph
@@ -308,7 +308,7 @@ class GraphSLAM_Global(Node):
         with open("sim_data.txt", "a") as f:
             print("----------------------------------------------------------", file=f)
             print(f"FROM THE IMU: current x acceleration: {imu.linear_acceleration.x} \n dt: {dt}", file = f)
-            print(f"current x position: {self.currentstate.carstate[0]} \n current y position: {self.currentstate.carstate[1]} \n current velocity: {self.currentstate.carstate[2]} \n current yaw: {self.currentstate.carstate[3]}", file=f)
+            print(f"current x position: {self.currentstate.x} \n current y position: {self.currentstate.y} \n current velocity: {self.currentstate.velocity} \n current yaw: {self.currentstate.heading}", file=f)
             print("-----------------------------------------------------------")
             print(file=f)
         # print(f"TIME TAKEN FOR IMU CALLBACK: {times}")
@@ -340,10 +340,11 @@ class GraphSLAM_Global(Node):
             print(yellow, file=f)
             print("\n"*2, file=f)
 
+        carstate_array = [self.currentstate.x, self.currentstate.y, self.currentstate.velocity, self.currentstate.heading]
         rot = lambda theta: np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
-        pos = np.array(list(self.currentstate.carstate)[:2])[:, np.newaxis]
-        bloobs = rot(self.currentstate.carstate[3])@bloobs + pos
-        yellow = rot(self.currentstate.carstate[3])@yellow + pos
+        pos = np.array(carstate_array[:2])[:, np.newaxis]
+        bloobs = rot(self.currentstate.heading)@bloobs + pos
+        yellow = rot(self.currentstate.heading)@yellow + pos
 
         self.local_map.left_cones_x = list(bloobs[0])
         self.local_map.left_cones_y = list(bloobs[1])
@@ -500,8 +501,8 @@ class GraphSLAM_Global(Node):
         """
         left = np.array(left)
         right = np.array(right)
-        curpos = np.array(self.currentstate.carstate[:2])
-        heading = self.currentstate.carstate[3]
+        curpos = np.array(self.currentstate.x, self.currentstate.y)
+        heading = self.currentstate.heading
 
         ret_localcones_left = []
         ret_localcones_right = []

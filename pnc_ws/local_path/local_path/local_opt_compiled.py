@@ -186,12 +186,12 @@ class CompiledLocalOpt:
             lbg = DM(0),
             ubg = DM(0)
         )
-        self._add_constraint(
-            'curr_heading',
-            g = self.curr_state[2] - self.psi[0],
-            lbg = DM(0),
-            ubg = DM(0)
-        )
+        # self._add_constraint(
+        #     'curr_heading',
+        #     g = self.curr_state[2] - self.psi[0],
+        #     lbg = DM(0),
+        #     ubg = DM(0)
+        # )
         # Makes it so that the time to run is at minimum 2 (soft constraint, scalar included)
         self.scalar = MX.sym("scalar")
         self._add_constraint(

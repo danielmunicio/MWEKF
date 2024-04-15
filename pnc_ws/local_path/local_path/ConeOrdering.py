@@ -28,6 +28,7 @@ def ConeOrdering(msg: Map, state: list[float]):
     print(f"Received state {state}")
     # fix the case if there is not enough points
     if len(left) <= 5 or len(right) <= 5:
+
         print(left)
         yellow_line = LineString(left)
         blue_line = LineString(right)

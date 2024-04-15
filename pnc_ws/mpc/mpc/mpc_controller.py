@@ -15,6 +15,7 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float64
 
+
 from feb_msgs.msg import State, FebPath
 
 class KinMPCPathFollower(Controller, Node):
@@ -209,7 +210,7 @@ class KinMPCPathFollower(Controller, Node):
         self.local_path = path
         self.path = self.global_path if self.global_path is not None else self.local_path
 
-    def state_callback(self, msg: State):
+    def state_callback(self, carstate: State):
         '''
         Input: Float64[4]
         Description: Converts State msg to numpy vector, 
@@ -218,12 +219,12 @@ class KinMPCPathFollower(Controller, Node):
         '''
         # returns the current state as an np array with these values in this order: x,y,velocity,heading
         #curr_state = msg.carstate
-        curr_state = [0, 0, 0, 0]
-        curr_state[0] = msg.carstate[0] # x value
-        curr_state[1] = msg.carstate[1] # y value
+        curr_state = [0.0, 0., 0., 0.0]
+        curr_state[0] = carstate.x # x value
+        curr_state[1] = carstate.y # y value
         ### MPC Assumes the veloccity and heading are flipped
-        curr_state[2] = msg.carstate[3] # velocity
-        curr_state[3] = msg.carstate[2] # heading
+        curr_state[2] = carstate.heading # velocity
+        curr_state[3] = carstate.velocity # heading
         
         if self.path is not None: 
             prev_controls = np.array([self.curr_steer, self.curr_acc])

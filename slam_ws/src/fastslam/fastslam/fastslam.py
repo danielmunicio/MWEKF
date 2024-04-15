@@ -161,10 +161,10 @@ class FastSLAM(Node):
     Outputs: None
     """
     def update_state(self, loc: tuple, yaw: float, velocity: float) -> None:
-        self.currentstate.carstate[0] = loc[0]
-        self.currentstate.carstate[1] = loc[1]
-        self.currentstate.carstate[2] = velocity
-        self.currentstate.carstate[3] = yaw
+        self.currentstate.x = loc[0]
+        self.currentstate.y = loc[1]
+        self.currentstate.velocity = velocity
+        self.currentstate.heading = yaw
         self.state_seq_seq += 1
         self.currentstate.header.seq = self.seq
         self.currentstate.header.stamp = self.get_clock().now().to_msg()

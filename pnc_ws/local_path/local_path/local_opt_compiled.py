@@ -16,7 +16,7 @@ assert hsl_avail, "You must have HSL linear solvers installed on your system, bu
 class CompiledLocalOpt:
     DEFAULT_SOPTS = {
         'ipopt': {
-            'ipopt.linear_solver': 'mumps',
+            'ipopt.linear_solver': 'ma57',
             'expand': True,
             # 'ipopt.print_level': 0,
             # 'ipopt.sb': 'yes',

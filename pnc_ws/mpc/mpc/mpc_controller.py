@@ -4,9 +4,10 @@
 import time
 import casadi
 import numpy as np
-from controller import Controller
+from .controller import Controller
 from .utils import discrete_dynamics
 from .utils import get_update_dict
+
 
 # ROS Imports
 import rclpy
@@ -57,20 +58,22 @@ class KinMPCPathFollower(Controller, Node):
         self.solver = 'ipopt'
         self.opti = casadi.Opti()
 
+        self.global_path = None
+        self.local_path = None
+
         ### START - ROS Integration Code ###
         super().__init__('mpc_node')
 
         # Subscribers
-        self.curr_steer = self.create_subscription(Float64, '/odometry/steer', self.steer_callback, 1)
-        self.curr_acc = self.create_subscription(Float64, '/odometry/wss', self.acc_callback, 1) 
-        self.global_path = self.create_subscription(FebPath, 'path/global', self.path_callback, 1)
-        self.local_path = self.create_subscription(FebPath, 'path/local', self.path_callback, 1)
-        self.path = self.global_path if self.global_path is not None else self.local_path
-        self.create_subscription(State, '/slam/state', self.state_callback, 1)
+        self.curr_steer_sub = self.create_subscription(Float64, '/odometry/steer', self.steer_callback, 1)
+        self.curr_acc_sub = self.create_subscription(Float64, '/odometry/wss', self.acc_callback, 1) 
+        self.global_path_sub = self.create_subscription(FebPath, '/path/global', self.global_path_callback, 1)
+        self.local_path_sub = self.create_subscription(FebPath, '/path/local', self.local_path_callback, 1)
+        self.state_sub = self.create_subscription(State, '/slam/state', self.state_callback, 1)
         
         # Publishers
-        self.throttle = self.create_publisher(Float64, '/control/throttle', 1)
-        self.steer = self.create_publisher(Float64, '/control/steer', 1)
+        self.throttle_pub = self.create_publisher(Float64, '/control/throttle', 1)
+        self.steer_pub = self.create_publisher(Float64, '/control/steer', 1)
 
         ### END - ROS Integration Code ###
 
@@ -164,15 +167,15 @@ class KinMPCPathFollower(Controller, Node):
         '''
         Return Steering Angle from steering angle sensor on car
         '''
-        return float(msg)
+        self.curr_steer = float(msg)
     
     def acc_callback(self, msg: Float64):
         '''
-        Return Acceleration from acelerometer on car
+        Set curr_acc to value recieved from 
         '''
-        return float(msg)
+        self.curr_acc = float(msg)
 
-    def path_callback(self, msg: FebPath):
+    def global_path_callback(self, msg: FebPath):
         '''
         Input: msg.PathState -> List of State (from State.msg) vectors
         Returns: List of numpy state vectors (len 4: x, y, velocity, heading)
@@ -184,7 +187,23 @@ class KinMPCPathFollower(Controller, Node):
         v = np.array(msg.v)
         psi = np.array(msg.psi)
         path = np.column_stack((x, y, v, psi))
-        return path
+        self.global_path = path
+        self.path = self.global_path if self.global_path is not None else self.local_path
+    
+    def local_path_callback(self, msg: FebPath):
+        '''
+        Input: msg.PathState -> List of State (from State.msg) vectors
+        Returns: List of numpy state vectors (len 4: x, y, velocity, heading)
+        Description: Takes in a local or global path depending on what 
+        lap we're in and converts to np.array of state vectors
+        '''
+        x = np.array(msg.x)
+        y = np.array(msg.y)
+        v = np.array(msg.v)
+        psi = np.array(msg.psi)
+        path = np.column_stack((x, y, v, psi))
+        self.local_path = path
+        self.path = self.global_path if self.global_path is not None else self.local_path
 
     def state_callback(self, msg: State):
         '''
@@ -204,6 +223,14 @@ class KinMPCPathFollower(Controller, Node):
         new_values = get_update_dict(pose=curr_state, prev_u=prev_controls, kmpc=self, states=self.path, prev_soln=self.prev_soln)
         self.update(new_values)
         self.prev_soln = self.solve()
+
+        # Publishing controls
+        throttle_msg = Float64()
+        steer_msg = Float64()
+        throttle_msg.data = self.prev_soln['u_control'][0]
+        steer_msg.data = self.prev_soln['u_control'][1]
+        self.throttle_pub.publish(throttle_msg)
+        self.steer_pub.publish(steer_msg)
 
     ### END - ROS Callback Functions ###
 
@@ -412,19 +439,14 @@ class KinMPCPathFollower(Controller, Node):
         sol_dict['sl_mpc']     = sl_mpc      # solution slack vars (N by 3, see self.sl_dv above)
         sol_dict['z_ref']      = z_ref       # state reference (N by 4, see self.z_ref above)
 
-        # Publishing controls
-        throttle_msg = Float64()
-        steer_msg = Float64()
-        throttle_msg.data = sol_dict['u_control'][0]
-        steer_msg.data = sol_dict['u_control'][1]
-        self.throttle.publish(throttle_msg)
-        self.steer.publish(steer_msg)
-
         return sol_dict
 
     ### END - MPC Main Functions (Setting Up and Solving MPC Optimization Problem) ###
         
 # ---------------------------------------------------------------------------------------------- #
+
+
+
 
 ### START - RUNNING MPC NODE ###
         

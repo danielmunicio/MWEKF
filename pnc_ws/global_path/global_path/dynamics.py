@@ -1,5 +1,6 @@
 import casadi as ca
 from casadi import MX, Function, arctan, tan, sin, cos, horzcat
+
 def continuous_dynamics_fixed_x_order(x, u, l_r=0.5, l_f=0.5, m=1.0):
     """Defines dynamics of the car, i.e. equality constraints.
     parameters:
@@ -19,6 +20,7 @@ def continuous_dynamics_fixed_x_order(x, u, l_r=0.5, l_f=0.5, m=1.0):
                       x[3] * ca.sin(x[2] + beta),  # dyPos/dt = v*sin(theta+beta)
                       x[3] / l_r * ca.sin(beta),   # dtheta/dt = v/l_r*sin(beta)
                       u[0] / m)                    # dv/dt = F/m
+
 def discrete_custom_integrator(n = 3, l_r=0.5, l_f=0.5, m=1.0):
     """makes a discrete dynamics function using the bicycle model with the given parameters. uses the midpoint method for integration.
 
@@ -43,4 +45,3 @@ def discrete_custom_integrator(n = 3, l_r=0.5, l_f=0.5, m=1.0):
         x = x+f(xm, u)*(dt/n)
 
     return ca.Function('integrator', [x0, u, dt], [x])
-

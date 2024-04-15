@@ -27,7 +27,7 @@ class GraphSLAM:
         
         # how far a landmark can be from another while still
         # being considered the same landmark
-        self.landmarkTolerance = 2
+        self.landmarkTolerance = 0.5
         
         self.solver_type = 'nlp' # either 'qp' or 'nlp'
         # options for IPOPT

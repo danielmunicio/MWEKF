@@ -7,6 +7,7 @@ import numpy as np
 from .controller import Controller
 from .utils import discrete_dynamics
 from .utils import get_update_dict
+from .mpc_settings import MPCSettings
 
 
 # ROS Imports
@@ -452,7 +453,7 @@ class KinMPCPathFollower(Controller, Node):
         
 def main(args=None):
     rclpy.init(args=args)
-    mpc_node = KinMPCPathFollower()
+    mpc_node = KinMPCPathFollower(**MPCSettings)
     rclpy.spin(mpc_node)
     rclpy.shutdown()
 

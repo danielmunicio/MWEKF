@@ -2,7 +2,7 @@ from .Settings import Settings
     
 class MPCSettings(metaclass=Settings):
     """settings for CompiledGlobalOpt. All in one place, so it's always synced."""
-    N: int = 100
+    N: int = 10
     DT: float = 0.2
     L_F: float = 1.5213
     L_R: float = 1.4987

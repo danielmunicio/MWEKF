@@ -15,7 +15,9 @@ from std_msgs.msg import Float64, Header, Bool
 from sensor_msgs.msg import Imu
 from eufs_msgs.msg import WheelSpeedsStamped
 from eufs_msgs.msg import CarState
-from geometry_msgs.msg import Quaternion, Vector3, PoseStamped, Pose, Point
+from geometry_msgs.msg import Quaternion, Vector3, PoseStamped, Pose, Point, Point32
+from sensor_msgs.msg import PointCloud
+
 
 import matplotlib.pyplot as plt 
 
@@ -116,12 +118,20 @@ class GraphSLAM_Global(Node):
             self.state_sub,
             1,
         )
+
+
+        ##These are for Visuals in the SIM 
+        self.cones_vis_pub = self.create_publisher(
+            PointCloud,
+            '/slam/conemap',
+            1
+        )
+
         self.pose_pub = self.create_publisher(
             PoseStamped,
             '/slam/pose',
             1
         )
-
         # SLAM Initialization
 
         # Initializes a new instance of graphslam from the graphslam
@@ -440,6 +450,21 @@ class GraphSLAM_Global(Node):
         #print(type(lm_guess[:, 2]))
         left_cones = lm_guess[np.round(lm_guess[:,2]) == 2][:,:2] # blue
         right_cones = lm_guess[np.round(lm_guess[:,2]) == 1][:,:2] # yellow
+
+        total_cones = np.vstack((left_cones,right_cones))
+        cones_msg = PointCloud()
+        cones_to_send = []
+        for cone in total_cones: 
+            cones_to_send.append(Point32())
+            cones_to_send[-1].x = cone[0]
+            cones_to_send[-1].y = cone[1]
+            cones_to_send[-1].z = 0.0
+        cones_msg.points = cones_to_send
+        cones_msg.header.frame_id = "map"
+        cones_msg.header.stamp = self.get_clock().now().to_msg()
+        self.cones_vis_pub.publish(cones_msg)
+
+
         #left_cones = lm_guess[lm_guess[:,2] == 0][:,:2] # orange
 
         # print('left_cones: ')
@@ -467,15 +492,17 @@ class GraphSLAM_Global(Node):
         # print(len(right_cones))
 
         local_left, local_right = self.localCones(self.local_radius, left_cones, right_cones)
+        if (len(np.array(local_left)) == 0 or len(np.array(local_right)) == 0):
+            return
         # local_left, local_right = left_cones, right_cones
 
         # print('len of local left and local right cones:')
         # print(len(local_left))
         # print(len(local_right))
-        # print('local left: ')
-        # print(local_left)
-        # print('local right: ')
-        # print(local_right)
+        print('local left: ')
+        print(local_left)
+        print('local right: ')
+        print(local_right)
         #update map message with new map data 
 
         self.local_map.left_cones_x = np.array(local_left)[:,0].tolist()
@@ -516,7 +543,7 @@ class GraphSLAM_Global(Node):
         """
         left = np.array(left)
         right = np.array(right)
-        curpos = np.array(self.currentstate.x, self.currentstate.y)
+        curpos = np.array([self.currentstate.x, self.currentstate.y])
         heading = self.currentstate.heading
 
         ret_localcones_left = []

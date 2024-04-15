@@ -7,7 +7,7 @@ import numpy as np
 from .controller import Controller
 from .utils import discrete_dynamics
 from .utils import get_update_dict
-from .mpc_settings import MPCSettings
+from all_settings.all_settings import MPCSettings
 
 
 # ROS Imports

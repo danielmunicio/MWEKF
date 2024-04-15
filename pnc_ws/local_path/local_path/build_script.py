@@ -1,5 +1,5 @@
 from .local_opt_compiled import CompiledLocalOpt
-from .local_opt_settings import LocalOptSettings
+from all_settings.all_settings import LocalOptSettings
 
 def build_solver():
     g = CompiledLocalOpt(**LocalOptSettings)

@@ -270,7 +270,7 @@ def discrete_custom_integrator(n = 3, l_r=0.5, l_f=0.5, m=1.0):
 if __name__ == '__main__':
     # import control as ct
     from kinematic_mpc import KinMPCPathFollower
-    from .mpc_settings import MPCSettings
+    from all_settings.all_settings import MPCSettings
     mpc = KinMPCPathFollower(**MPCSettings)
     x, u = MX.sym('x', 5), MX.sym('u', 2)
     

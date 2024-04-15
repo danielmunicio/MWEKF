@@ -5,7 +5,8 @@ from feb_msgs.msg import State
 from feb_msgs.msg import FebPath
 from feb_msgs.msg import Map
 from std_msgs.msg import Bool
-from .global_opt_settings import GlobalOptSettings as settings
+#from .global_opt_settings import GlobalOptSettings as settings
+from all_settings.all_settings import GlobalOptSettings as settings
 from .global_opt_compiled import CompiledGlobalOpt
 from .ConeOrdering import ConeOrdering
 

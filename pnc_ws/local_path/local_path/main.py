@@ -14,16 +14,18 @@ class LocalPath(Node):
         super().__init__("local_path")
 
         #Publishers
-        self.pc_publisher = self.create_publisher(FebPath, '/path/local', 10)
+        self.pc_publisher = self.create_publisher(FebPath, '/path/local', 1)
 
         #Subscribers
-        self.pc_subscriber = self.create_subscription(Map, '/slam/matched/local', self.listener_cb, 10)
+        self.pc_subscriber = self.create_subscription(Map, '/slam/map/local', self.listener_cb, 1)
+        self.state_subscriber = self.create_subscription(State, '/slam/state', self.state_callback, 1)
 
         self.g = CompiledLocalOpt(**settings)
-
+        self.state = [0,0,0,0]
+        
     def listener_cb(self, msg: Map):
-        left, right = ConeOrdering(msg)
-        res = self.g.solve(left, right)
+        left, right = ConeOrdering(self.msg, self.state)
+        res = self.g.solve(left, right, self.state)
         states, _ = self.g.to_constant_tgrid(0.2, **res)
         
         msg = FebPath()
@@ -34,7 +36,8 @@ class LocalPath(Node):
         
         self.pc_publisher.publish(msg)
 
-
+    def state_callback(self, msg: State):
+        self.state = list(msg.carstate)
 
 
 def main(args=None):

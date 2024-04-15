@@ -85,13 +85,13 @@ class LocalPath(Node):
         self.pointcloud_pub.publish(pc_msg)
 
 
-    def state_callback(self, msg: State):
+    def state_callback(self, carstate: State):
         self.state = [0, 0, 0, 0]
-        self.state[0] = msg.carstate[0] # x value
-        self.state[1] = msg.carstate[1] # y value
+        self.state[0] = carstate.x # x value
+        self.state[1] = carstate.y # y value
         ### MPC Assumes the veloccity and heading are flipped
-        self.state[2] = msg.carstate[3] # velocity
-        self.state[3] = msg.carstate[2] # heading
+        self.state[2] = carstate.heading # velocity
+        self.state[3] = carstate.velocity # heading
 
 
 def main(args=None):

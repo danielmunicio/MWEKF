@@ -94,17 +94,16 @@ class CompiledLocalOpt:
         self.bound_points = currAndCones[2:, :]
 
         #* opt variables
-        self.x = MX.sym('x', self.N, 10)
-        self.t = self.x[:, 0]
-        self.psi = self.x[:, 1]
-        self.v = self.x[:, 2]
-        self.u = self.x[:, 3:5]
-        self.dt = self.x[:, 5:6]
-        self.sl_dyn = self.x[:, 6:10]
+        self.x = MX.sym('x', self.N, 9)
+        self.psi = self.x[:, 0]
+        self.v = self.x[:, 1]
+        self.u = self.x[:, 2:4]
+        self.dt = self.x[:, 4:5]
+        self.sl_dyn = self.x[:, 5:9]
 
         #* this represents the full state at each discretization point
         self.z = horzcat(
-            self.bound_points*(1-self.t)+self.bound_points*self.t, # LERP between pairs of points on track bounds
+            # self.bound_points*(1-self.t)+self.bound_points*self.t, # LERP between pairs of points on track bounds
             self.psi,
             self.v
         )
@@ -173,12 +172,6 @@ class CompiledLocalOpt:
             g = vec(self.dt * (self.u[:, 1] - vertcat(self.u[-1:, 1], self.u[:-1, 1]))),
             lbg = DM([-self.DF_DOT_MAX]*self.N),
             ubg = DM([self.DF_DOT_MAX]*self.N)
-        )
-        self._add_constraint(
-            't',
-            g = vec(self.t),
-            lbg = DM([0.0]*self.N),
-            ubg = DM([1.0]*self.N)
         )
         # Keeps initial heading and velocity unchangeable
         self._add_constraint(
@@ -339,7 +332,6 @@ class CompiledLocalOpt:
 
         print(f"angles shape: {angles.shape}")
         self.x0 = vec(vertcat(
-            DM([0.5]*self.N), # t
             DM(angles),       # psi
             DM([1.0]*self.N), # v
             DM([0.0]*self.N), # a
@@ -349,6 +341,7 @@ class CompiledLocalOpt:
             DM([0.0])         # scalar
         ))
         # print(self.x0, self.x0.shape())
+        print(curr_state[:2], curr_state[:2])
         self.solver.print_options()
         self.soln = self.solver(
             x0=self.x0,

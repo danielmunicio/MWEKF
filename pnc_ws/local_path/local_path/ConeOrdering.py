@@ -1,4 +1,4 @@
-from .local_opt_settings import LocalOptSettings
+from all_settings.all_settings import LocalOptSettings
 import numpy as np
 from feb_msgs.msg import Map
 import scipy as sp

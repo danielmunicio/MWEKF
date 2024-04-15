@@ -15,7 +15,7 @@ from std_msgs.msg import Float64, Header, Bool
 from sensor_msgs.msg import Imu
 from eufs_msgs.msg import WheelSpeedsStamped
 from eufs_msgs.msg import CarState
-from geometry_msgs.msg import Quaternion, Vector3
+from geometry_msgs.msg import Quaternion, Vector3, PoseStamped, Pose, Point
 
 import matplotlib.pyplot as plt 
 
@@ -58,12 +58,12 @@ class GraphSLAM_Global(Node):
         # SUBSCRIBERS
 
         # Handle IMU messages for vehicle state
-        # self.imu_sub = self.create_subscription(
-        #     Imu,
-        #     '/imu',
-        #     self.imu_callback,
-        #     1
-        # )
+        self.imu_sub = self.create_subscription(
+            Imu,
+            '/imu',
+            self.imu_callback,
+            1
+        )
 
         # Handle new cone readings from perception
         self.cones_sub = self.create_subscription(
@@ -103,18 +103,23 @@ class GraphSLAM_Global(Node):
             1
         )
 
-        self.wheelspeeds = self.create_subscription(
-            WheelSpeedsStamped,
-            '/ground_truth/wheel_speeds',
-            self.wheelspeed_sub,
-            1
-        )
+        # self.wheelspeeds = self.create_subscription(
+        #     WheelSpeedsStamped,
+        #     '/ground_truth/wheel_speeds',
+        #     self.wheelspeed_sub,
+        #     1
+        # )
 
         self.state_subby = self.create_subscription(
             CarState,
             '/ground_truth/state',
             self.state_sub,
             1,
+        )
+        self.pose_pub = self.create_publisher(
+            PoseStamped,
+            '/slam/pose',
+            1
         )
 
         # SLAM Initialization
@@ -149,6 +154,14 @@ class GraphSLAM_Global(Node):
         self.usefastslam = False
 
     def state_sub(self, msg: CarState):
+        with open("sim_data.txt", "a") as f:
+            print("---------------------------------------", file =f)
+            print("GROUND TRUTH CAR STATE: ", file =f)
+            print("x position: ", msg.pose.pose.position.x, file=f)
+            print("y position: ", msg.pose.pose.position.y, file=f)
+            print("heading: ", self.quat_to_euler(msg.pose.pose.orientation)[-1], file=f)
+            print("----------------------------------------", file=f)
+        return
         dt = self.compute_timediff(msg.header)
         if (dt > 1):
             return
@@ -162,7 +175,6 @@ class GraphSLAM_Global(Node):
 
         self.slam.update_position(dx)
         self.state_pub.publish(self.currentstate)
-
     def wheelspeed_sub(self, msg: WheelSpeedsStamped):
         self.currentstate.velocity = ((msg.speeds.lb_speed + msg.speeds.rb_speed)/2)*np.pi*0.505/60
         
@@ -220,9 +232,9 @@ class GraphSLAM_Global(Node):
             y is in the lateral direction (positive = to the right)
             depending on how IMU is providing this data, change accordingly
     """
-    def compute_velocity(self, acc: Vector3, dt: float) -> float:
+    def compute_delta_velocity(self, acc: Vector3, dt: float) -> float:
         # longitudinal_acc = np.linalg.norm([acc.x, acc.y])
-        longitudinal_acc = -acc.x
+        longitudinal_acc = acc.x
         # lateral_acc = acc.y # May be needed in the future if  
         #                       straightline model is not accurate enough
 
@@ -238,18 +250,6 @@ class GraphSLAM_Global(Node):
     Outputs: None
     """
     def update_state(self, dx: np.array, yaw: float, velocity: float) -> None:
-        # x = Float64()
-        # x.data = dx[0]
-        # y = Float64()
-        # y.data = dx[1]
-
-        #This should be deleted 
-        v = Float64()
-        v.data = velocity
-        heading = Float64()
-        heading.data = yaw
-        #Probably 
-
         # All carstates should be float #'s 
         self.currentstate.x += dx[0]
         self.currentstate.y += dx[1]
@@ -287,7 +287,7 @@ class GraphSLAM_Global(Node):
         roll, pitch, yaw = self.quat_to_euler(imu.orientation)
         times.append(perf_counter())
         # generate current velocity
-        delta_velocity = self.compute_velocity(imu.linear_acceleration, dt)
+        delta_velocity = self.compute_delta_velocity(imu.linear_acceleration, dt)
         velocity = self.currentstate.velocity + delta_velocity
         self.currentstate.velocity = velocity
         times.append(perf_counter())
@@ -302,13 +302,35 @@ class GraphSLAM_Global(Node):
         # update state msg
         self.update_state(dx, yaw, velocity)
         times.append(perf_counter())
+        
+        ## Show the estimated Pose on the Sim        
+        pose_msg = PoseStamped()
+        pose_msg.pose = Pose()
+        pose_msg.pose.position = Point()
+        pose_msg.pose.orientation = Quaternion()
+ 
+        pose_msg.pose.position.x = self.currentstate.x
+        pose_msg.pose.position.y = self.currentstate.y
+        pose_msg.pose.position.z = 0.0
+        pose_msg.pose.orientation.w = np.cos(self.currentstate.heading/2)
+        pose_msg.pose.orientation.x = 0.0
+        pose_msg.pose.orientation.y = 0.0
+        pose_msg.pose.orientation.z = np.sin(self.currentstate.heading/2)
+ 
+        pose_msg.header.frame_id = "map"
+        pose_msg.header.stamp = self.get_clock().now().to_msg()
+ 
+        self.pose_pub.publish(pose_msg)
+
+        ## Show Estimated Pose END 
+
         self.state_pub.publish(self.currentstate)
         times.append(perf_counter())
 
         with open("sim_data.txt", "a") as f:
             print("----------------------------------------------------------", file=f)
-            print(f"FROM THE IMU: current x acceleration: {imu.linear_acceleration.x} \n dt: {dt}", file = f)
-            print(f"current x position: {self.currentstate.x} \n current y position: {self.currentstate.y} \n current velocity: {self.currentstate.velocity} \n current yaw: {self.currentstate.heading}", file=f)
+            print(f"FROM SLAM: ", file = f)
+            print(f"current x position: {self.currentstate.x} \n current y position: {self.currentstate.y} \n current velocity: {self.currentstate.velocity} \n current heading: {self.currentstate.heading}", file=f)
             print("-----------------------------------------------------------")
             print(file=f)
         # print(f"TIME TAKEN FOR IMU CALLBACK: {times}")
@@ -362,8 +384,6 @@ class GraphSLAM_Global(Node):
 
         # plt.scatter(x_s, y_s)
         # plt.show()
-        return
-
 
         # Dummy function for now, need to update graph and solve graph on each timestep
         if self.finished:
@@ -373,12 +393,12 @@ class GraphSLAM_Global(Node):
         # cone_matrix = np.hstack(Cones.r, Cones.theta, Cones.color)
         cone_matrix = [[], [], []]
         for cone in cones.blue_cones:
-            r, theta = self.cartesian_to_polar(self.currentstate.carstate[:2], (cone.point.x, cone.point.y))
+            r, theta = self.cartesian_to_polar([self.currentstate.x, self.currentstate.y], (cone.point.x, cone.point.y))
             cone_matrix[0].append(r)
             cone_matrix[1].append(theta)
             cone_matrix[2].append(2)
         for cone in cones.yellow_cones:
-            r, theta = self.cartesian_to_polar(self.currentstate.carstate[:2], (cone.point.x, cone.point.y))
+            r, theta = self.cartesian_to_polar([self.currentstate.x, self.currentstate.y], (cone.point.x, cone.point.y))
             cone_matrix[0].append(r)
             cone_matrix[1].append(theta)
             cone_matrix[2].append(1)
@@ -457,8 +477,6 @@ class GraphSLAM_Global(Node):
         # print('local right: ')
         # print(local_right)
         #update map message with new map data 
-        with open("out.txt", 'a') as f: 
-            print(local_left, file=f)
 
         self.local_map.left_cones_x = np.array(local_left)[:,0].tolist()
         self.local_map.left_cones_y = np.array(local_left)[:,1].tolist()
@@ -468,16 +486,13 @@ class GraphSLAM_Global(Node):
         #update message header
         #self.local_map.header.seq = self.seq
         self.local_map.header.stamp = self.get_clock().now().to_msg()
-        self.local_map.header.frame_id = "rslidar"
+        self.local_map.header.frame_id = "map"
 
-        with open("out.txt", 'a') as f: 
-            print(self.local_map, file=f)
+        # x_s = np.array(local_left)[:,0].tolist() + np.array(local_right)[:,0].tolist()
+        # y_s = np.array(local_left)[:,1].tolist() + np.array(local_right)[:,1].tolist()
 
-        x_s = np.array(local_left)[:,0].tolist() + np.array(local_right)[:,0].tolist()
-        y_s = np.array(local_left)[:,1].tolist() + np.array(local_right)[:,1].tolist()
-
-        plt.scatter(x_s, y_s)
-        plt.show()
+        # plt.scatter(x_s, y_s)
+        # plt.show()
 
         self.local_map_pub.publish(self.local_map)
 

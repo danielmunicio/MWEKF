@@ -153,13 +153,13 @@ class KinMPCPathFollower(Controller, Node):
         # idk where to get info on worhp options
         self.p_opts = {
             'expand': True, # can only expand to sx if not using interpolant 
-            'print_time': 0,
+            # 'print_time': 0,
         }
         self.s_opts = {
             'max_cpu_time': 0.05, 
             'linear_solver': 'MA27', 
-            'print_level': 0,
-            'sb': 'yes',
+            # 'print_level': 0,
+            # 'sb': 'yes',
         } 
         if self.solver == 'worhp': self.s_opts = dict() # idk what the worhp options are
         self.opti.solver(self.solver, self.p_opts, self.s_opts)
@@ -236,19 +236,18 @@ class KinMPCPathFollower(Controller, Node):
 
             # print('drive message:', self.prev_soln['u_control'][0])
             # print('steering message:', self.prev_soln['u_control'][1])
-            print()
             # Publishing controls
             msg = AckermannDriveStamped()
             msg.header.stamp = self.get_clock().now().to_msg()
             msg.drive.acceleration = self.prev_soln['u_control'][0]  
             msg.drive.steering_angle = self.prev_soln['u_control'][1]
 
-            with open("sim_data.txt", "a") as f:
-                print("------------------------------------------------", file=f)
-                print("FROM MPC:", file=f)
-                print("Sending Acceleration Of:", msg.drive.acceleration, file=f)
-                print("Sending Steering Of:", msg.drive.steering_angle, file=f)
-                print("-------------------------------------------------", file=f)
+            # with open("sim_data.txt", "a") as f:
+            #     print("------------------------------------------------", file=f)
+            #     print("FROM MPC:", file=f)
+            #     print("Sending Acceleration Of:", msg.drive.acceleration, file=f)
+            #     print("Sending Steering Of:", msg.drive.steering_angle, file=f)
+            #     print("-------------------------------------------------", file=f)
                 
             self.control_pub.publish(msg)
 
@@ -259,7 +258,6 @@ class KinMPCPathFollower(Controller, Node):
 
             self.throttle_pub.publish(throttle_msg)
             self.steer_pub.publish(steer_msg)
-
     ### END - ROS Callback Functions ###
 
 # ---------------------------------------------------------------------------------------------- #

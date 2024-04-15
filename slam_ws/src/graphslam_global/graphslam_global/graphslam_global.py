@@ -382,7 +382,7 @@ class GraphSLAM_Global(Node):
         self.local_map.left_cones_y = list(bloobs[1])
         self.local_map.right_cones_x = list(yellow[0])
         self.local_map.right_cones_y = list(yellow[1])
-        self.local_map_pub.publish(self.local_map)
+        # self.local_map_pub.publish(self.local_map)
 
         # with open("sim_data.txt", "a") as f:
         #     print("From SLAM cones map:", self.local_map, file=f)
@@ -414,7 +414,7 @@ class GraphSLAM_Global(Node):
             cone_matrix[2].append(1)
 
         cone_matrix = np.array(cone_matrix).T
-        
+        # cone_matrix = np.hstack([np.vstack([bloobs.T, yellow.T]), np.array([[0]*len(bloobs[0]) + [1]*len(yellow[0])]).T])
         # process all new cone messages separately while one thread is solving slam        
         
         #lock
@@ -454,7 +454,7 @@ class GraphSLAM_Global(Node):
         total_cones = np.vstack((left_cones,right_cones))
         cones_msg = PointCloud()
         cones_to_send = []
-        for cone in total_cones: 
+        for cone in lm_guess: 
             cones_to_send.append(Point32())
             cones_to_send[-1].x = cone[0]
             cones_to_send[-1].y = cone[1]

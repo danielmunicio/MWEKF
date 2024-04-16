@@ -78,7 +78,8 @@ class CompiledLocalOpt:
         ####* utility functions ####
         # easy way to account for angle wrapping
         x = MX.sym('x', 4)
-        self.fix_angle = Function('fix_angle', [x], [horzcat(x[0, :], x[1, :], sin(2*x[2, :]), x[3, :])])
+        # self.fix_angle = Function('fix_angle', [x], [horzcat(x[0, :], x[1, :], sin(2*x[2, :]), x[3, :])])
+        self.fix_angle = Function('fix_angle', [x], [horzcat(x[0, :], x[1, :], sin(x[2, :]/2), x[3, :])])
         # generate 2x2 rotation matrices
         psi = MX.sym('psi')
         self.rot = Function('rot', [psi], [reshape(horzcat(cos(psi), sin(psi), -sin(psi), cos(psi)), 2, 2)])
@@ -165,13 +166,13 @@ class CompiledLocalOpt:
             'dt',
             g = vec(self.dt),
             lbg = DM([0.0]*self.N),
-            ubg = DM([0.5]*self.N)
+            ubg = DM([1.0]*self.N)
         )
         self._add_constraint(
             'df_dot',
-            g = vec(self.dt * (self.u[:, 1] - vertcat(self.u[-1:, 1], self.u[:-1, 1]))),
-            lbg = DM([-self.DF_DOT_MAX]*self.N),
-            ubg = DM([self.DF_DOT_MAX]*self.N)
+            g = vec(self.dt[:-1] * (self.u[:-1, 1] - self.u[-1:, 1])),
+            lbg = DM([-self.DF_DOT_MAX]*(self.N-1)),
+            ubg = DM([self.DF_DOT_MAX]*(self.N-1))
         )
         self._add_constraint(
             't',
@@ -197,7 +198,7 @@ class CompiledLocalOpt:
         self._add_constraint(
             'min_time',
             g = sum1(self.dt) + self.scalar,
-            lbg = DM(2),
+            lbg = DM(0.5),
             ubg = DM(float('inf'))
         )
         # centripetal acceleration: # Math: \frac{v^2}{r}=\frac{v^2}{\frac{v}{\dot{\theta}}}=\frac{v^2\dot{\theta}}{v}=v\dot{\theta}
@@ -239,7 +240,7 @@ class CompiledLocalOpt:
         #* COST FUNCITON: # Math: \sum_{i=1}^N\left[ \Delta t_i + 10^5\cdot\sum(\text{sl}_\text{dyn})^2\right]
         #* slack vars aren't really neccessary for dynamics but I'm too lazy to remove them. Really they should be on the cone constraints but it's ok.
         # adding the scalar portion will penalize having to use the scalar (i.e. giving too short a path)
-        self.f = sum1(self.dt) + 1e5*sumsqr(self.sl_dyn) + 1e5*(self.scalar)
+        self.f = sum1(self.dt) + 1e8*sumsqr(self.sl_dyn) + 1e2*(self.scalar)
 
         #* construct the NLP dictionary to be passed into casadi.
         # make sure you add the self.scalar to x so the nlp can modify it!
@@ -315,7 +316,15 @@ class CompiledLocalOpt:
             extra = cur-t[idx]
             controls.append(u[idx])
             states.append(np.array(self.dynamics(z[idx], u[idx], extra)).flatten())
+            if len(states)>1 and abs(states[-1][2] - states[-2][2])>1.5*pi:
+                states[-1][2] = states[-1][-2] + (states[-1][2]-states[-2][2])%(2*pi)
+
             cur += dt
+        # now pad it until it's 15 timsteps, for safety
+        while len(states)<15:
+            controls.append(u[-1])
+            states.append(np.array(self.dynamics(states[-1].tolist(), u[-1], dt)).flatten())
+
         return np.array(states), np.array(controls)
 
         
@@ -331,9 +340,9 @@ class CompiledLocalOpt:
             dict: result of solve. keys 'z' (states), 'u' (controls), 't' (timestamps)
         """
         center = (left+right)/2
-        diffs = np.diff(center, prepend=center[-1:], axis=0)
+        diffs = np.diff(center, axis=0)
         diffs = np.concatenate([diffs, [[1, 0]]], axis=0)
-        d_angles = [self.angle(diffs[i-1], diffs[i]) for i in range(1, len(diffs))]
+        d_angles = [self.angle(diffs[i-1], diffs[i]) for i in range(1, len(diffs))] + [0.0]
         angles = np.cumsum(d_angles)
 
         left = center
@@ -343,7 +352,7 @@ class CompiledLocalOpt:
         self.x0 = vec(vertcat(
             DM([0.5]*self.N), # t
             DM(angles),       # psi
-            DM([1.0]*self.N), # v
+            DM([curr_state[3]]*self.N), # v
             DM([0.0]*self.N), # a
             DM([0.0]*self.N),
             DM([0.5]*self.N), # dt
@@ -360,6 +369,7 @@ class CompiledLocalOpt:
             p=vertcat(DM(curr_state).T, horzcat(DM(left), DM(right))),
         )
         self.soln['x'] = np.array(reshape(self.soln['x'][:-1], (self.N, 10)))
+        print(self.soln['x'])
         self.soln['xy'] = (left.T*(1-self.soln['x'][:, 0])+right.T*self.soln['x'][:, 0]).T
         # print(self.soln['x'][:, 5])
         res=dict()
@@ -370,7 +380,8 @@ class CompiledLocalOpt:
         # print('silly:',res['z'].shape)
         res['u'] = self.soln['x'][:, 3:5]
         res['t'] = np.concatenate([[0.], np.cumsum(self.soln['x'][:, 5])[:-1]])
-            
+        
+
         ## if the solved solution doesn't fill all 2 seconds
         ### NAIVE (pad "straight" controls until 2 seconds are filled)
         # if res['t'][-1] < 2.0:

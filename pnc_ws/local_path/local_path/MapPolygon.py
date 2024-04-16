@@ -58,8 +58,8 @@ def find_total_shape(yellow_points, blue_points):
     np_yellow = np.array(yellow_points)
     np_blue = np.array(blue_points)
 
-    np_yellow += np.random.random(np_yellow.shape) * 0.05
-    np_blue += np.random.random(np_blue.shape) * 0.05
+    np_yellow += np.random.random(np_yellow.shape) * 0.005
+    np_blue += np.random.random(np_blue.shape) * 0.005
 
     print('np_yellow:', np_yellow)
     print('np_bloobies:', np_blue)

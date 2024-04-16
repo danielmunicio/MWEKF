@@ -13,6 +13,6 @@ class LocalOptSettings(metaclass=Settings):
     ACC_MAX_FN: float|Function = 2.0
     DF_DOT_MAX: float =  0.5
     V_MIN: float = 0.0
-    V_MAX: float = 25.0
-    FRIC_MAX: float|Function = 5.0
+    V_MAX: float = 20.0
+    FRIC_MAX: float|Function = 10.0
     

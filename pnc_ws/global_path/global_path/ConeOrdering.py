@@ -19,16 +19,16 @@ def ConeOrdering(msg: Map):
     # N = GlobalOptSettings.N # get size
     N = 10
     left, right = (
-        np.array([list(msg.left_cones_x), list(msg.left_cones_y)]),
-        np.array([list(msg.right_cones_x), list(msg.right_cones_y)]),
+        np.array([list(msg.left_cones_x), list(msg.left_cones_y)]).T.tolist(),
+        np.array([list(msg.right_cones_x), list(msg.right_cones_y)]).T.tolist(),
     )
     left, right = N_point_generator(left, right, N)
     return left, right, len(left)
 
 def N_point_generator(yellow_polygon, blue_polygon, N):
     # generate N points on those polygons
-    new_yellow_points = generate_N_points(yellow_polygon, N)
-    new_blue_points = generate_N_points(blue_polygon, N)
+    new_yellow_points = generate_N_points(Polygon(yellow_polygon), N)
+    new_blue_points = generate_N_points(Polygon(blue_polygon), N)
     # construct new polygons with N points
     y_polygon = Polygon(new_yellow_points)
     b_polygon = Polygon(new_blue_points)

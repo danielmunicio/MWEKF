@@ -22,13 +22,19 @@ class LocalPath(Node):
 
         #Subscribers
         self.pc_subscriber = self.create_subscription(Map, '/slam/map/local', self.listener_cb, 1)
+        self.pc_subscriber = self.create_subscription(Bool, '/path/finished', self.finished_cb, 1)
         self.state_subscriber = self.create_subscription(State, '/slam/state', self.state_callback, 1)
 
         self.g = CompiledLocalOpt(**settings)
         self.g.construct_solver()
         self.state = [0.,0.,0.,0.]
+
+        self.finished = False
+    def finished_cb(self, msg: Bool):
+        self.finished = True
         
     def listener_cb(self, msg: Map):
+        if self.finished: return
         print('MAP Message Received')
         #lists are reversed
         if len(list(msg.left_cones_x))<=1 or len(list(msg.right_cones_x))<=1:

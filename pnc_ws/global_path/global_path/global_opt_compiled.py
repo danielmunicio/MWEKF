@@ -352,7 +352,7 @@ class CompiledGlobalOpt:
             DM([0.5]*self.N), # dt
             DM([0.0]*self.N*4)# track slack vars
         ))
-        self.solver.print_options()
+        # self.solver.print_options()
         self.soln = self.solver(
             x0=self.x0,
             lbg=self.lbg,

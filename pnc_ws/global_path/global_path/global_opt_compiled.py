@@ -81,7 +81,7 @@ class CompiledGlobalOpt:
         self.fix_angle = Function('fix_angle', [x], [horzcat(x[0, :], x[1, :], sin(x[2, :]/2), x[3, :])])
         # generate 2x2 rotation matrices
         psi = MX.sym('psi')
-        self.rot = Function('rot', [psi], [reshape(horzcat(cos(psi), sin(psi), -sin(psi), cos(psi)), 2, 2)])
+        self.rot = Function('rot', [psi], [horzcat(vertcat(cos(psi), sin(psi)), vertcat(-sin(psi), cos(psi)))])
 
         ###########################################*
         ####* Symbolic Variable Initialization ####*
@@ -211,7 +211,7 @@ class CompiledGlobalOpt:
         # TODO: allow the cone locations to be different from the track side points
 
         #* construct a function which is close enough to a rectangle
-        self.safe = Function('safespace', [x:=MX.sym('x', 2)], [(DM([1/self.bbox['w'], 1/self.bbox['l']])**6).T@x**6])
+        self.safe = Function('safespace', [x:=MX.sym('x', 2)], [(DM([2/self.bbox['l'], 2/self.bbox['w']])**6).T@x**6])
 
         self.cones = vertcat(self.bound_pairs[:, :2], self.bound_pairs[:, 2:4]).T
         left = self.bound_pairs[:, :2].T

@@ -16,7 +16,8 @@ from rclpy.node import Node
 from std_msgs.msg import Float64
 from .triangles_track_constraints import get_g_triangulation
 
-
+from sensor_msgs.msg import PointCloud
+from geometry_msgs.msg import Point32
 from feb_msgs.msg import State, FebPath
 
 class KinMPCPathFollower(Controller, Node):
@@ -80,6 +81,7 @@ class KinMPCPathFollower(Controller, Node):
         self.throttle_pub = self.create_publisher(Float64, '/control/throttle', 1)
         self.steer_pub = self.create_publisher(Float64, '/control/steer', 1)
         self.control_pub = self.create_publisher(AckermannDriveStamped, 'cmd', 1)
+        self.pointcloud_pub = self.create_publisher(PointCloud, '/mpc/viz', 1)
 
         ### END - ROS Integration Code ###
 
@@ -273,6 +275,19 @@ class KinMPCPathFollower(Controller, Node):
 
             self.throttle_pub.publish(throttle_msg)
             self.steer_pub.publish(steer_msg)
+            self.prev_soln['u_mpc']
+            pc_msg = PointCloud()
+            pts = []
+
+            for x in np.array(self.prev_soln['z_mpc']):
+                pts.append(Point32())
+                pts[-1].x = x[0]
+                pts[-1].y = x[1]
+                pts[-1].z = 0.0
+            pc_msg.points = pts
+            pc_msg.header.frame_id = "map"
+            pc_msg.header.stamp = self.get_clock().now().to_msg()
+            self.pointcloud_pub.publish(pc_msg)
 
     ### END - ROS Callback Functions ###
 

@@ -227,10 +227,11 @@ class CompiledGlobalOpt:
             else:
                 considered = horzcat(left[:, i-self.nc:i+self.nc],
                                      right[:, i-self.nc:i+self.nc])
-
+                
+            car_centroid_center_of_mass_offset = vertcat(self.car_params['l_f']-self.car_params['l_r'], 0)
             self._add_constraint(
                 f'cones{i}',
-                g=self.safe(self.rot(-self.psi[i])@((considered-self.z[i, :2].T) + vertcat(self.car_params['l_f']-self.car_params['l_r'], 0))).T, 
+                g=self.safe(self.rot(-self.psi[i])@((considered-self.z[i, :2].T) + car_centroid_center_of_mass_offset)).T, 
                 lbg=DM([1]*self.nc*4),
                 ubg=DM([inf]*self.nc*4)
             )

@@ -56,8 +56,12 @@ class LocalPath(Node):
             print(f"right:\t{right}", file=f)
             print("--------------------------------------------", file = f)
             print(file=f)
-        res = self.g.solve((left+right)/2, (left+right)/2, self.state)
-        states, _ = self.g.to_constant_tgrid(0.2, **res)
+        try:
+            res = self.g.solve(left, right, self.state)
+        except RuntimeError:
+            return
+        
+        states, _ = self.g.to_constant_tgrid(0.02, **res)
         # states = np.zeros((50, 4))
         path_msg = FebPath()
         path_msg.x = states[:, 0].flatten().tolist()

@@ -177,8 +177,8 @@ class CompiledLocalOpt:
         self._add_constraint(
             't',
             g = vec(self.t),
-            lbg = DM([0.0]*self.N),
-            ubg = DM([1.0]*self.N)
+            lbg = DM([0.5]*self.N),
+            ubg = DM([0.5]*self.N)
         )
         # Keeps initial heading and velocity unchangeable
         self._add_constraint(
@@ -190,17 +190,17 @@ class CompiledLocalOpt:
         # self._add_constraint(
         #     'curr_heading',
         #     g = self.curr_state[2] - self.psi[0],
-        #     lbg = DM(0),
-        #     ubg = DM(0)
+        #     lbg = DM(-pi/6),
+        #     ubg = DM(pi/6)
         # )
         # Makes it so that the time to run is at minimum 2 (soft constraint, scalar included)
         self.scalar = MX.sym("scalar")
-        self._add_constraint(
-            'min_time',
-            g = sum1(self.dt) + self.scalar,
-            lbg = DM(0.5),
-            ubg = DM(float('inf'))
-        )
+        # self._add_constraint(
+        #     'min_time',
+        #     g = sum1(self.dt) + self.scalar,
+        #     lbg = DM(0.5),
+        #     ubg = DM(float('inf'))
+        # )
         # centripetal acceleration: # Math: \frac{v^2}{r}=\frac{v^2}{\frac{v}{\dot{\theta}}}=\frac{v^2\dot{\theta}}{v}=v\dot{\theta}
         ac = (self.v**2 / self.car_params['l_r']) * sin(arctan(self.car_params['l_r']/(self.car_params['l_f'] + self.car_params['l_r']) * tan(self.u[:, 1])))
         self._add_constraint(
@@ -240,7 +240,7 @@ class CompiledLocalOpt:
         #* COST FUNCITON: # Math: \sum_{i=1}^N\left[ \Delta t_i + 10^5\cdot\sum(\text{sl}_\text{dyn})^2\right]
         #* slack vars aren't really neccessary for dynamics but I'm too lazy to remove them. Really they should be on the cone constraints but it's ok.
         # adding the scalar portion will penalize having to use the scalar (i.e. giving too short a path)
-        self.f = sum1(self.dt) + 1e8*sumsqr(self.sl_dyn) + 1e2*(self.scalar)
+        self.f = sum1(self.dt) + 1e12*sumsqr(self.sl_dyn)**2 + 1e2*(self.scalar)**2
 
         #* construct the NLP dictionary to be passed into casadi.
         # make sure you add the self.scalar to x so the nlp can modify it!
@@ -320,10 +320,10 @@ class CompiledLocalOpt:
                 states[-1][2] = states[-1][-2] + (states[-1][2]-states[-2][2])%(2*pi)
 
             cur += dt
-        # now pad it until it's 15 timsteps, for safety
-        while len(states)<15:
-            controls.append(u[-1])
-            states.append(np.array(self.dynamics(states[-1].tolist(), u[-1], dt)).flatten())
+        # now pad it until it's 12 timsteps, for safety
+        while len(states)<150:
+            controls.append(u[-2])
+            states.append(np.array(self.dynamics(states[-1].tolist(), u[-2], dt)).flatten())
 
         return np.array(states), np.array(controls)
 
@@ -341,12 +341,14 @@ class CompiledLocalOpt:
         """
         center = (left+right)/2
         diffs = np.diff(center, axis=0)
-        diffs = np.concatenate([diffs, [[1, 0]]], axis=0)
-        d_angles = [self.angle(diffs[i-1], diffs[i]) for i in range(1, len(diffs))] + [0.0]
-        angles = np.cumsum(d_angles)
+        diffs = np.concatenate([[[1, 0]], diffs], axis=0)
+        angles = [self.angle(diffs[0], diffs[i]) for i in range(1, len(diffs))]
+        angles.append(angles[-1])
+        angles = np.array(angles)
+        # angles = np.cumsum(d_angles)
 
-        left = center
-        right = center
+        # left = center
+        # right = center
 
         print(f"angles shape: {angles.shape}")
         self.x0 = vec(vertcat(
@@ -355,7 +357,7 @@ class CompiledLocalOpt:
             DM([curr_state[3]]*self.N), # v
             DM([0.0]*self.N), # a
             DM([0.0]*self.N),
-            DM([0.5]*self.N), # dt
+            DM([0.1]*self.N), # dt
             DM([0.0]*self.N*4),
             DM([0.0])         # scalar
         ))
@@ -368,8 +370,12 @@ class CompiledLocalOpt:
             ubg=self.ubg,
             p=vertcat(DM(curr_state).T, horzcat(DM(left), DM(right))),
         )
+        if not self.solver.stats()['success']:
+            raise RuntimeError("Solver failed to converge")
+        
         self.soln['x'] = np.array(reshape(self.soln['x'][:-1], (self.N, 10)))
-        print(self.soln['x'])
+        # print("LOCAL OPT OUTPUT")
+        # print(self.soln)
         self.soln['xy'] = (left.T*(1-self.soln['x'][:, 0])+right.T*self.soln['x'][:, 0]).T
         # print(self.soln['x'][:, 5])
         res=dict()

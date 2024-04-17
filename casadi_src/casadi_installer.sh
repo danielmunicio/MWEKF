@@ -68,7 +68,7 @@ mkdir $HOME/hsl-install
 make -j$(nproc)
 sudo make install
 # add link since casadi uses wrong name to find solvers
-sudo ln -s "$HOME/hsl-install/lib/libcoinhsl.so" "$HOME/hsl-install/lib/coinhsl.so"
+sudo ln -s "$HOME/hsl-install/lib/libcoinhsl.so" "$HOME/hsl-install/lib/libhsl.so"
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:"$HOME/hsl-install/lib"
 add_command_to_bashrc 'export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:"$HOME/hsl-install/lib"'
 export OMP_NUM_THREADS=$(nproc)

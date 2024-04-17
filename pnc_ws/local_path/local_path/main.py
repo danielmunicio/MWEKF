@@ -26,7 +26,8 @@ class LocalPath(Node):
         self.state_subscriber = self.create_subscription(State, '/slam/state', self.state_callback, 1)
 
         self.g = CompiledLocalOpt(**settings)
-        self.g.construct_solver()
+        # self.g.construct_solver()
+        self.g.construct_solver(generate_c=False, compile_c=False, use_c=True)
         self.state = [0.,0.,0.,0.]
 
         self.finished = False

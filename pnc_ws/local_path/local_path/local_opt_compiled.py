@@ -136,7 +136,7 @@ class CompiledLocalOpt:
             self._add_constraint(
                 f'dynamics{i}',
                 g = vec(self.fix_angle(
-                    self.dynamics(self.z[i, :], self.u[i, :], self.dt[i, :]).T-self.z[i+1, :]) + self.sl_dyn[i, :]),
+                    self.dynamics(self.z[i, :], self.u[i, :], self.dt[i, :]).T-self.z[i+1, :])),# + self.sl_dyn[i, :]),
                 lbg = DM([0.0]*4),
                 ubg = DM([0.0]*4)
             )
@@ -279,14 +279,16 @@ class CompiledLocalOpt:
             gcc_opt_flag (str, optional): optimization flags to pass to GCC. can be -O1, -O2, -O3, or -Ofast depending on how long you're willing to wait. Defaults to '-Ofast'.
         """
         self.solver = nlpsol('solver', self.nlp_solver, self.nlp, self.sopts)
-        if generate_c: self.solver.generate_dependencies('local_opt.c')
+        if generate_c: 
+            self.solver.generate_dependencies('local_opt.c')
+            os.system(f"mv local_opt.c {os.path.dirname(__file__)}/local_opt.c")
         if compile_c:  
-            os.system(f'gcc -fPIC {gcc_opt_flag} -shared local_opt.c -o local_opt.so')
+            os.system(f'gcc -fPIC {gcc_opt_flag} -shared {os.path.dirname(__file__)}/local_opt.c -o {os.path.dirname(__file__)}/local_opt.so')
             # os.system(f'mv local_opt.so MPC/bin/local_opt.so') #TODO: fix this path if necessary
         if use_c:
             new_opts = self.sopts
             new_opts['expand']=False
-            self.solver = nlpsol('solver', self.nlp_solver, 'local_opt.so', new_opts)
+            self.solver = nlpsol('solver', self.nlp_solver, f'{os.path.dirname(__file__)}/local_opt.so', new_opts)
     def load_solver(self):
         """alternative to construct_solver if you're just loading a saved solver.
         """

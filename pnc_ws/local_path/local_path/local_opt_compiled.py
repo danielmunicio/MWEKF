@@ -6,10 +6,13 @@ from .dynamics import discrete_custom_integrator
 import os
 # hsl checking fuckery
 # only works on mac/linux. if you havee windows, I'm willing to bet you have bigger problems.
-hsl_avail = (
-    np.any(['hsl' in j for j in sum([os.listdir(i) for i in os.environ['LD_LIBRARY_PATH'].split(":") if len(i)>1], start=[])])
- or np.any(['hsl' in j for j in sum([os.listdir(i) for i in os.environ['DYLD_LIBRARY_PATH'].split(":") if len(i)>1], start=[])])
-)
+hsl_avail = False
+paths = ":".join([(linuxpath if (linuxpath:=os.environ.get('LD_LIBRARY_PATH')) is not None else ""),
+                  (macospath if (macospath:=os.environ.get('DYLD_LIBRARY_PATH')) is not None else "")])
+for folder in paths.split(":"):
+    if len(folder)>1 and np.any(['libhsl' in j for j in os.listdir(folder)]):
+        hsl_avail = True
+        break
 
 assert hsl_avail, "You must have HSL linear solvers installed on your system, but they were not found (or you have windows). If you're on windows, comment out this line."
 

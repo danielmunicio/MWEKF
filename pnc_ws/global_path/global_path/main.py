@@ -44,9 +44,16 @@ class GlobalPath(Node):
         self.destroy_node()
 
 def main(args=None):
-    rclpy.init(args=args)
+    try:
+        rclpy.init(args=args)
+    except:
+        print("global init failed")
     global_path_node = GlobalPath()
-    rclpy.spin(global_path_node)
+    try:
+        rclpy.spin(global_path_node)
+    except:
+        print("global path node stopped")
+        print("finn and jake")
     rclpy.shutdown()
 
 if __name__ == "__main__":

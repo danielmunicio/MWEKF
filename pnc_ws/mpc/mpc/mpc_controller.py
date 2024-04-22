@@ -452,9 +452,17 @@ class KinMPCPathFollower(Controller, Node):
 ### START - RUNNING MPC NODE ###
         
 def main(args=None):
-    rclpy.init(args=args)
+    try:
+        rclpy.init(args=args)
+    except:
+        print("init failed")
     mpc_node = KinMPCPathFollower(**MPCSettings)
-    rclpy.spin(mpc_node)
+    try:
+        rclpy.spin(mpc_node)
+    except:
+        print("mpc node down")
+        print("fiona and cake")
+    #print("MPC Node Is Down!")
     rclpy.shutdown()
 
 ### END - RUNNING MPC NODE ###

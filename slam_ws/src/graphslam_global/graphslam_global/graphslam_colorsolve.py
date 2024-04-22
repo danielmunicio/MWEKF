@@ -1,16 +1,11 @@
 #%%
 from casadi import *
-from track import get_test_track, offset_path
+from .track import get_test_track, offset_path
 import numpy as np
 from numpy.linalg import *
 from numpy.random import random
 import matplotlib.pyplot as plt
 from time import perf_counter
-
-
-
-
-
 
 class GraphSLAM:
     sinc=lambda theta: 1-(theta**2)/6 + (theta**4)/120 - (theta**6)/5040
@@ -32,7 +27,7 @@ class GraphSLAM:
         
         # how far a landmark can be from another while still
         # being considered the same landmark
-        self.landmarkTolerance = 2
+        self.landmarkTolerance = 0.5
         
         self.solver_type = 'nlp' # either 'qp' or 'nlp'
         # options for IPOPT
@@ -94,6 +89,11 @@ class GraphSLAM:
         #list of colors for each landmark
         self.colors = []
 
+        self.last_loc = [0,0]
+        self.state_backlog = []
+        self.perception_backlog_cones = []
+        self.perception_backlog_pos = []
+
     def update_position(self, dx):
         """updates graph given only odometry, used between landmark measurement updates
 
@@ -114,6 +114,80 @@ class GraphSLAM:
         # so we rearrange into a minimization problem
         # x[-2] + odo_measurement - x[-1] = 0
         self.x_edges.append((self.x[-2]+DM(dx)-self.x[-1]))
+    
+    def update_backlog_imu(self, dx):
+        self.last_loc += dx 
+        self.state_backlog += [self.last_loc]
+    
+    def update_backlog_perception(self, z):
+        self.perception_backlog_cones += [z]
+        self.perception_backlog_pos += [self.last_loc]
+
+    def update_graph_block(self): #update_graph over multple time steps
+        """updates graph given odo and lm measurements
+
+        Args:
+            dx (ndarray): vector of shape (2, 1) describing the estimated change in car location since the previous update 
+            z (ndarray): vector of shape (m, 3*) describing locations of m landmarks relative to the car #* updated 2 to 3 to incorporate color - Rohan
+            update_pos (boolean): whether to  position in this method (used to ignore dx for ros integration)
+        """ 
+        for i in range(len(self.state_backlog)):
+            self.x.append(MX.sym(f'x{len(self.x)}', 2))
+            self.x_edges.append((self.x[-2]+DM(self.state_backlog[i])-self.x[-1]))
+
+        n = len(self.perception_backlog_cones)
+        for t in range(n): 
+            #zcoords = z[:,:2]
+            curpos = self.perception_backlog_pos[t] # useful later for succinctness
+            curpos_color = np.append(curpos, [0])
+            pbc = self.perception_backlog_cones[t]
+            t_dx = pbc[0] * np.cos(pbc[1])
+            t_dy = pbc[0] * np.sin(pbc[1])
+            z = np.array([t_dx, t_dy, pbc[2]])
+            
+
+            # if its the first graph update, we do things a bit differently
+            if len(self.lmhat)==0:
+                # set landmark guesses to absolute location of landmarks (add measurements to current pose)
+                #print(z)
+                #print(curpos_color)
+                self.lmhat = z.tolist() + curpos_color[:, np.newaxis].tolist() # color
+                #print(self.lmhat)
+                #self.lmhat = z+curpos # no color
+                # add landmark nodes (add symbolic landmark nodes)
+                #self.lm = [MX.sym(f'lm{i}', 2) for i in range(z.shape[0])] # no color
+                
+                self.lm = [MX.sym(f'lm{i}', 3) for i in range(z.shape[0])]      #note: think second sym parameter represents length of first param
+                # add corresponding landmark edges. Same equation as for the pose edges
+                self.lm_edges = [self.x[-1] + DM(z[i][:2]) - self.lm[i][:2] for i in range(z.shape[0])] 
+
+                self.colors = [DM(z[i][2]) - self.lm[i][2] for i in range(z.shape[0])] #associate colors by adding color binding constraint, equation: seen_color - landmark_color_guess = 0
+                
+                # now return so we don't add these landmarks twice
+                return
+            
+
+            # for each landmark measurement:
+            for i in z:
+
+                idx = np.argmin(dists:=norm(self.lmhat[:,:2]-(i[:2] + curpos), axis=1)) # do colorblind data association but keep color constraints 
+                #i is landmark guess from lidar, idx is index of best guess among current landmarks
+                if dists[idx] > self.landmarkTolerance:
+                    # if it's too far, we should add this as a new landmark
+                    idx = len(self.lmhat) # set idx to the element after the current last one
+                    # append the measured landmark's approximate position to our list of landmark position guesses
+                    self.lmhat = np.concatenate((self.lmhat, (i + curpos_color)[np.newaxis]), axis=0) # color
+                    # finally, append a symbolic variable to the list of landmark nodes to represent this landmark's position
+                    self.lm.append(MX.sym(f'lm{idx}', 3))
+                self.colors.append(i[2] - self.lm[idx][2]) 
+                # Now that we know the landmark's symbolic variable's index, we can add an edge!
+                # Equation is the same as before.
+                self.lm_edges.append((self.x[-1] + DM(i[:2]) - self.lm[idx][:2])) # x + z_i = lm_i
+        self.state_backlog = []
+        self.perception_backlog_cones = []
+        self.perception_backlog_pos = []
+
+
 
     def update_graph(self, dx, z):
         """updates graph given odo and lm measurements
@@ -197,11 +271,9 @@ class GraphSLAM:
         # if its the first graph update, we do things a bit differently
         if len(self.lmhat)==0:
             # set landmark guesses to absolute location of landmarks (add measurements to current pose)
-            self.lmhat = z+curpos_color # color
-            #self.lmhat = z+curpos # no color
+            self.lmhat = z + curpos_color           #self.lmhat = z+curpos # no color
             # add landmark nodes (add symbolic landmark nodes)
             #self.lm = [MX.sym(f'lm{i}', 2) for i in range(z.shape[0])] # no color
-            
             self.lm = [MX.sym(f'lm{i}', 3) for i in range(z.shape[0])]      #note: think second sym parameter represents length of first param
             # add corresponding landmark edges. Same equation as for the pose edges
             self.lm_edges = [self.x[-1] + DM(z[i][:2]) - self.lm[i][:2] for i in range(z.shape[0])] 
@@ -246,7 +318,9 @@ class GraphSLAM:
             # Equation is the same as before.
             self.lm_edges.append((self.x[-1] + DM(i[:2]) - self.lm[idx][:2])) # x + z_i = lm_i
     
-            
+    
+
+
         
     def solve_graph(self):
         """solves the graph and updates everything
@@ -290,6 +364,29 @@ class GraphSLAM:
             assert f"solver_type must be 'qp' or 'nlp', not {self.solver_type}"
 
         # actually solve the QP problem
+        #print('xhat.len: ')
+        #print(len(self.xhat))
+        #print('xhat elem shape:')
+        #print((self.xhat[0].shape))
+        #print('-------------')
+
+        #print('lmhat len:')
+        #print(len(self.lmhat))
+        #print('lmhat element shape:')
+        #print((self.lmhat[0].shape))
+        #print('-------------')
+
+        #print('x.shape:')
+        #print(len(self.x))
+        #print('x element shape')
+        #print((self.x[0].shape))
+        #print('-------------')
+
+        #print('lm len:')
+        #print(len(self.lm))
+        #print('lm element shape:')
+        #print(self.lm[0].shape)
+        #print('---------------')
         soln = np.array(solver(x0=vertcat(*self.xhat, *self.lmhat))['x'])
 
         # now we need to get the solution back into a good form

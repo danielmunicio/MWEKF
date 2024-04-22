@@ -2,13 +2,17 @@
 from casadi import *
 import numpy as np
 from time import perf_counter
-from dynamics import discrete_custom_integrator
+from .dynamics import discrete_custom_integrator
+import os
 # hsl checking fuckery
 # only works on mac/linux. if you havee windows, I'm willing to bet you have bigger problems.
-hsl_avail = (
-    np.any(['hsl' in j for j in sum([os.listdir(i) for i in os.environ['LD_LIBRARY_PATH'].split(":") if len(i)>1], start=[])])
- or np.any(['hsl' in j for j in sum([os.listdir(i) for i in os.environ['DYLD_LIBRARY_PATH'].split(":") if len(i)>1], start=[])])
-)
+hsl_avail = False
+paths = ":".join([(linuxpath if (linuxpath:=os.environ.get('LD_LIBRARY_PATH')) is not None else ""),
+                  (macospath if (macospath:=os.environ.get('DYLD_LIBRARY_PATH')) is not None else "")])
+for folder in paths.split(":"):
+    if len(folder)>1 and np.any(['libhsl' in j for j in os.listdir(folder)]):
+        hsl_avail = True
+        break
 
 assert hsl_avail, "You must have HSL linear solvers installed on your system, but they were not found (or you have windows). If you're on windows, comment out this line."
 
@@ -180,12 +184,12 @@ class CompiledLocalOpt:
             lbg = DM(0),
             ubg = DM(0)
         )
-        self._add_constraint(
-            'curr_heading',
-            g = self.curr_state[2] - self.psi[0],
-            lbg = DM(0),
-            ubg = DM(0)
-        )
+        # self._add_constraint(
+        #     'curr_heading',
+        #     g = self.curr_state[2] - self.psi[0],
+        #     lbg = DM(0),
+        #     ubg = DM(0)
+        # )
         # Makes it so that the time to run is at minimum 2 (soft constraint, scalar included)
         self.scalar = MX.sym("scalar")
         self._add_constraint(
@@ -343,12 +347,12 @@ class CompiledLocalOpt:
         # print(self.x0, self.x0.shape())
         print(curr_state[:2], curr_state[:2])
         self.solver.print_options()
+    
         self.soln = self.solver(
             x0=self.x0,
             lbg=self.lbg,
             ubg=self.ubg,
-            p=vertcat(DM(curr_state[:2]), DM(curr_state[2:]), DM(center)),
-            # p=vertcat(DM(curr_state), horzcat(DM(left), DM(right))),
+            p=vertcat(DM(curr_state).T, horzcat(DM(left), DM(right))),
         )
         self.soln['x'] = np.array(reshape(self.soln['x'][:-1], (self.N, 10)))
         self.soln['xy'] = (center.T*(1-self.soln['x'][:, 0])+center.T*self.soln['x'][:, 0]).T

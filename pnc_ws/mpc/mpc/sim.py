@@ -270,7 +270,8 @@ def discrete_custom_integrator(n = 3, l_r=0.5, l_f=0.5, m=1.0):
 if __name__ == '__main__':
     # import control as ct
     from kinematic_mpc import KinMPCPathFollower
-    mpc = KinMPCPathFollower()
+    from all_settings.all_settings import MPCSettings
+    mpc = KinMPCPathFollower(**MPCSettings)
     x, u = MX.sym('x', 5), MX.sym('u', 2)
     
     dynamics = continuous_dynamics(x, u)
@@ -345,6 +346,7 @@ if __name__ == '__main__':
     # Create and run the ROS 2 node
     vehicle_simulation_node = VehicleSimulationNode(track_sim)
     rclpy.spin(vehicle_simulation_node)
+    print("MPC Controller Down")
 
     # Cleanup
     vehicle_simulation_node.destroy_node()

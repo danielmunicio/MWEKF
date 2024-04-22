@@ -7,9 +7,10 @@ import numpy as np
 from .controller import Controller
 from .utils import discrete_dynamics
 from .utils import get_update_dict
+from all_settings.all_settings import MPCSettings
 from ackermann_msgs.msg import AckermannDriveStamped
 from eufs_msgs.msg import WheelSpeeds
-from .mpc_settings import MPCSettings
+
 # ROS Imports
 import rclpy
 from rclpy.node import Node
@@ -253,19 +254,18 @@ class KinMPCPathFollower(Controller, Node):
 
             # print('drive message:', self.prev_soln['u_control'][0])
             # print('steering message:', self.prev_soln['u_control'][1])
-            print()
             # Publishing controls
             msg = AckermannDriveStamped()
             msg.header.stamp = self.get_clock().now().to_msg()
             msg.drive.acceleration = self.prev_soln['u_control'][0]  
             msg.drive.steering_angle = self.prev_soln['u_control'][1]
 
-            with open("sim_data.txt", "a") as f:
-                print("------------------------------------------------", file=f)
-                print("FROM MPC:", file=f)
-                print("Sending Acceleration Of:", msg.drive.acceleration, file=f)
-                print("Sending Steering Of:", msg.drive.steering_angle, file=f)
-                print("-------------------------------------------------", file=f)
+            # with open("sim_data.txt", "a") as f:
+            #     print("------------------------------------------------", file=f)
+            #     print("FROM MPC:", file=f)
+            #     print("Sending Acceleration Of:", msg.drive.acceleration, file=f)
+            #     print("Sending Steering Of:", msg.drive.steering_angle, file=f)
+            #     print("-------------------------------------------------", file=f)
                 
             self.control_pub.publish(msg)
 
@@ -509,11 +509,18 @@ class KinMPCPathFollower(Controller, Node):
 ### START - RUNNING MPC NODE ###
         
 def main(args=None):
-    rclpy.init(args=args)
-    print("args: ", args)
+    try:
+        rclpy.init(args=args)
+    except:
+        print("init failed")
+        
     mpc_node = KinMPCPathFollower(**MPCSettings)
-    
-    rclpy.spin(mpc_node)
+    try:
+        rclpy.spin(mpc_node)
+    except:
+        print("mpc node down")
+        print("fiona and cake")
+
     rclpy.shutdown()
 
 ### END - RUNNING MPC NODE ###

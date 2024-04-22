@@ -1,5 +1,5 @@
 from local_opt_compiled import CompiledLocalOpt
-from local_opt_settings import LocalOptSettings
+from all_settings.all_settings import LocalOptSettings
 import math
 import numpy as np
 import matplotlib.pyplot as plt

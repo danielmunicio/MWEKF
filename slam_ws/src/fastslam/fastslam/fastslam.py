@@ -57,12 +57,12 @@ class FastSLAM(Node):
             1
         )
 
-        self.finish_sub = self.create_subscription(
-            Bool,
-            '/path/finished',
-            self.finish_callback,
-            1
-        )
+        # self.finish_sub = self.create_subscription(
+        #     Bool,
+        #     '/path/finished',
+        #     self.finish_callback,
+        #     1
+        # )
 
 
         # PUBLISHERS

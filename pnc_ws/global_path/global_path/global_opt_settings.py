@@ -3,14 +3,15 @@ from casadi import Function
     
 class GlobalOptSettings(metaclass=Settings):
     """settings for CompiledGlobalOpt. All in one place, so it's always synced."""
-    N: int = 100
+    N: int = 38
     nlp_solver: str = 'ipopt'
     car_params: dict[str:float] = {'l_r': 0.76, 'l_f':0.76, 'm': 1.}
-    bbox: dict[str:float] = {'l': 2.7, 'w': 1.6}
+    bbox: dict[str:float] = {'l': 2.7+0.5, 'w': 1.6+0.5}
+    # bbox: dict[str:float] = {'l': 2, 'w': 1}
     DF_MAX: float  =  0.5
     ACC_MIN: float = -3.0
     ACC_MAX_FN: float|Function = 2.0
-    DF_DOT_MAX: float =  0.5
+    DF_DOT_MAX: float = 0.5
     V_MIN: float = 0.0
-    V_MAX: float = 25.0
-    FRIC_MAX: float|Function = 12.0
+    V_MAX: float = 20.0
+    FRIC_MAX: float|Function = 20.0

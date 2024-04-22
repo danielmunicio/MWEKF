@@ -5,7 +5,8 @@ from feb_msgs.msg import State
 from feb_msgs.msg import FebPath
 from feb_msgs.msg import Map
 from std_msgs.msg import Bool
-from .global_opt_settings import GlobalOptSettings as settings
+#from .global_opt_settings import GlobalOptSettings as settings
+from all_settings.all_settings import GlobalOptSettings as settings
 from .global_opt_compiled import CompiledGlobalOpt
 from .ConeOrdering import ConeOrdering
 
@@ -44,9 +45,16 @@ class GlobalPath(Node):
         self.destroy_node()
 
 def main(args=None):
-    rclpy.init(args=args)
+    try:
+        rclpy.init(args=args)
+    except:
+        print("global init failed")
     global_path_node = GlobalPath()
-    rclpy.spin(global_path_node)
+    try:
+        rclpy.spin(global_path_node)
+    except:
+        print("global path node stopped")
+        print("finn and jake")
     rclpy.shutdown()
 
 if __name__ == "__main__":

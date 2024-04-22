@@ -32,3 +32,5 @@ global_opt.so
 # simulator
 eufs_msgs/
 eufs_sim/
+
+*.txt

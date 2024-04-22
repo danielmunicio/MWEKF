@@ -8,15 +8,16 @@ from .controller import Controller
 from .utils import discrete_dynamics
 from .utils import get_update_dict
 from all_settings.all_settings import MPCSettings
-
+from ackermann_msgs.msg import AckermannDriveStamped
+from eufs_msgs.msg import WheelSpeeds
 
 # ROS Imports
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float64
 
-from feb_msgs.msg import State
-from feb_msgs.msg import FebPath
+
+from feb_msgs.msg import State, FebPath
 
 class KinMPCPathFollower(Controller, Node):
     def __init__(self, 
@@ -61,12 +62,15 @@ class KinMPCPathFollower(Controller, Node):
 
         self.global_path = None
         self.local_path = None
+        self.curr_steer = 0
+        self.curr_acc = 0
+        self.path = self.global_path if self.global_path is not None else self.local_path
 
         ### START - ROS Integration Code ###
         super().__init__('mpc_node')
 
         # Subscribers
-        self.curr_steer_sub = self.create_subscription(Float64, '/odometry/steer', self.steer_callback, 1)
+        self.curr_steer_sub = self.create_subscription(Float64, '/ground_truth/wheel_speeds', self.steer_callback, 1)
         self.curr_acc_sub = self.create_subscription(Float64, '/odometry/wss', self.acc_callback, 1) 
         self.global_path_sub = self.create_subscription(FebPath, '/path/global', self.global_path_callback, 1)
         self.local_path_sub = self.create_subscription(FebPath, '/path/local', self.local_path_callback, 1)
@@ -75,6 +79,7 @@ class KinMPCPathFollower(Controller, Node):
         # Publishers
         self.throttle_pub = self.create_publisher(Float64, '/control/throttle', 1)
         self.steer_pub = self.create_publisher(Float64, '/control/steer', 1)
+        self.control_pub = self.create_publisher(AckermannDriveStamped, 'cmd', 1)
 
         ### END - ROS Integration Code ###
 
@@ -149,13 +154,13 @@ class KinMPCPathFollower(Controller, Node):
         # idk where to get info on worhp options
         self.p_opts = {
             'expand': True, # can only expand to sx if not using interpolant 
-            'print_time': 0,
+            # 'print_time': 0,
         }
         self.s_opts = {
             'max_cpu_time': 0.05, 
             'linear_solver': 'MA27', 
-            'print_level': 0,
-            'sb': 'yes',
+            # 'print_level': 0,
+            # 'sb': 'yes',
         } 
         if self.solver == 'worhp': self.s_opts = dict() # idk what the worhp options are
         self.opti.solver(self.solver, self.p_opts, self.s_opts)
@@ -164,17 +169,17 @@ class KinMPCPathFollower(Controller, Node):
         
     ### START - ROS Callback Functions ###
         
-    def steer_callback(self, msg: Float64):
+    def steer_callback(self, msg: WheelSpeeds):
         '''
         Return Steering Angle from steering angle sensor on car
         '''
-        self.curr_steer = float(msg)
+        self.curr_steer = float(msg.steer)
     
     def acc_callback(self, msg: Float64):
         '''
         Set curr_acc to value recieved from 
         '''
-        self.curr_acc = float(msg)
+        self.curr_acc = float(msg.data)
 
     def global_path_callback(self, msg: FebPath):
         '''
@@ -206,7 +211,7 @@ class KinMPCPathFollower(Controller, Node):
         self.local_path = path
         self.path = self.global_path if self.global_path is not None else self.local_path
 
-    def state_callback(self, msg: State):
+    def state_callback(self, carstate: State):
         '''
         Input: Float64[4]
         Description: Converts State msg to numpy vector, 
@@ -214,25 +219,46 @@ class KinMPCPathFollower(Controller, Node):
             and solves mpc problem -> stores result in self.prev_soln
         '''
         # returns the current state as an np array with these values in this order: x,y,velocity,heading
-        curr_state = np.zeros((1,4), np.float64)
-        curr_state[0] = msg.State[0] # x value
-        curr_state[1] = msg.State[1] # y value
-        curr_state[2] = msg.State[2] # velocity
-        curr_state[3] = msg.State[3] # heading
+        #curr_state = msg.carstate
+        curr_state = [0.0, 0., 0., 0.0]
+        curr_state[0] = carstate.x # x value
+        curr_state[1] = carstate.y # y value
+        ### MPC Assumes the veloccity and heading are flipped
+        curr_state[2] = carstate.heading # velocity
+        curr_state[3] = carstate.velocity # heading
         
-        prev_controls = np.array([self.curr_steer, self.curr_acc])
-        new_values = get_update_dict(pose=curr_state, prev_u=prev_controls, kmpc=self, states=self.path, prev_soln=self.prev_soln)
-        self.update(new_values)
-        self.prev_soln = self.solve()
+        if self.path is not None: 
+            prev_controls = np.array([self.curr_steer, self.curr_acc])
+            new_values = get_update_dict(pose=np.array(curr_state), prev_u=prev_controls, kmpc=self, states=self.path, prev_soln=self.prev_soln)
 
-        # Publishing controls
-        throttle_msg = Float64()
-        steer_msg = Float64()
-        throttle_msg.data = self.prev_soln['u_control'][0]
-        steer_msg.data = self.prev_soln['u_control'][1]
-        self.throttle_pub.publish(throttle_msg)
-        self.steer_pub.publish(steer_msg)
 
+            self.update(new_values)
+            self.prev_soln = self.solve()
+
+            # print('drive message:', self.prev_soln['u_control'][0])
+            # print('steering message:', self.prev_soln['u_control'][1])
+            # Publishing controls
+            msg = AckermannDriveStamped()
+            msg.header.stamp = self.get_clock().now().to_msg()
+            msg.drive.acceleration = self.prev_soln['u_control'][0]  
+            msg.drive.steering_angle = self.prev_soln['u_control'][1]
+
+            # with open("sim_data.txt", "a") as f:
+            #     print("------------------------------------------------", file=f)
+            #     print("FROM MPC:", file=f)
+            #     print("Sending Acceleration Of:", msg.drive.acceleration, file=f)
+            #     print("Sending Steering Of:", msg.drive.steering_angle, file=f)
+            #     print("-------------------------------------------------", file=f)
+                
+            self.control_pub.publish(msg)
+
+            throttle_msg = Float64()
+            steer_msg = Float64()
+            throttle_msg.data = self.prev_soln['u_control'][0]
+            steer_msg.data = self.prev_soln['u_control'][1]
+
+            self.throttle_pub.publish(throttle_msg)
+            self.steer_pub.publish(steer_msg)
     ### END - ROS Callback Functions ###
 
 # ---------------------------------------------------------------------------------------------- #
@@ -456,13 +482,14 @@ def main(args=None):
         rclpy.init(args=args)
     except:
         print("init failed")
+        
     mpc_node = KinMPCPathFollower(**MPCSettings)
     try:
         rclpy.spin(mpc_node)
     except:
         print("mpc node down")
         print("fiona and cake")
-    #print("MPC Node Is Down!")
+
     rclpy.shutdown()
 
 ### END - RUNNING MPC NODE ###

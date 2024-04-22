@@ -20,6 +20,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/FebPath.msg"
   "msg/Bitmasks.msg"
   "msg/Map.msg"
+  "msg/Cones.msg"
   DEPENDENCIES std_msgs sensor_msgs
 )
 

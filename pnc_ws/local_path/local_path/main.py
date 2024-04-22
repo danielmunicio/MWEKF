@@ -5,9 +5,9 @@ from feb_msgs.msg import State
 from feb_msgs.msg import FebPath
 from feb_msgs.msg import Map
 from std_msgs.msg import Bool
+from all_settings.all_settings import LocalOptSettings as settings
 from sensor_msgs.msg import PointCloud
 from geometry_msgs.msg import Point32
-from .local_opt_settings import LocalOptSettings as settings
 from .local_opt_compiled import CompiledLocalOpt
 from .ConeOrdering import ConeOrdering
 import matplotlib.pyplot as plt
@@ -70,11 +70,11 @@ class LocalPath(Node):
         path_msg.psi = states[:, 2].flatten().tolist()
         path_msg.v = states[:, 3].flatten().tolist()
         print('MAP Message About to Publish')
-        with open("sim_data.txt", "a") as f:
-            print("---------------------------------------")
-            print("From PNC: ")
-            print("local path:", path_msg, file=f)
-            print("----------------------------------------")
+        # with open("sim_data.txt", "a") as f:
+        #     print("---------------------------------------")
+        #     print("From PNC: ")
+        #     print("local path:", path_msg, file=f)
+        #     print("----------------------------------------")
         self.pc_publisher.publish(path_msg)
         pc_msg = PointCloud()
         pts = []

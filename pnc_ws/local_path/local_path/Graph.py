@@ -12,13 +12,11 @@ def dfs_cycle(graph, start, current, visited, path, longest_cycle):
     path.pop()
     visited.remove(current)
 
-
 def find_longest_cycle(graph):
     longest_cycle = []
     for vertex in graph.adjacency_list:
         dfs_cycle(graph, vertex, vertex, set(), [], longest_cycle)
     return longest_cycle
-
 
 class Graph:
     def __init__(self, num_vertices):
@@ -59,7 +57,6 @@ class Graph:
         return edges
     
     def has_cycle(self):
-        
         visited = set()
         
         def helper(vertex, parent):
@@ -109,8 +106,7 @@ class Graph:
         return result
 
 
-    def forms_polygon(self, boundary_vertices):
-        
+    def forms_polygon(self, boundary_vertices):   
         if not self.has_cycle():
             return False
         
@@ -127,3 +123,4 @@ class Graph:
         for v in vertices:
             degrees[v] = len(self.adjacency_list[v])
         return degrees
+    

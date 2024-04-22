@@ -1,4 +1,4 @@
-from .global_opt_settings import GlobalOptSettings
+from all_settings.all_settings import GlobalOptSettings
 import numpy as np
 from scipy.spatial import Voronoi
 from shapely.geometry import Polygon, Point, LineString

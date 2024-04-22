@@ -5,9 +5,9 @@ from feb_msgs.msg import State
 from feb_msgs.msg import FebPath
 from feb_msgs.msg import Map
 from std_msgs.msg import Bool
+from all_settings.all_settings import LocalOptSettings as settings
 from sensor_msgs.msg import PointCloud
 from geometry_msgs.msg import Point32
-from .local_opt_settings import LocalOptSettings as settings
 from .local_opt_compiled import CompiledLocalOpt
 from .ConeOrdering import ConeOrdering
 import matplotlib.pyplot as plt

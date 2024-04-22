@@ -346,6 +346,7 @@ if __name__ == '__main__':
     # Create and run the ROS 2 node
     vehicle_simulation_node = VehicleSimulationNode(track_sim)
     rclpy.spin(vehicle_simulation_node)
+    print("MPC Controller Down")
 
     # Cleanup
     vehicle_simulation_node.destroy_node()

@@ -109,6 +109,7 @@ class CompiledLocalOpt:
         #* this represents the full state at each discretization point
         self.z = horzcat(
             # self.bound_points*(1-self.t)+self.bound_points*self.t, # LERP between pairs of points on track bounds
+            self.bound_points,
             self.psi,
             self.v
         )
@@ -179,12 +180,12 @@ class CompiledLocalOpt:
             lbg = DM([-self.DF_DOT_MAX]*(self.N-1)),
             ubg = DM([self.DF_DOT_MAX]*(self.N-1))
         )
-        self._add_constraint(
-            't',
-            g = vec(self.t),
-            lbg = DM([0.5]*self.N),
-            ubg = DM([0.5]*self.N)
-        )
+        # self._add_constraint(
+        #     't',
+        #     g = vec(self.t),
+        #     lbg = DM([0.5]*self.N),
+        #     ubg = DM([0.5]*self.N)
+        # )
         # Keeps initial heading and velocity unchangeable
         self._add_constraint(
             'curr_velocity',
@@ -214,26 +215,6 @@ class CompiledLocalOpt:
             lbg = DM([-inf]*self.N),
             ubg = DM([0.0]*self.N)
         )
-
-        #* Cone Constraints: stop the car from hitting any cones
-        # TODO: allow the cone locations to be different from the track side points
-
-        #* construct a function which is close enough to a rectangle
-        self.safe = Function('safespace', [x:=MX.sym('x', 2)], [(DM([1/self.bbox['w'], 1/self.bbox['l']])**6).T@x**6])
-
-        self.cones = vertcat(self.bound_points, self.bound_points).T
-        left = self.bound_points.T
-        right = self.bound_points.T
-        self.nc = 5 #* number of cones to consider (ahead of and behind the current cone, on each side)
-        considered = horzcat(left[:, 1:-1], right[:, 1:-1])
-        for i in range(self.N):
-            pass
-            # self._add_constraint(
-            #     f'cones{i}',
-            #     g=self.safe(self.rot(-self.psi[i])@((considered-self.z[i, :2].T) + vertcat(self.car_params['l_f']-self.car_params['l_r'], 0))).T, 
-            #     lbg=DM([1.0]*(self.N-2)*2),
-            #     ubg=DM([inf]*(self.N-2)*2)
-            # )
 
 
         #* YAY we're done adding constraints. Now concatenate all the constraints into one big vector.
@@ -375,7 +356,7 @@ class CompiledLocalOpt:
             x0=self.x0,
             lbg=self.lbg,
             ubg=self.ubg,
-            p=vertcat(DM(curr_state).T, horzcat(DM(left), DM(right))),
+            p=vertcat(DM(curr_state[:2]).T, DM(curr_state[2:]).T, DM(center)),
         )
         if not self.solver.stats()['success']:
             raise RuntimeError("Solver failed to converge")

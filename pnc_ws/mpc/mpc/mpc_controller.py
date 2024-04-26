@@ -7,7 +7,7 @@ import numpy as np
 from .controller import Controller
 from .utils import discrete_dynamics
 from .utils import get_update_dict
-from all_settings.all_settings import MPCSettings
+from all_settings.all_settings import MPCSettings as settings
 from ackermann_msgs.msg import AckermannDriveStamped
 from eufs_msgs.msg import WheelSpeeds
 
@@ -210,8 +210,6 @@ class KinMPCPathFollower(Controller, Node):
         tr_con_fun = get_g_triangulation(left, right, [13, -10], n_pts=40, n_meshes=1, sink=0.02)
         constraint = tr_con_fun(casadi.horzcat(self.x_dv[1:], self.y_dv[1:]).T)
         # self.opti.subject_to(constraint-self.sl_tr_dv.T < 0 )
-
-
     
     def local_path_callback(self, msg: FebPath):
         '''
@@ -500,30 +498,3 @@ class KinMPCPathFollower(Controller, Node):
         return sol_dict
 
     ### END - MPC Main Functions (Setting Up and Solving MPC Optimization Problem) ###
-        
-# ---------------------------------------------------------------------------------------------- #
-
-
-
-
-### START - RUNNING MPC NODE ###
-        
-def main(args=None):
-    try:
-        rclpy.init(args=args)
-    except:
-        print("init failed")
-        
-    mpc_node = KinMPCPathFollower(**MPCSettings)
-    try:
-        rclpy.spin(mpc_node)
-    except:
-        print("mpc node down")
-        print("fiona and cake")
-
-    rclpy.shutdown()
-
-### END - RUNNING MPC NODE ###
-    
-if __name__ == '__main__':
-    main()

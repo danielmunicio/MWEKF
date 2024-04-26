@@ -136,9 +136,11 @@ class GraphSLAM_Global(Node):
 
         # Initializes a new instance of graphslam from the graphslam
         # Data Association Threshold is to be tweaked
-        self.slam = GraphSLAM(solver_type='qp', landmarkTolerance=4)
+        self.slam = GraphSLAM(solver_type='qp', landmarkTolerance=2)
         
         # used to calculate the state of the vehicle
+        self.currentstate_simulator.x = 0;
+        self.currentstate_simulator.y
         self.statetimestamp = 0.0
         self.currentstate = State()
         self.currentstate.x = 0.0 
@@ -164,27 +166,20 @@ class GraphSLAM_Global(Node):
         self.usefastslam = False
 
     def state_sub(self, msg: CarState):
-        with open("sim_data.txt", "a") as f:
-            print("---------------------------------------", file =f)
-            print("GROUND TRUTH CAR STATE: ", file =f)
-            print("x position: ", msg.pose.pose.position.x, file=f)
-            print("y position: ", msg.pose.pose.position.y, file=f)
-            print("heading: ", self.quat_to_euler(msg.pose.pose.orientation)[-1], file=f)
-            print("----------------------------------------", file=f)
-        return
-        dt = self.compute_timediff(msg.header)
-        if (dt > 1):
-            return
-        dx = np.array([msg.pose.pose.position.x-self.currentstate.x,
-                       msg.pose.pose.position.y-self.currentstate.y])
+        """ This is a callback function for the SIMULATORS ground truth carstate. 
+            Currently being used to get the cars position so we can calculate the cones R, theta properly.
+        """
+        #with open("sim_data.txt", "a") as f:
+            # print("---------------------------------------", file =f)
+            # print("GROUND TRUTH CAR STATE: ", file =f)
+            # print("x position: ", msg.pose.pose.position.x, file=f)
+            # print("y position: ", msg.pose.pose.position.y, file=f)
+            # print("heading: ", self.quat_to_euler(msg.pose.pose.orientation)[-1], file=f)
+            # print("----------------------------------------", file=f)
 
-        self.currentstate.x = msg.pose.pose.position.x
-        self.currentstate.y = msg.pose.pose.position.y
-        self.currentstate.heading = self.quat_to_euler(msg.pose.pose.orientation)[-1]
-        self.currentstate.header.stamp = self.get_clock().now().to_msg()
+        self.currentstate_simulator.x = msg.pose.pose.position.x
+        self.currentstate_simulator.y = msg.pose.pose.position.y
 
-        self.slam.update_position(dx)
-        self.state_pub.publish(self.currentstate)
     def wheelspeed_sub(self, msg: WheelSpeedsStamped):
         self.currentstate.velocity = ((msg.speeds.lb_speed + msg.speeds.rb_speed)/2)*np.pi*0.505/60
         
@@ -403,12 +398,12 @@ class GraphSLAM_Global(Node):
         # cone_matrix = np.hstack(Cones.r, Cones.theta, Cones.color)
         cone_matrix = [[], [], []]
         for cone in cones.blue_cones:
-            r, theta = self.cartesian_to_polar([self.currentstate.x, self.currentstate.y], (cone.point.x, cone.point.y))
+            r, theta = self.cartesian_to_polar([self.currentstate_simulator.x, self.currentstate_simulator.y], (cone.point.x, cone.point.y))
             cone_matrix[0].append(r)
             cone_matrix[1].append(theta)
             cone_matrix[2].append(2)
         for cone in cones.yellow_cones:
-            r, theta = self.cartesian_to_polar([self.currentstate.x, self.currentstate.y], (cone.point.x, cone.point.y))
+            r, theta = self.cartesian_to_polar([self.currentstate_simulator.x, self.currentstate_simulator.y], (cone.point.x, cone.point.y))
             cone_matrix[0].append(r)
             cone_matrix[1].append(theta)
             cone_matrix[2].append(1)
@@ -439,6 +434,7 @@ class GraphSLAM_Global(Node):
         #x and lm guess come out as lists, so change to numpy arrays
         x_guess = np.array(x_guess)
         lm_guess = np.array(lm_guess)
+        
 
         # print('x_guess: ')
         # print(x_guess)

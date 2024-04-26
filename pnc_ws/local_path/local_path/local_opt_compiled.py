@@ -134,6 +134,7 @@ class CompiledLocalOpt:
 
         #* Dynamics constraints: # Math: F(z_i, u_i, \Delta t_i) == z_{i+1}
         for i in range(0, self.N-1):
+            print(self.z[i, :]);
             self._add_constraint(
                 f'dynamics{i}',
                 g = vec(self.fix_angle(

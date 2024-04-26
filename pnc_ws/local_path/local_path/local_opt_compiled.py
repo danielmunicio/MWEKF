@@ -1,4 +1,3 @@
-#%%
 from casadi import *
 import numpy as np
 from time import perf_counter
@@ -91,25 +90,23 @@ class CompiledLocalOpt:
         ####* Symbolic Variable Initialization ####*
         ###########################################*
 
-        #* Track parameters - gets out the current state and cone midpoints
-        currAndCones = MX.sym('bound_pairs', self.N + 2, 2)
-        curr_state_left = currAndCones[0, :]
-        curr_state_right = currAndCones[1, :]
-        self.curr_state = horzcat(curr_state_left, curr_state_right)
-        self.bound_points = currAndCones[2:, :]
+        #* Track parameters
+        currAndCones = MX.sym('bound_pairs', self.N + 1, 4)
+        self.curr_state = currAndCones[0, :]
+        self.bound_pairs = currAndCones[1:, :]
 
         #* opt variables
-        self.x = MX.sym('x', self.N, 9)
-        self.psi = self.x[:, 0]
-        self.v = self.x[:, 1]
-        self.u = self.x[:, 2:4]
-        self.dt = self.x[:, 4:5]
-        self.sl_dyn = self.x[:, 5:9]
+        self.x = MX.sym('x', self.N, 10)
+        self.t = self.x[:, 0]
+        self.psi = self.x[:, 1]
+        self.v = self.x[:, 2]
+        self.u = self.x[:, 3:5]
+        self.dt = self.x[:, 5:6]
+        self.sl_dyn = self.x[:, 6:10]
 
         #* this represents the full state at each discretization point
         self.z = horzcat(
-            # self.bound_points*(1-self.t)+self.bound_points*self.t, # LERP between pairs of points on track bounds
-            self.bound_points,
+            self.bound_pairs[:, :2]*(1-self.t)+self.bound_pairs[:, 2:4]*self.t, # LERP between pairs of points on track bounds
             self.psi,
             self.v
         )
@@ -180,12 +177,12 @@ class CompiledLocalOpt:
             lbg = DM([-self.DF_DOT_MAX]*(self.N-1)),
             ubg = DM([self.DF_DOT_MAX]*(self.N-1))
         )
-        # self._add_constraint(
-        #     't',
-        #     g = vec(self.t),
-        #     lbg = DM([0.5]*self.N),
-        #     ubg = DM([0.5]*self.N)
-        # )
+        self._add_constraint(
+            't',
+            g = vec(self.t),
+            lbg = DM([0.5]*self.N),
+            ubg = DM([0.5]*self.N)
+        )
         # Keeps initial heading and velocity unchangeable
         self._add_constraint(
             'curr_velocity',
@@ -215,6 +212,26 @@ class CompiledLocalOpt:
             lbg = DM([-inf]*self.N),
             ubg = DM([0.0]*self.N)
         )
+
+        #* Cone Constraints: stop the car from hitting any cones
+        # TODO: allow the cone locations to be different from the track side points
+
+        #* construct a function which is close enough to a rectangle
+        self.safe = Function('safespace', [x:=MX.sym('x', 2)], [(DM([1/self.bbox['w'], 1/self.bbox['l']])**6).T@x**6])
+
+        self.cones = vertcat(self.bound_pairs[:, :2], self.bound_pairs[:, 2:4]).T
+        left = self.bound_pairs[:, :2].T
+        right = self.bound_pairs[:, 2:4].T
+        self.nc = 5 #* number of cones to consider (ahead of and behind the current cone, on each side)
+        considered = horzcat(left[:, 1:-1], right[:, 1:-1])
+        for i in range(self.N):
+            pass
+            # self._add_constraint(
+            #     f'cones{i}',
+            #     g=self.safe(self.rot(-self.psi[i])@((considered-self.z[i, :2].T) + vertcat(self.car_params['l_f']-self.car_params['l_r'], 0))).T, 
+            #     lbg=DM([1.0]*(self.N-2)*2),
+            #     ubg=DM([inf]*(self.N-2)*2)
+            # )
 
 
         #* YAY we're done adding constraints. Now concatenate all the constraints into one big vector.
@@ -340,6 +357,7 @@ class CompiledLocalOpt:
 
         print(f"angles shape: {angles.shape}")
         self.x0 = vec(vertcat(
+            DM([0.5]*self.N), # t
             DM(angles),       # psi
             DM([curr_state[3]]*self.N), # v
             DM([0.0]*self.N), # a
@@ -349,14 +367,13 @@ class CompiledLocalOpt:
             DM([0.0])         # scalar
         ))
         # print(self.x0, self.x0.shape())
-        print(curr_state[:2], curr_state[:2])
-        self.solver.print_options()
-    
+        print("leo is mean!!!!!")
+        print(DM(curr_state).shape, horzcat(DM(left), DM(right)).shape)
         self.soln = self.solver(
             x0=self.x0,
             lbg=self.lbg,
             ubg=self.ubg,
-            p=vertcat(DM(curr_state[:2]).T, DM(curr_state[2:]).T, DM(center)),
+            p=vertcat(DM(curr_state).T, horzcat(DM(left), DM(right))),
         )
         if not self.solver.stats()['success']:
             raise RuntimeError("Solver failed to converge")

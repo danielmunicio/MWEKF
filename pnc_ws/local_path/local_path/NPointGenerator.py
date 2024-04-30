@@ -1,15 +1,24 @@
 import math
+from typing import List, Tuple
 import numpy as np
 import matplotlib.pyplot as plt
 import random
-from scipy.spatial import Delaunay
+from scipy.spatial import Delaunay, KDTree
 from itertools import permutations
 from shapely.geometry import Polygon, Point, LineString, MultiLineString, MultiPoint
 from scipy.spatial import Voronoi, voronoi_plot_2d
 from shapely.ops import nearest_points, linemerge
 from TrackMap import graph_from_edges, find_longest_simple_path
 
-def N_point_generator(yellow_multiline, blue_multiline, N):
+def N_point_generator(yellow_multiline: MultiLineString, blue_multiline: MultiLineString, N: int) -> Tuple[List[Tuple[int, int]], List[Tuple[int, int]]]:
+    """This function takes a two MultiLineStrings representing the yellow and blue boundaries of the racetrack and 
+    generates N evenly ordered spaced pairs of points along the boundaries of the racetrack.
+
+    Keyword arguments:
+    yellow_multiline -- a MultiLineString representing the yellow track boundary
+    blue_multiline -- a MultiLineString representing the blue track boundary
+    N - the number of pairs to generate
+    """
     
     # generate N points on the linestrings
     new_yellow_points = generate_N_points(yellow_multiline, N)
@@ -45,7 +54,17 @@ def N_point_generator(yellow_multiline, blue_multiline, N):
     
     return closest_yellow_points, closest_blue_points
 
-def get_medial_line(yellow_multiline, blue_multiline, vor, new_yellow_points, new_blue_points, N): 
+def get_medial_line(yellow_multiline: MultiLineString, blue_multiline:MultiLineString, vor: Voronoi, new_yellow_points: List[Tuple[int, int]], new_blue_points: List[Tuple[int, int]], N: int) -> List[Tuple[int, int]]: 
+    """This function takes a two MultiLineStrings representing the yellow and blue boundaries of the racetrack and 
+    gets the medial axis between the two.
+
+    Keyword arguments:
+    yellow_multiline -- a MultiLineString representing the yellow track boundary
+    blue_multiline -- a MultiLineString representing the blue track boundary
+    vor -- the Voronoi diagram of the points from the boundaries
+    new_yellow_points
+    N - the number of pairs to generate
+    """
 
     # find convex hulls to help us filter later on
     yellow_convex_hull = MultiPoint(new_yellow_points).convex_hull
@@ -81,13 +100,25 @@ def get_medial_line(yellow_multiline, blue_multiline, vor, new_yellow_points, ne
     
     return longest_path_edges
 
-def generate_N_points(multiline, N):
+def generate_N_points(multiline: MultiLineString, N: int) -> List[Tuple[int, int]]:
+    """This function takes a MultiLineStrings generates N points along this boundary.
+
+    Keyword arguments:
+    multilinee -- a MultiLineString representing a track boundary
+    N - the number of points to generate
+    """
     total_length = multiline.length
     segment_lengths = np.linspace(0, total_length, N)
     points = [multiline.interpolate(length) for length in segment_lengths]
     return points
 
-def closest_points_on_medial_line(points, medial_line):
+def closest_points_on_medial_line(points: List[Tuple[int, int]], medial_line: LineString) -> List[Tuple[int, int]]:
+    """This function a set of points and a LineString, and finds the closest set of points on the Line to the points provided.
+
+    Keyword arguments:
+    points -- the points we want to pair a closest point to
+    medial_line -- a LineString which we want to find points along
+    """
 
     closest_points = {}
     # Iterate over each point on the outer boundary
@@ -101,12 +132,25 @@ def closest_points_on_medial_line(points, medial_line):
     
     return closest_points
 
-def find_closest_point(points, location):
+def find_closest_point(points: List[Tuple[int, int]], location: Tuple[int, int]) -> Tuple[int, int]:
+    """This function finds the closest point in a list of points to a location (another point) provided.
+
+    Keyword arguments:
+    points -- the list of points we want to search in
+    location -- the point we want to find the closest point to
+    """
     kdtree = KDTree(points)
     dist, closest_point_idx = kdtree.query(location)
     return closest_point_idx, points[closest_point_idx]
 
 def should_reverse(points, car_location, heading_vector):
+    """NOT TOTALLY COMPLETED This function figures out whether the list of pairs outputted should be reversed or not.
+
+    Keyword arguments:
+    points -- the list of points along a boundary
+    car_location -- 
+    heading_vector -- 
+    """
     
     # figure out the closest point
     i, closest_point = find_closest_point(points, car_location)

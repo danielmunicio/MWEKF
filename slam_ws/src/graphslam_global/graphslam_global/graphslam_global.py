@@ -105,12 +105,14 @@ class GraphSLAM_Global(Node):
             1
         )
 
-        # self.wheelspeeds = self.create_subscription(
-        #     WheelSpeedsStamped,
-        #     '/ground_truth/wheel_speeds',
-        #     self.wheelspeed_sub,
-        #     1
-        # )
+        self.wheelspeeds = self.create_subscription(
+            WheelSpeedsStamped,
+            '/ground_truth/wheel_speeds',
+            self.wheelspeed_sub,
+            1
+        )
+
+        
 
         self.state_subby = self.create_subscription(
             CarState,
@@ -139,8 +141,9 @@ class GraphSLAM_Global(Node):
         self.slam = GraphSLAM(solver_type='qp', landmarkTolerance=2)
         
         # used to calculate the state of the vehicle
-        self.currentstate_simulator.x = 0;
-        self.currentstate_simulator.y
+        self.currentstate_simulator = State()
+        self.currentstate_simulator.x = 0.0
+        self.currentstate_simulator.y = 0.0
         self.statetimestamp = 0.0
         self.currentstate = State()
         self.currentstate.x = 0.0 
@@ -164,6 +167,7 @@ class GraphSLAM_Global(Node):
 
         self.finished = False
         self.usefastslam = False
+        self.last_slam_update = np.array([np.Inf, np.Inf])
 
     def state_sub(self, msg: CarState):
         """ This is a callback function for the SIMULATORS ground truth carstate. 
@@ -179,8 +183,10 @@ class GraphSLAM_Global(Node):
 
         self.currentstate_simulator.x = msg.pose.pose.position.x
         self.currentstate_simulator.y = msg.pose.pose.position.y
+        self.currentstate.velocity = np.sqrt(msg.twist.twist.linear.x**2 + msg.twist.twist.linear.y**2)
 
     def wheelspeed_sub(self, msg: WheelSpeedsStamped):
+        return
         self.currentstate.velocity = ((msg.speeds.lb_speed + msg.speeds.rb_speed)/2)*np.pi*0.505/60
         
 
@@ -290,22 +296,24 @@ class GraphSLAM_Global(Node):
         times.append(perf_counter())
         # generate current heading
         roll, pitch, yaw = self.quat_to_euler(imu.orientation)
+        # print(f"yaw: {yaw}")
         times.append(perf_counter())
         # generate current velocity
-        delta_velocity = self.compute_delta_velocity(imu.linear_acceleration, dt)
-        velocity = self.currentstate.velocity + delta_velocity
-        self.currentstate.velocity = velocity
+        # delta_velocity = self.compute_delta_velocity(imu.linear_acceleration, dt)
+        # velocity = self.currentstate.velocity + delta_velocity
+        # self.currentstate.velocity = velocity
         times.append(perf_counter())
         # for now, we assume velocity is in the direction of heading
         # generate dx [change in x, change in y] to add new pose to graph
-        dx = velocity * dt * np.array([math.cos(yaw), math.sin(yaw)])
+        dx = self.currentstate.velocity * dt * np.array([math.cos(yaw), math.sin(yaw)])
         times.append(perf_counter())
         # add new position node to graph
-        self.slam.update_position(dx)
+        # self.slam.update_position(dx)
         times.append(perf_counter())
         #self.slam.update_backlog_imu(dx)
         # update state msg
-        self.update_state(dx, yaw, velocity)
+        # self.currentstate.heading = yaw
+        self.update_state(dx, yaw, self.currentstate.velocity)
         times.append(perf_counter())
         
         ## Show the estimated Pose on the Sim        
@@ -316,7 +324,7 @@ class GraphSLAM_Global(Node):
  
         pose_msg.pose.position.x = self.currentstate.x
         pose_msg.pose.position.y = self.currentstate.y
-        pose_msg.pose.position.z = 0.0
+        pose_msg.pose.position.z = self.currentstate.velocity
         pose_msg.pose.orientation.w = np.cos(self.currentstate.heading/2)
         pose_msg.pose.orientation.x = 0.0
         pose_msg.pose.orientation.y = 0.0
@@ -421,15 +429,21 @@ class GraphSLAM_Global(Node):
         #self.slam.update_backlog_perception(cone_matrix)
         #if (self.solving):
         #    return
-
-        self.slam.update_graph_color(cartesian_cones) # old pre-ros threading
-        
+        if np.linalg.norm(self.last_slam_update-np.array([self.currentstate.x, self.currentstate.y])) > 0.25:
+            self.last_slam_update = np.array([self.currentstate.x, self.currentstate.y])
+            self.slam.update_graph_color(cartesian_cones, np.array([self.currentstate.x, self.currentstate.y])) # old pre-ros threading
+        else:
+            return
         #self.slam.update_graph_color(perception_backlog_imu, perception_backlog_cones)
         #self.perception_backlog_cones = []
         #self.perception_backlog_imu = []
         #self.slam.update_graph_block()
         #x_guess, lm_guess = self.solveGraphSlamLock()
         x_guess, lm_guess = self.slam.solve_graph()
+        pos = np.array(x_guess[-1]).flatten()
+        self.currentstate.x = pos[0]
+        self.currentstate.y = pos[1]
+        
 
         #x and lm guess come out as lists, so change to numpy arrays
         x_guess = np.array(x_guess)
@@ -516,11 +530,6 @@ class GraphSLAM_Global(Node):
         self.local_map.header.stamp = self.get_clock().now().to_msg()
         self.local_map.header.frame_id = "map"
 
-        # x_s = np.array(local_left)[:,0].tolist() + np.array(local_right)[:,0].tolist()
-        # y_s = np.array(local_left)[:,1].tolist() + np.array(local_right)[:,1].tolist()
-
-        # plt.scatter(x_s, y_s)
-        # plt.show()
 
         self.local_map_pub.publish(self.local_map)
 

@@ -328,7 +328,7 @@ class GraphSLAM_Global(Node):
             print(f"dt: {dt}", file = f)
             print(f"Distance Traveled: {delta_pos}", file = f)
             print(f"Total Distance: {self.distance_traveled_danny}", file = f)
-            print("-----------------------------------------------------------")
+            print("-----------------------------------------------------------", file=f)
             print(file=f)
 
         # print(f"TIME TAKEN FOR IMU CALLBACK: {times}")
@@ -337,6 +337,8 @@ class GraphSLAM_Global(Node):
         p_x = cone[0] - car_state[0]
         p_y = cone[1] - car_state[1]
         r = math.sqrt(p_x**2 + p_y**2)
+        angle = math.atan2(p_y, p_x)
+        return r, angle
         if (p_x == 0):
             angle = math.asin(p_y/r)
         else:
@@ -402,9 +404,9 @@ class GraphSLAM_Global(Node):
             cone_matrix[2].append(1)
 
         cone_matrix = np.array(cone_matrix).T
-        print("CONESHAPE", cone_matrix.shape)
-        cone_dx = cone_matrix[:,0] * np.cos(cone_matrix[:,1]) # r * cos(theta) element wise
-        cone_dy = cone_matrix[:,0] * np.sin(cone_matrix[:,1]) # r * sin(theta) element_wise
+        # print("CONESHAPE", cone_matrix.shape)
+        cone_dx = cone_matrix[:,0] * np.cos(cone_matrix[:,1]+self.currentstate.heading) # r * cos(theta) element wise
+        cone_dy = cone_matrix[:,0] * np.sin(cone_matrix[:,1]+self.currentstate.heading) # r * sin(theta) element_wise
         cartesian_cones = np.vstack((cone_dx, cone_dy, cone_matrix[:,2])).T # n x 3 array of n cones and dx, dy, color   -- input for update_graph
 
 
@@ -415,7 +417,7 @@ class GraphSLAM_Global(Node):
         #self.slam.update_backlog_perception(cone_matrix)
         #if (self.solving):
         #    return
-        if np.linalg.norm(self.last_slam_update-np.array([self.currentstate.x, self.currentstate.y])) > 0.25:
+        if np.linalg.norm(self.last_slam_update-np.array([self.currentstate.x, self.currentstate.y])) > 1.0:
             self.last_slam_update = np.array([self.currentstate.x, self.currentstate.y])
             self.slam.update_graph_color(cartesian_cones, np.array([self.currentstate.x, self.currentstate.y])) # old pre-ros threading
         else:
@@ -504,10 +506,10 @@ class GraphSLAM_Global(Node):
         # print('len of local left and local right cones:')
         # print(len(local_left))
         # print(len(local_right))
-        print('local left: ')
-        print(local_left)
-        print('local right: ')
-        print(local_right)
+        # print('local left: ')
+        # print(local_left)
+        # print('local right: ')
+        # print(local_right)
         #update map message with new map data 
 
         self.local_map.left_cones_x = np.array(local_left)[:,0].tolist()

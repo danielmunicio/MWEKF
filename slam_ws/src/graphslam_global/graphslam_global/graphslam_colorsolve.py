@@ -256,7 +256,7 @@ class GraphSLAM:
             #self.lm_edges.append((self.x[-1] + DM(i[:2]) - self.lm[idx][:2])) # x + z_i = lm_i
 
 
-    def update_graph_color(self, z): #update_graph but w color - rohan
+    def update_graph_color(self, z, pos): #update_graph but w color - rohan
         """updates graph given odo and lm measurements
 
         Args:
@@ -265,8 +265,11 @@ class GraphSLAM:
             update_pos (boolean): whether to update position in this method (used to ignore dx for ros integration)
         """ 
         #zcoords = z[:,:2]
+        self.xhat.append(pos)
         curpos = self.xhat[-1] # useful later for succinctness
         curpos_color = np.append(curpos, [0])
+        self.x.append(MX.sym(f'x{len(self.x)}', 2))
+        self.x_edges.append((DM(pos.tolist())-self.x[-1]))
 
         # if its the first graph update, we do things a bit differently
         if len(self.lmhat)==0:

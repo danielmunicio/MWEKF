@@ -21,34 +21,10 @@ from sensor_msgs.msg import PointCloud
 
 import matplotlib.pyplot as plt 
 
-# import sys
-# import os 
-# print(sys.path)
-
-# current_dir = os.getcwd() #feb_system_integration/slam_ws/src/graphslam_global/graphslam_global
-# root_dir = os.path.dirname( #feb_system_integration
-#     os.path.dirname( #feb_system_integration/slam_ws/
-#         os.path.dirname( #feb_system_integration/slam_ws/src
-#             os.path.dirname(current_dir)))) #feb_system_integration/slam_ws/src/graphslam_global
-
-# msg_path = 'comm_ws/src/feb_msgs/msg'
-# abs_msg_path = os.path.join(current_dir, msg_path)
-# print(abs_msg_path)
-#sys.path.append(abs_msg_path)
-
-
-
-#file_msgdir_path = os.path.join(abs_msg_path, 'example2.txt')
-#if not os.path.exists(abs_msg_path):
-#    os.makedirs(abs_msg_path)
-#with open(file_msgdir_path, 'w') as file:
-#    file.write("example file")
-#sys.path.append(file_msgdir_path)
-
-#import State.msg, FebPath, Map, Cones
 
 from feb_msgs.msg import State, FebPath, Map
 from eufs_msgs.msg import ConeArrayWithCovariance, ConeWithCovariance
+from casadi import DM
 
 class GraphSLAM_Global(Node):
     def __init__(self):
@@ -144,7 +120,7 @@ class GraphSLAM_Global(Node):
 
         # Initializes a new instance of graphslam from the graphslam
         # Data Association Threshold is to be tweaked
-        self.slam = GraphSLAM(solver_type='qp', landmarkTolerance=2)
+        self.slam = GraphSLAM(solver_type='qp', landmarkTolerance=2, Q=lambda n: 0.1*DM.eye(n), R=lambda n: 0.5*DM.eye(n), C=lambda n: 0.0*DM.eye(n))
         
         # used to calculate the state of the vehicle
         self.currentstate_simulator = State()
@@ -158,7 +134,7 @@ class GraphSLAM_Global(Node):
         self.currentstate.heading = 0.0
         self.state_seq = 0.0
         self.cone_seq = 0.0
-
+        self.distance_traveled_danny = 0.0
         self.global_map = Map()
         self.local_map = Map()
 
@@ -190,6 +166,7 @@ class GraphSLAM_Global(Node):
         self.currentstate_simulator.x = msg.pose.pose.position.x
         self.currentstate_simulator.y = msg.pose.pose.position.y
         self.currentstate.velocity = np.sqrt(msg.twist.twist.linear.x**2 + msg.twist.twist.linear.y**2)
+        return
 
     def wheelspeed_sub(self, msg: WheelSpeedsStamped):
         return
@@ -290,8 +267,6 @@ class GraphSLAM_Global(Node):
     """
 
     def imu_callback(self, imu: Imu) -> None:
-
-        times = [perf_counter()]
         if self.finished:
             return
         # process time
@@ -299,28 +274,25 @@ class GraphSLAM_Global(Node):
         if (dt > 1):
             return
 
-        times.append(perf_counter())
         # generate current heading
         roll, pitch, yaw = self.quat_to_euler(imu.orientation)
-        # print(f"yaw: {yaw}")
-        times.append(perf_counter())
+
         # generate current velocity
         # delta_velocity = self.compute_delta_velocity(imu.linear_acceleration, dt)
         # velocity = self.currentstate.velocity + delta_velocity
         # self.currentstate.velocity = velocity
-        times.append(perf_counter())
+
         # for now, we assume velocity is in the direction of heading
         # generate dx [change in x, change in y] to add new pose to graph
         dx = self.currentstate.velocity * dt * np.array([math.cos(yaw), math.sin(yaw)])
-        times.append(perf_counter())
+        
         # add new position node to graph
         # self.slam.update_position(dx)
-        times.append(perf_counter())
         #self.slam.update_backlog_imu(dx)
+
         # update state msg
         # self.currentstate.heading = yaw
         self.update_state(dx, yaw, self.currentstate.velocity)
-        times.append(perf_counter())
         
         ## Show the estimated Pose on the Sim        
         pose_msg = PoseStamped()
@@ -344,14 +316,21 @@ class GraphSLAM_Global(Node):
         ## Show Estimated Pose END 
 
         self.state_pub.publish(self.currentstate)
-        times.append(perf_counter())
 
-        with open("sim_data.txt", "a") as f:
+        delta_pos = dt * self.currentstate.velocity
+        self.distance_traveled_danny += delta_pos
+        with open("SLAM_Solve.txt", "a") as f:
             print("----------------------------------------------------------", file=f)
             print(f"FROM SLAM: ", file = f)
-            print(f"current x position: {self.currentstate.x} \n current y position: {self.currentstate.y} \n current velocity: {self.currentstate.velocity} \n current heading: {self.currentstate.heading}", file=f)
+            print(f"x guess: {self.currentstate.x} \n y guess: {self.currentstate.y}", file=f)
+            print(f"ACTUAL xpos: {self.currentstate_simulator.x} \n y guess: {self.currentstate_simulator.y}", file=f)
+            print(f"ACTUAL VELOCITY: {self.currentstate.velocity}", file = f)
+            print(f"dt: {dt}", file = f)
+            print(f"Distance Traveled: {delta_pos}", file = f)
+            print(f"Total Distance: {self.distance_traveled_danny}", file = f)
             print("-----------------------------------------------------------")
             print(file=f)
+
         # print(f"TIME TAKEN FOR IMU CALLBACK: {times}")
 
     def cartesian_to_polar(self, car_state, cone):
@@ -384,8 +363,8 @@ class GraphSLAM_Global(Node):
         carstate_array = [self.currentstate.x, self.currentstate.y, self.currentstate.velocity, self.currentstate.heading]
         rot = lambda theta: np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
         pos = np.array(carstate_array[:2])[:, np.newaxis]
-        bloobs = rot(self.currentstate.heading)@bloobs + pos
-        yellow = rot(self.currentstate.heading)@yellow + pos
+        bloobs = rot(-self.currentstate.heading)@bloobs + pos
+        yellow = rot(-self.currentstate.heading)@yellow + pos
 
         self.local_map.left_cones_x = list(bloobs[0])
         self.local_map.left_cones_y = list(bloobs[1])
@@ -412,17 +391,18 @@ class GraphSLAM_Global(Node):
         # cone_matrix = np.hstack(Cones.r, Cones.theta, Cones.color)
         cone_matrix = [[], [], []]
         for cone in cones.blue_cones:
-            r, theta = self.cartesian_to_polar([self.currentstate_simulator.x, self.currentstate_simulator.y], (cone.point.x, cone.point.y))
+            r, theta = self.cartesian_to_polar([0.0, 0.0], (cone.point.x, cone.point.y))
             cone_matrix[0].append(r)
             cone_matrix[1].append(theta)
             cone_matrix[2].append(2)
         for cone in cones.yellow_cones:
-            r, theta = self.cartesian_to_polar([self.currentstate_simulator.x, self.currentstate_simulator.y], (cone.point.x, cone.point.y))
+            r, theta = self.cartesian_to_polar([0.0, 0.0], (cone.point.x, cone.point.y))
             cone_matrix[0].append(r)
             cone_matrix[1].append(theta)
             cone_matrix[2].append(1)
 
         cone_matrix = np.array(cone_matrix).T
+        print("CONESHAPE", cone_matrix.shape)
         cone_dx = cone_matrix[:,0] * np.cos(cone_matrix[:,1]) # r * cos(theta) element wise
         cone_dy = cone_matrix[:,0] * np.sin(cone_matrix[:,1]) # r * sin(theta) element_wise
         cartesian_cones = np.vstack((cone_dx, cone_dy, cone_matrix[:,2])).T # n x 3 array of n cones and dx, dy, color   -- input for update_graph
@@ -435,17 +415,21 @@ class GraphSLAM_Global(Node):
         #self.slam.update_backlog_perception(cone_matrix)
         #if (self.solving):
         #    return
-        if np.linalg.norm(self.last_slam_update-np.array([self.currentstate.x, self.currentstate.y])) > 0:
+        if np.linalg.norm(self.last_slam_update-np.array([self.currentstate.x, self.currentstate.y])) > 0.25:
             self.last_slam_update = np.array([self.currentstate.x, self.currentstate.y])
             self.slam.update_graph_color(cartesian_cones, np.array([self.currentstate.x, self.currentstate.y])) # old pre-ros threading
-        # else:
-        #     return
+        else:
+            return
         #self.slam.update_graph_color(perception_backlog_imu, perception_backlog_cones)
         #self.perception_backlog_cones = []
         #self.perception_backlog_imu = []
         #self.slam.update_graph_block()
         #x_guess, lm_guess = self.solveGraphSlamLock()
-        x_guess, lm_guess = self.slam.solve_graph()
+        
+        # x_guess, lm_guess = self.slam.solve_graph()
+        self.slam.solve_graph()
+        x_guess, lm_guess = self.slam.xhat, self.slam.lmhat
+        
 
         position_guess = PointCloud()
         positions = []
@@ -460,9 +444,8 @@ class GraphSLAM_Global(Node):
         self.positionguess.publish(position_guess)
         
         pos = np.array(x_guess[-1]).flatten()
-        self.currentstate.x = pos[0]
-        self.currentstate.y = pos[1]
-        
+        #self.currentstate.x = pos[0]
+        #self.currentstate.y = pos[1]
 
         #x and lm guess come out as lists, so change to numpy arrays
         x_guess = np.array(x_guess)

@@ -114,7 +114,7 @@ class GraphSLAM_Global(Node):
 
         
 
-        self.state_subby = self.create_subscription(
+        self.state_subbyperf_counter = self.create_subscription(
             CarState,
             '/ground_truth/state',
             self.state_sub,
@@ -129,6 +129,12 @@ class GraphSLAM_Global(Node):
             1
         )
 
+
+        self.positionguess = self.create_publisher(
+            PointCloud,
+            '/slam/guessed_positions',
+            1
+        )
         self.pose_pub = self.create_publisher(
             PoseStamped,
             '/slam/pose',
@@ -429,17 +435,30 @@ class GraphSLAM_Global(Node):
         #self.slam.update_backlog_perception(cone_matrix)
         #if (self.solving):
         #    return
-        if np.linalg.norm(self.last_slam_update-np.array([self.currentstate.x, self.currentstate.y])) > 0.25:
+        if np.linalg.norm(self.last_slam_update-np.array([self.currentstate.x, self.currentstate.y])) > 0:
             self.last_slam_update = np.array([self.currentstate.x, self.currentstate.y])
             self.slam.update_graph_color(cartesian_cones, np.array([self.currentstate.x, self.currentstate.y])) # old pre-ros threading
-        else:
-            return
+        # else:
+        #     return
         #self.slam.update_graph_color(perception_backlog_imu, perception_backlog_cones)
         #self.perception_backlog_cones = []
         #self.perception_backlog_imu = []
         #self.slam.update_graph_block()
         #x_guess, lm_guess = self.solveGraphSlamLock()
         x_guess, lm_guess = self.slam.solve_graph()
+
+        position_guess = PointCloud()
+        positions = []
+        for pos in x_guess: 
+            positions.append(Point32())
+            positions[-1].x = pos[0]
+            positions[-1].y = pos[1]
+            positions[-1].z = 0.0
+        position_guess.points = positions
+        position_guess.header.frame_id = "map"
+        position_guess.header.stamp = self.get_clock().now().to_msg()
+        self.positionguess.publish(position_guess)
+        
         pos = np.array(x_guess[-1]).flatten()
         self.currentstate.x = pos[0]
         self.currentstate.y = pos[1]
@@ -450,19 +469,7 @@ class GraphSLAM_Global(Node):
         lm_guess = np.array(lm_guess)
         
 
-        # print('x_guess: ')
-        # print(x_guess)
-        # print('___________________________')
-        # print('lm_guess: ')
-        # print(lm_guess)
-        # print('___________________________')
-
         blue_array = np.array([2 for i in range(len(lm_guess[:,2]))])
-        # yellow_array = np.array([ for i in range(len(lm_guess[:,2]))])
-
-        # left_cones = lm_guess[lm_guess[:,2] == np.isclose(lm_guess[:,2], 2, rtol = 0.0001, atol = 0.0001)][:,:2] # blue
-        #print((lm_guess[:, 2])[0].type())
-        #print(type(lm_guess[:, 2]))
         left_cones = lm_guess[np.round(lm_guess[:,2]) == 2][:,:2] # blue
         right_cones = lm_guess[np.round(lm_guess[:,2]) == 1][:,:2] # yellow
 

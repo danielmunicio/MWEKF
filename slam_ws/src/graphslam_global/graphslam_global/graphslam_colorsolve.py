@@ -59,8 +59,8 @@ class GraphSLAM:
         # with loop closing - you could set R's first four 
         # (for 2 x and 2 y) diagonal elements to be higher than 
         # the rest.
-        self.Q = lambda n: DM_eye(n) # cost for pose edges
-        self.R = lambda n: DM_eye(n) # cost for landmark edges
+        self.Q = lambda n: DM.eye(n) # cost for pose edges
+        self.R = lambda n: DM.eye(n) # cost for landmark edges
         self.C = lambda n: DM.eye(n) # cost for landmark color
 
         # so people can pass in settings as kw args
@@ -73,9 +73,9 @@ class GraphSLAM:
         # these things are after since they shouldn't be settings
 
         # symbolic position variables (odo nodes)
-        self.x = [MX.sym('x0', 2)] # initialize with first position
+        self.x = []#[MX.sym('x0', 2)] # initialize with first position
         # bad guess for position nodes. Used as initial values for optimization.
-        self.xhat = [self.x0]
+        self.xhat = []#[self.x0]
         # list of odo edges: the equations x_(k) - x_(k-1) = z_k (z_k is odo measurement)
         self.x_edges = []
 
@@ -255,19 +255,21 @@ class GraphSLAM:
             self.lm_edges.append((self.x[-1] + DM(i) - self.lm[idx])) # x + z_i = lm_i, no color
             #self.lm_edges.append((self.x[-1] + DM(i[:2]) - self.lm[idx][:2])) # x + z_i = lm_i
 
+            
+    #self.slam.update_graph_color(cartesian_cones, np.array([self.currentstate.x, self.currentstate.y])) # old pre-ros threading
 
     def update_graph_color(self, z, pos): #update_graph but w color - rohan
         """updates graph given odo and lm measurements
 
         Args:
-            dx (ndarray): vector of shape (2, 1) describing the estimated change in car location since the previous update 
             z (ndarray): vector of shape (m, 3*) describing locations of m landmarks relative to the car #* updated 2 to 3 to incorporate color - Rohan
-            update_pos (boolean): whether to update position in this method (used to ignore dx for ros integration)
+            pos (array): nparray that contains the cars x and y [self.currentstate.x, self.currentstate.y]
         """ 
         #zcoords = z[:,:2]
         self.xhat.append(pos)
         curpos = self.xhat[-1] # useful later for succinctness
         curpos_color = np.append(curpos, [0])
+        print("POSCURPOSCOLOR", pos, curpos, curpos_color)
         self.x.append(MX.sym(f'x{len(self.x)}', 2))
         self.x_edges.append((DM(pos.tolist())-self.x[-1]))
 
@@ -350,7 +352,7 @@ class GraphSLAM:
             # 4. color constraint - Rohan
             'f': (x_e.T@self.Q(x_e.shape[0])@x_e # note: j norm squared error, q,r, and c can be adjusted above for weighting - rohan
                 + lm_e.T@self.R(lm_e.shape[0])@lm_e 
-                + x0_e.T@x0_e
+                # + x0_e.T@x0_e
                 + lm_color.T@self.C(lm_color.shape[0])@lm_color) # color constraint
         }
 
@@ -409,9 +411,10 @@ class GraphSLAM:
 
         # now update self.xhat and self.lmhat with our newly optimized
         # guesses. This assumes that no new nodes have been added during the optimization.
+        # assert len(self.xhat)==x_guesses.shape[0]
         self.xhat[:x_guesses.shape[0]] = list(x_guesses)
-        #self.lmhat[:lm_guesses.shape[0]] = list(lm_guesses)
-        self.lmhat[:,:lm_dim] = list(lm_guesses) #2 for no cone color, 3 for cone color
+        self.lmhat[:lm_guesses.shape[0]] = list(lm_guesses)
+        # self.lmhat[:,:lm_dim] = list(lm_guesses) #2 for no cone color, 3 for cone color
         #***if color***
         #self.lmhat[:lm_guesses.shape[0]]
         

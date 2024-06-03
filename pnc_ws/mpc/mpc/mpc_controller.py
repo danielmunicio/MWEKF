@@ -67,7 +67,7 @@ class KinMPCPathFollower(Controller, Node):
         self.curr_steer = 0
         self.curr_acc = 0
         self.path = self.global_path if self.global_path is not None else self.local_path
-        self.path = np.array([[1.0, 0.0]*100])
+        # self.path = np.array([[1.0, 0.0]*100])
 
         ### START - ROS Integration Code ###
         super().__init__('mpc_node')

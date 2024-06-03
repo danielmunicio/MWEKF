@@ -46,7 +46,7 @@ class GraphSLAM_Global(Node):
         # Handle new cone readings from perception
         self.cones_sub = self.create_subscription(
             ConeArrayWithCovariance,
-            '/ground_truth/cones', 
+            '/fusion/cones', 
             self.cones_callback,
             1
         )
@@ -166,11 +166,10 @@ class GraphSLAM_Global(Node):
         # self.currentstate.y = msg.pose.pose.position.y
         self.currentstate_simulator.x = msg.pose.pose.position.x
         self.currentstate_simulator.y = msg.pose.pose.position.y
-        self.currentstate.velocity = np.sqrt(msg.twist.twist.linear.x**2 + msg.twist.twist.linear.y**2)
+        # self.currentstate.velocity = np.sqrt(msg.twist.twist.linear.x**2 + msg.twist.twist.linear.y**2)
         return
 
     def wheelspeed_sub(self, msg: WheelSpeedsStamped):
-        return
         self.currentstate.velocity = ((msg.speeds.lb_speed + msg.speeds.rb_speed)/2)*np.pi*0.505/60
         
 
@@ -248,7 +247,7 @@ class GraphSLAM_Global(Node):
         # All carstates should be float #'s 
         self.currentstate.x += dx[0]
         self.currentstate.y += dx[1]
-        # self.currentstate.velocity = velocity
+        self.currentstate.velocity = velocity
         self.currentstate.heading = yaw
         self.state_seq += 1
         #self.currentstate.header.seq = self.state_seq
@@ -304,7 +303,7 @@ class GraphSLAM_Global(Node):
  
         pose_msg.pose.position.x = self.currentstate.x
         pose_msg.pose.position.y = self.currentstate.y
-        pose_msg.pose.position.z = self.currentstate.velocity
+        pose_msg.pose.position.z = 0*self.currentstate.velocity
         pose_msg.pose.orientation.w = np.cos(self.currentstate.heading/2)
         pose_msg.pose.orientation.x = 0.0
         pose_msg.pose.orientation.y = 0.0
@@ -471,7 +470,7 @@ class GraphSLAM_Global(Node):
         cones_msg.points = cones_to_send
         cones_msg.header.frame_id = "map"
         cones_msg.header.stamp = self.get_clock().now().to_msg()
-        # self.cones_vis_pub.publish(cones_msg)
+        self.cones_vis_pub.publish(cones_msg)
 
 
         #left_cones = lm_guess[lm_guess[:,2] == 0][:,:2] # orange
@@ -599,7 +598,7 @@ class GraphSLAM_Global(Node):
         cones_msg.header.frame_id = "map"
         cones_msg.header.stamp = self.get_clock().now().to_msg()
         print("here7")
-        self.cones_vis_pub.publish(cones_msg)
+        # self.cones_vis_pub.publish(cones_msg)
         print("local cones done!!")
 
 

@@ -324,9 +324,9 @@ class GraphSLAM:
             self.lm_edges.append((self.x[-1] + DM(i[:2]) - self.lm[idx][:2])) # x + z_i = lm_i
     
     
-
-
-        
+    
+    
+    
     def solve_graph(self):
         """solves the graph and updates everything
         """

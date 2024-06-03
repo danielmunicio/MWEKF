@@ -24,11 +24,14 @@ class LocalPath(Node):
         self.pc_subscriber = self.create_subscription(Map, '/slam/map/local', self.listener_cb, 1)
         self.pc_subscriber = self.create_subscription(Bool, '/path/finished', self.finished_cb, 1)
         self.state_subscriber = self.create_subscription(State, '/slam/state', self.state_callback, 1)
-
+        print("here")
         self.g = CompiledLocalOpt(**settings)
+        print("inited local opt")
         # self.g.construct_solver()
         self.g.construct_solver(generate_c=False, compile_c=False, use_c=True)
+        print("constructed solver")
         self.state = [0.,0.,0.,0.]
+        print("done")
 
         self.finished = False
     def finished_cb(self, msg: Bool):
@@ -58,6 +61,7 @@ class LocalPath(Node):
             print("--------------------------------------------", file = f)
             print(file=f)
         try:
+            
             res = self.g.solve(left, right, self.state)
         except RuntimeError:
             return

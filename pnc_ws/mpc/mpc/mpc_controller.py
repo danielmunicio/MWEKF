@@ -67,6 +67,7 @@ class KinMPCPathFollower(Controller, Node):
         self.curr_steer = 0
         self.curr_acc = 0
         self.path = self.global_path if self.global_path is not None else self.local_path
+        self.path = np.array([[1.0, 0.0]*100])
 
         ### START - ROS Integration Code ###
         super().__init__('mpc_node')
@@ -164,7 +165,7 @@ class KinMPCPathFollower(Controller, Node):
         self.s_opts = {
             'max_cpu_time': 0.05, 
             'linear_solver': 'MA27', 
-            # 'print_level': 0,
+            'print_level': 0,
             # 'sb': 'yes',
         } 
         if self.solver == 'worhp': self.s_opts = dict() # idk what the worhp options are
@@ -222,9 +223,9 @@ class KinMPCPathFollower(Controller, Node):
         '''
         x = np.array(msg.x)
         y = np.array(msg.y)
-        v = np.array(msg.v)
         psi = np.array(msg.psi)
-        path = np.column_stack((x, y, v, psi))
+        v = np.array(msg.v)
+        path = np.column_stack((x, y, psi, v))
         self.local_path = path
         self.path = self.global_path if self.global_path is not None else self.local_path
 
@@ -237,15 +238,14 @@ class KinMPCPathFollower(Controller, Node):
         '''
         # returns the current state as an np array with these values in this order: x,y,velocity,heading
         #curr_state = msg.carstate
-        curr_state = [0.0, 0., 0., 0.0]
+        curr_state = [0., 0., 0., 0.]
         curr_state[0] = carstate.x # x value
         curr_state[1] = carstate.y # y value
-        ### MPC Assumes the veloccity and heading are flipped
-        curr_state[2] = carstate.heading # velocity
-        curr_state[3] = carstate.velocity # heading
+        curr_state[2] = carstate.heading
+        curr_state[3] = carstate.velocity
         
         if self.path is not None: 
-            prev_controls = np.array([self.curr_steer, self.curr_acc])
+            prev_controls = np.array([self.curr_steer, self.curr_acc][::-1])
             new_values = get_update_dict(pose=np.array(curr_state), prev_u=prev_controls, kmpc=self, states=self.path, prev_soln=self.prev_soln)
 
 
@@ -279,8 +279,14 @@ class KinMPCPathFollower(Controller, Node):
             self.prev_soln['u_mpc']
             pc_msg = PointCloud()
             pts = []
-
+            
             for x in np.array(self.prev_soln['z_mpc']):
+                pts.append(Point32())
+                pts[-1].x = x[0]
+                pts[-1].y = x[1]
+                pts[-1].z = 0.0
+
+            for x in np.vstack([new_values['x_ref'], new_values['y_ref']]).T:
                 pts.append(Point32())
                 pts[-1].x = x[0]
                 pts[-1].y = x[1]
@@ -448,7 +454,8 @@ class KinMPCPathFollower(Controller, Node):
             
             # 1. Error between current state and reference state for each planned timestep
             # cost += _quad_form((mat @ (self.z_dv[i+1, :]-self.z_ref[i, :]).T).T, self.Q)
-            cost += _quad_form(self.z_dv[i+1, :] - self.z_ref[i,:], 9*self.Q/(i+9)) # tracking cost
+            # cost += _quad_form(self.z_dv[i+1, :] - self.z_ref[i,:], 9*self.Q/(i+9)) # tracking cost
+            cost += _quad_form(self.z_dv[i+1, :] - self.z_ref[i,:], self.Q) # tracking cost
 
         # 2. Error between current state and reference state for last planned timestep
         # cost += _quad_form(self.z_dv[-1, :] - self.z_ref[-1, :], self.F)
@@ -517,10 +524,10 @@ def main(args=None):
     mpc_node = KinMPCPathFollower(**MPCSettings)
     try:
         rclpy.spin(mpc_node)
-    except:
+    except Exception as e:
         print("mpc node down")
         print("fiona and cake")
-
+        raise e
     rclpy.shutdown()
 
 ### END - RUNNING MPC NODE ###

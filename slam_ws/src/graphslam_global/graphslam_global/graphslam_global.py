@@ -162,7 +162,8 @@ class GraphSLAM_Global(Node):
             # print("y position: ", msg.pose.pose.position.y, file=f)
             # print("heading: ", self.quat_to_euler(msg.pose.pose.orientation)[-1], file=f)
             # print("----------------------------------------", file=f)
-
+        # self.currentstate.x = msg.pose.pose.position.x
+        # self.currentstate.y = msg.pose.pose.position.y
         self.currentstate_simulator.x = msg.pose.pose.position.x
         self.currentstate_simulator.y = msg.pose.pose.position.y
         self.currentstate.velocity = np.sqrt(msg.twist.twist.linear.x**2 + msg.twist.twist.linear.y**2)
@@ -247,7 +248,7 @@ class GraphSLAM_Global(Node):
         # All carstates should be float #'s 
         self.currentstate.x += dx[0]
         self.currentstate.y += dx[1]
-        self.currentstate.velocity = velocity
+        # self.currentstate.velocity = velocity
         self.currentstate.heading = yaw
         self.state_seq += 1
         #self.currentstate.header.seq = self.state_seq
@@ -291,6 +292,7 @@ class GraphSLAM_Global(Node):
         #self.slam.update_backlog_imu(dx)
 
         # update state msg
+        # self.currentstate.heading = yaw
         # self.currentstate.heading = yaw
         self.update_state(dx, yaw, self.currentstate.velocity)
         
@@ -446,8 +448,8 @@ class GraphSLAM_Global(Node):
         self.positionguess.publish(position_guess)
         
         pos = np.array(x_guess[-1]).flatten()
-        #self.currentstate.x = pos[0]
-        #self.currentstate.y = pos[1]
+        self.currentstate.x = pos[0]
+        self.currentstate.y = pos[1]
 
         #x and lm guess come out as lists, so change to numpy arrays
         x_guess = np.array(x_guess)
@@ -469,7 +471,7 @@ class GraphSLAM_Global(Node):
         cones_msg.points = cones_to_send
         cones_msg.header.frame_id = "map"
         cones_msg.header.stamp = self.get_clock().now().to_msg()
-        self.cones_vis_pub.publish(cones_msg)
+        # self.cones_vis_pub.publish(cones_msg)
 
 
         #left_cones = lm_guess[lm_guess[:,2] == 0][:,:2] # orange
@@ -498,9 +500,12 @@ class GraphSLAM_Global(Node):
         # print(len(left_cones))
         # print(len(right_cones))
 
-        local_left, local_right = self.localCones(self.local_radius, left_cones, right_cones)
+        local_left, local_right = self.localCones(self.local_radius*0 + 20, left_cones, right_cones)
+        print("here8")
         if (len(np.array(local_left)) == 0 or len(np.array(local_right)) == 0):
+            print("here9")
             return
+        print("here10")
         # local_left, local_right = left_cones, right_cones
 
         # print('len of local left and local right cones:')
@@ -522,9 +527,9 @@ class GraphSLAM_Global(Node):
         self.local_map.header.stamp = self.get_clock().now().to_msg()
         self.local_map.header.frame_id = "map"
 
-
+        print("here11")
         self.local_map_pub.publish(self.local_map)
-
+        print("here12")
     
     def compareAngle(self, a, b, threshold): # a<b
         mn = min(b-a, 2*np.pi - b + a) # (ex. in degrees): a = 15 and b = 330 are 45 degrees apart (not 315)
@@ -554,7 +559,7 @@ class GraphSLAM_Global(Node):
         # Cones within radius
         close_left = left[((left - curpos) ** 2).sum(axis=1) < radius * radius]
         close_right = right[((right - curpos) ** 2).sum(axis=1) < radius * radius]
-        
+                
         # print('close_left cones: ')
         # print(close_left)
         # print('------------------')
@@ -567,12 +572,39 @@ class GraphSLAM_Global(Node):
         left_len = len(close_left)
 
         # Calculate delta vectors
-        delta_vecs = close - curpos 
-        
+        delta_vecs = close - curpos
+        delta_vecs = (np.array([[np.cos(-heading), -np.sin(-heading)],
+                                 [np.sin(-heading), np.cos(-heading)]])@(delta_vecs.T)).T
+        with open("delta_and_heading", "a") as f:
+            print("DELTA_VECS", delta_vecs, "HEADING", heading, file=f)
         # Calculate delta angles
-        delta_ang = np.arctan2(delta_vecs[:, 1], delta_vecs[:, 0])
-        delta_ang = (delta_ang + 2*np.pi) % (2*np.pi)  # Ensure delta_ang is between 0 and 2*pi
+        # delta_ang = np.arctan2(delta_vecs[:, 1], delta_vecs[:, 0])
+        # delta_ang = (delta_ang + 2*np.pi) % (2*np.pi)  # Ensure delta_ang is between 0 and 2*pi
+        mask = delta_vecs[:, 0]>0
+        print("here1")
+        to_plot = close[mask]
+        print("here2")
+        cones_msg = PointCloud()
+        print("here3")
+        cones_to_send = []
+        print("here4")
+        for cone in to_plot: 
+            print("here5")
+            cones_to_send.append(Point32())
+            cones_to_send[-1].x = cone[0]
+            cones_to_send[-1].y = cone[1]
+            cones_to_send[-1].z = 0.0
+        print("here6")
+        cones_msg.points = cones_to_send
+        cones_msg.header.frame_id = "map"
+        cones_msg.header.stamp = self.get_clock().now().to_msg()
+        print("here7")
+        self.cones_vis_pub.publish(cones_msg)
+        print("local cones done!!")
 
+
+
+        return close[:left_len][mask[:left_len]], close[left_len:][mask[left_len:]]
         for i in range(len(delta_ang)):
             if self.compareAngle(min(delta_ang[i], heading), max(delta_ang[i], heading), self.local_vision_delta):
                 if i < left_len:
@@ -603,3 +635,4 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
+    

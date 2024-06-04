@@ -24,8 +24,8 @@ class GlobalPath(Node):
         self.cp_publisher = self.create_publisher(Bool, '/path/finished', 1)
         self.viz_publisher = self.create_publisher(PointCloud, '/path/global/viz', 1)
         #Subscribers
-        # self.pc_subscriber = self.create_subscription(Map, '/slam/map/global', self.listener_cb, 1)
-        self.pc_subscriber = self.create_subscription(ConeArrayWithCovariance, '/ground_truth/track', self.listener_cb, 1)
+        self.pc_subscriber = self.create_subscription(Map, '/slam/map/global', self.listener_cb, 1)
+        # self.pc_subscriber = self.create_subscription(ConeArrayWithCovariance, '/ground_truth/track', self.listener_cb, 1)
 
         self.g = CompiledGlobalOpt(**settings)
         self.g.construct_solver()
@@ -71,7 +71,7 @@ class GlobalPath(Node):
         pc_msg.header.stamp = self.get_clock().now().to_msg()
         self.viz_publisher.publish(pc_msg)
         # we don't need this anymore and the expression graph isn't exactly small, so let's free stuff
-        # self.destroy_node()
+        self.destroy_node()
 
 def main(args=None):
     try:

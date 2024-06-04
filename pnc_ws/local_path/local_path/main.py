@@ -10,6 +10,10 @@ from sensor_msgs.msg import PointCloud
 from geometry_msgs.msg import Point32
 from .local_opt_compiled import CompiledLocalOpt
 from .ConeOrdering import ConeOrdering
+from nav_msgs.msg import Path
+from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Quaternion, Point
 import matplotlib.pyplot as plt
 
 class LocalPath(Node):
@@ -18,10 +22,12 @@ class LocalPath(Node):
 
         #Publishers
         self.pc_publisher = self.create_publisher(FebPath, '/path/local', 1)
-        self.pointcloud_pub = self.create_publisher(PointCloud, 'path/local/viz', 5)
+        self.pointcloud_pub = self.create_publisher(PointCloud, '/path/local/viz', 5)
+        self.path_pub = self.create_publisher(Path, '/path/local/vizpath', 1)
 
         #Subscribers
         self.pc_subscriber = self.create_subscription(Map, '/slam/map/local', self.listener_cb, 1)
+        self.pc_subscriber = self.create_subscription(Map, '/slam/map/global', self.global_listener_cb, 1)
         self.pc_subscriber = self.create_subscription(Bool, '/path/finished', self.finished_cb, 1)
         self.state_subscriber = self.create_subscription(State, '/slam/state', self.state_callback, 1)
         print("here")
@@ -36,6 +42,9 @@ class LocalPath(Node):
         self.finished = False
     def finished_cb(self, msg: Bool):
         self.finished = True
+
+    def global_listener_cb(self, msg):
+        self.destroy_node() # we don't need anymore after we get the global path
         
     def listener_cb(self, msg: Map):
         if self.finished: return
@@ -98,6 +107,26 @@ class LocalPath(Node):
         pc_msg.header.frame_id = "map"
         pc_msg.header.stamp = self.get_clock().now().to_msg()
         self.pointcloud_pub.publish(pc_msg)
+
+        m = Path()
+        poses = []
+        for x in states:
+            poses.append(PoseStamped())
+            poses[-1].pose.position.x = x[0]
+            poses[-1].pose.position.y = x[1]
+            poses[-1].pose.position.z = 0.0
+            poses[-1].header.frame_id = "map"
+            poses[-1].pose.orientation.w = np.cos(x[2]/2)
+            poses[-1].pose.orientation.x = 0.0
+            poses[-1].pose.orientation.y = 0.0
+            poses[-1].pose.orientation.z = np.sin(x[2]/2)
+            print("APPENDED:", poses[-1])
+
+        m.poses = poses
+        m.header.frame_id = "map"
+
+        self.path_pub.publish(m)
+        print(m)
 
 
     def state_callback(self, carstate: State):

@@ -6,13 +6,13 @@ class GlobalOptSettings(metaclass=Settings):
     N: int = 38
     solver: str = 'ipopt'
     car_params: dict[str:float] = {'l_r': 0.76, 'l_f':0.76, 'm': 1.}
-    bbox: dict[str:float] = {'l': 2.7+0.5, 'w': 1.6+0.5}
+    bbox: dict[str:float] = {'l': 2.7+1, 'w': 1.6+1}
     DF_MAX: float  =  0.5
     ACC_MIN: float = -3.0
     ACC_MAX_FN: float|Function = 2.0
     DF_DOT_MAX: float =  0.5
     V_MIN: float = 0.0
-    V_MAX: float = 15.0
+    V_MAX: float = 25.0
     FRIC_MAX: float|Function = 12.0
 
 
@@ -28,7 +28,7 @@ class LocalOptSettings(metaclass=Settings):
     ACC_MAX_FN: float|Function = 2.0
     DF_DOT_MAX: float =  0.5
     V_MIN: float = 0.0
-    V_MAX: float = 15.0
+    V_MAX: float = 10.0
     FRIC_MAX: float|Function = 12.0
 
 
@@ -49,7 +49,7 @@ class MPCSettings(metaclass=Settings):
     DF_DOT_MIN: float = -0.5
     DF_DOT_MAX: float =  0.5
     # Q: list[float] = [1., 1., 10., 0.1]
-    Q: list[float] = [10., 10., 0., 0.]
+    Q: list[float] = [5., 5., 0., 0.]
     R: list[float] = [10., 100.]     
     # R: list[float] = [0., 0.]     
     F: list[float] = [0., 0., 0., 0.]

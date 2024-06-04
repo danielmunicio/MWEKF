@@ -139,7 +139,8 @@ class KinMPCPathFollower(Controller, Node):
 
         # Keep track of previous solution for updates
         self.prev_soln = None
-        
+        self.fix_angle = casadi.Function('fix_angle', [x:=casadi.MX.sym("x", 4)], [casadi.horzcat(x[0, :], x[1, :], casadi.sin(x[2, :]/2), x[3, :])])
+
         '''
         (3) Problem Setup: Constraints, Cost, Initial Solve
         '''
@@ -455,7 +456,8 @@ class KinMPCPathFollower(Controller, Node):
             # 1. Error between current state and reference state for each planned timestep
             # cost += _quad_form((mat @ (self.z_dv[i+1, :]-self.z_ref[i, :]).T).T, self.Q)
             # cost += _quad_form(self.z_dv[i+1, :] - self.z_ref[i,:], 9*self.Q/(i+9)) # tracking cost
-            cost += _quad_form(self.z_dv[i+1, :] - self.z_ref[i,:], self.Q) # tracking cost
+            # cost += _quad_form(self.fix_angle(self.z_dv[i+1, :] - self.z_ref[i,:]), self.Q) # tracking cost
+            cost += _quad_form((self.z_dv[i+1, :] - self.z_ref[i,:]), self.Q) # tracking cost
 
         # 2. Error between current state and reference state for last planned timestep
         # cost += _quad_form(self.z_dv[-1, :] - self.z_ref[-1, :], self.F)

@@ -52,12 +52,12 @@ class GraphSLAM_Global(Node):
         )
 
         # Once path is finished, turn this node callbacks funcs off
-        self.finish_sub = self.create_subscription(
-            Bool,
-            '/path/finished',
-            self.finish_callback,
-            1
-        )
+        # self.finish_sub = self.create_subscription(
+        #     Bool,
+        #     '/path/finished',
+        #     self.finish_callback,
+        #     1
+        # )
 
         # PUBLISHERS
         
@@ -90,7 +90,7 @@ class GraphSLAM_Global(Node):
 
         
 
-        self.state_subbyperf_counter = self.create_subscription(
+        self.state_subby = self.create_subscription(
             CarState,
             '/ground_truth/state',
             self.state_sub,
@@ -132,11 +132,14 @@ class GraphSLAM_Global(Node):
         self.currentstate.y = 0.0
         self.currentstate.velocity = 0.0
         self.currentstate.heading = 0.0
+        self.currentstate.lap_count = 0
         self.state_seq = 0.0
         self.cone_seq = 0.0
         self.distance_traveled_danny = 0.0
         self.global_map = Map()
         self.local_map = Map()
+        self.LPKRDSM = 4 # LaP oK RaDiuS (Meters)
+        self.is_clear_of_lap_count_radius = False
 
         # radius for which to include local cones ---#UPDATE, perhaps from mpc message
         self.local_radius = 100000 
@@ -245,6 +248,17 @@ class GraphSLAM_Global(Node):
     """
     def update_state(self, dx: np.array, yaw: float, velocity: float) -> None:
         # All carstates should be float #'s 
+        if self.currentstate.x**2 + self.currentstate.y**2 < self.LPKRDSM**2:
+            if self.is_clear_of_lap_count_radius:
+                if self.currentstate.lap_count == 0:
+                    self.global_map_pub.publish(self.local_map)
+
+                self.currentstate.lap_count += 1
+                self.is_clear_of_lap_count_radius = False
+        else:
+            self.is_clear_of_lap_count_radius = True
+
+
         self.currentstate.x += dx[0]
         self.currentstate.y += dx[1]
         self.currentstate.velocity = velocity
@@ -297,9 +311,9 @@ class GraphSLAM_Global(Node):
         
         ## Show the estimated Pose on the Sim        
         pose_msg = PoseStamped()
-        pose_msg.pose = Pose()
-        pose_msg.pose.position = Point()
-        pose_msg.pose.orientation = Quaternion()
+        # pose_msg.pose = Pose()
+        # pose_msg.pose.position = Point()
+        # pose_msg.pose.orientation = Quaternion()
  
         pose_msg.pose.position.x = self.currentstate.x
         pose_msg.pose.position.y = self.currentstate.y
@@ -403,6 +417,11 @@ class GraphSLAM_Global(Node):
             cone_matrix[0].append(r)
             cone_matrix[1].append(theta)
             cone_matrix[2].append(1)
+        for cone in cones.big_orange_cones:
+            r, theta = self.cartesian_to_polar([0.0, 0.0], (cone.point.x, cone.point.y))
+            cone_matrix[0].append(r)
+            cone_matrix[1].append(theta)
+            cone_matrix[2].append(0)
 
         cone_matrix = np.array(cone_matrix).T
         # print("CONESHAPE", cone_matrix.shape)

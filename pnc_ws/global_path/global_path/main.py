@@ -81,9 +81,10 @@ def main(args=None):
     global_path_node = GlobalPath()
     try:
         rclpy.spin(global_path_node)
-    except:
+    except Exception as e:
         print("global path node stopped")
         print("finn and jake")
+        raise e
     rclpy.shutdown()
 
 if __name__ == "__main__":

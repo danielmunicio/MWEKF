@@ -351,7 +351,7 @@ class GraphSLAM:
             # 3. x0 constraint
             # 4. color constraint - Rohan
             'f': (x_e.T@self.Q(x_e.shape[0])@x_e # note: j norm squared error, q,r, and c can be adjusted above for weighting - rohan
-                + lm_e.T@self.R(lm_e.shape[0])@lm_e 
+                + lm_e.T@self.R(lm_e.shape[0])@lm_e
                 # + x0_e.T@x0_e
                 + lm_color.T@self.C(lm_color.shape[0])@lm_color) # color constraint
         }

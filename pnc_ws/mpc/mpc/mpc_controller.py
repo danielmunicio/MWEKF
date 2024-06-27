@@ -457,7 +457,7 @@ class KinMPCPathFollower(Controller, Node):
             # cost += _quad_form((mat @ (self.z_dv[i+1, :]-self.z_ref[i, :]).T).T, self.Q)
             # cost += _quad_form(self.z_dv[i+1, :] - self.z_ref[i,:], 9*self.Q/(i+9)) # tracking cost
             # cost += _quad_form(self.fix_angle(self.z_dv[i+1, :] - self.z_ref[i,:]), self.Q) # tracking cost
-            cost += _quad_form((self.z_dv[i+1, :] - self.z_ref[i,:]), self.Q) # tracking cost
+            cost += _quad_form(self.fix_angle(self.z_dv[i+1, :] - self.z_ref[i,:]), self.Q) # tracking cost
 
         # 2. Error between current state and reference state for last planned timestep
         # cost += _quad_form(self.z_dv[-1, :] - self.z_ref[-1, :], self.F)

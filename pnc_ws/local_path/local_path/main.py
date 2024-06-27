@@ -38,7 +38,7 @@ class LocalPath(Node):
         print("constructed solver")
         self.state = [0.,0.,0.,0.]
         print("done")
-
+        self.fails = 0
         self.finished = False
     def finished_cb(self, msg: Bool):
         self.finished = True
@@ -72,9 +72,11 @@ class LocalPath(Node):
         try:
             
             res = self.g.solve(left, right, self.state)
+            self.fails=0
         except RuntimeError:
-            return
-        
+            self.fails += 1
+            if self.fails <= 2:
+                return
         states, _ = self.g.to_constant_tgrid(0.02, **res)
         # states = np.zeros((50, 4))
         path_msg = FebPath()

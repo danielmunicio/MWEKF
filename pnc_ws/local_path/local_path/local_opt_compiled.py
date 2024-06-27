@@ -180,8 +180,8 @@ class CompiledLocalOpt:
         self._add_constraint(
             't',
             g = vec(self.t),
-            lbg = DM([0.45]*self.N),
-            ubg = DM([0.55]*self.N)
+            lbg = DM([0.4]*self.N),
+            ubg = DM([0.6]*self.N)
         )
         # Keeps initial heading and velocity unchangeable
         self._add_constraint(

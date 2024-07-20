@@ -1,5 +1,6 @@
 from .Settings import Settings
 from casadi import Function
+from numpy import pi
 
 class GlobalOptSettings(metaclass=Settings):
     """settings for CompiledGlobalOpt. All in one place, so it's always synced."""
@@ -57,4 +58,23 @@ class MPCSettings(metaclass=Settings):
     use_rk_dynamics: bool = False
     solver: str = 'ipopt'
 
+class CANSettings(metaclass=Settings):
+    interface: str = 'socketcan'
+    channel: str = 'can0'
+    bitrate: int = 1000000
 
+class SteeringSettings(metaclass=Settings):
+    MOTOR_TO_WHEELS_RATIO: float = 1.0 # amount motor spins/amount wheels turn
+    MAX_MOTOR_SPEED: float = 1.0 # positive, radians/second
+    MOTOR_TICKS_PER_RAD: float = 18000/pi # ticks of motor encoder per radian of motor turn
+    CAN_SETTINGS = CANSettings
+
+class BBWSerialSettings(metaclass=Settings):
+    port: str = '/dev/serial/by-id/{whatever idk}'
+    baudrate: int = 115200
+    timeout: float = 0.05
+
+class BrakingSettings(metaclass=Settings):
+    SERIAL_SETTINGS = BBWSerialSettings
+    PSI_PER_VOLT = 25.0
+    VMAX = 4.7 # max voltage the arduino can output (at PWM duty cycle 255)

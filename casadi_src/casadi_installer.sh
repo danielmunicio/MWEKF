@@ -47,10 +47,8 @@ sudo apt install -y check build-essential python3-dev python3-pip python3-numpy 
 sudo ln -s /usr/bin/python3 /usr/bin/python
 sudo ln -s /usr/bin/cython3 /usr/bin/cython
 
-
 # Triangle library
 python -m pip install triangle
-
 
 ### HSL SOLVERS ###
 git clone https://github.com/coin-or-tools/ThirdParty-HSL.git

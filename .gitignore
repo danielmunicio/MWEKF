@@ -22,3 +22,17 @@ build.log
 casadi_src/*
 !casadi_installer.sh
 !COLCON_IGNORE
+
+# No Virtual Environements
+venv/
+
+global_opt.c
+global_opt.so
+
+# simulator
+eufs_msgs/
+eufs_sim/
+
+*.txt
+
+delta_and_heading

@@ -24,12 +24,15 @@ class LocalOptSettings(metaclass=Settings):
     N: int = 10 # for testing, input 10 pairs of cones to test
     solver: str = 'ipopt'
     solver_opts: dict[str:any] = {
+        # set linear solver
         'ipopt.linear_solver': 'ma57',
+        # expand MX expressions to SX
         'expand': True,
-        # 'ipopt.print_level': 0,
-        # 'ipopt.sb': 'yes',
+        # make ipopt shut up
+        'ipopt.print_level': 0,
+        'ipopt.sb': 'yes',
         'ipopt.ma57_automatic_scaling': 'no',
-        # 'print_time': 0,
+        'print_time': 0,
     }
     # car_params: dict[str:float] = {'l_r': 1.4987, 'l_f':1.5213, 'm': 1.}1.201
     car_params: dict = {'l_r': 0.76, 'l_f':0.76, 'm': 1.}
@@ -82,10 +85,10 @@ class CANSettings(metaclass=Settings):
     bitrate: int = 1000000
 
 class SteeringSettings(metaclass=Settings):
+    CAN_SETTINGS: Settings = CANSettings
     MOTOR_TO_WHEELS_RATIO: float = 1.0 # amount motor spins/amount wheels turn
     MAX_MOTOR_SPEED: float = 10.0 # positive, radians/second
     MOTOR_TICKS_PER_RAD: float = 18000/pi # ticks of motor encoder per radian of motor turn
-    CAN_SETTINGS = CANSettings
 
 class BBWSerialSettings(metaclass=Settings):
     port: str = '/dev/serial/by-id/usb-Arduino__www.arduino.cc__0043_75033303634351C041A1-if00'
@@ -93,6 +96,7 @@ class BBWSerialSettings(metaclass=Settings):
     timeout: float = 0.05
 
 class BrakingSettings(metaclass=Settings):
-    SERIAL_SETTINGS = BBWSerialSettings
-    PSI_PER_VOLT = 25.0
-    VMAX = 4.7 # max voltage the arduino can output (at PWM duty cycle 255)
+    SERIAL_SETTINGS: Settings = BBWSerialSettings
+    VOLTS_PER_PSI: float = 0.0271494 # computed using linear regression on desmos with like 3 datapoints
+    VOLTS_FOR_ZERO_PSI: float = 0.962366 # same regression ^
+    VMAX: float = 4.7 # max voltage the arduino can output (at PWM duty cycle 255)

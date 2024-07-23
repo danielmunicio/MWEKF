@@ -69,7 +69,7 @@ def categorize_edges(tri: Delaunay, yellow_points: List[Tuple[int, int]]) -> Tup
                 green_edges.append(edge)
     return yellow_edges, blue_edges, green_edges
 
-def get_triangles(tri: Delaunay) -> List[List[int, int, int]]:
+def get_triangles(tri: Delaunay) -> List[List[int]]:
     """This function takes a triangulation and returns all the triangles present in the triangulation.
 
     Keyword arguments:
@@ -78,7 +78,7 @@ def get_triangles(tri: Delaunay) -> List[List[int, int, int]]:
     triangles = tri.simplices.tolist()
     return triangles
 
-def count_triangle_occurrences(triangles: List[List[int, int, int]]) -> Dict[Tuple[int, int], int]:
+def count_triangle_occurrences(triangles: List[List[int]]) -> Dict[Tuple[int, int], int]:
     """This function takes a list of triangles and returns a dictionary of how many times and edge appeared in the list of triangles.
 
     Keyword arguments:
@@ -108,7 +108,7 @@ def keys_with_value_of_one(dictionary: Dict[Tuple[int, int], int]) -> List[Tuple
     """
     return [key for key, value in dictionary.items() if value == 1]
 
-def get_edges_from_triangles(triangles: List[List[int, int, int]]) -> List[Tuple[int, int]]:
+def get_edges_from_triangles(triangles: List[List[int]]) -> List[Tuple[int, int]]:
     """This function takes in a list of triangles and returns all the edges that are part of the triangles.
 
     Keyword arguments:
@@ -127,7 +127,7 @@ def get_edges_from_triangles(triangles: List[List[int, int, int]]) -> List[Tuple
     edges_list = list(edges)
     return edges_list
 
-def filter_triangles(tri: Delaunay, points: List[Tuple[int, int]]) ->  List[List[int, int, int]]:
+def filter_triangles(tri: Delaunay, points: List[Tuple[int, int]]) ->  List[List[int]]:
     """This function takes in a triangulation and a list of points 
         and returns a list of triangles whose vertices are all in the specified list of points.
 
@@ -145,7 +145,7 @@ def filter_triangles(tri: Delaunay, points: List[Tuple[int, int]]) ->  List[List
 
 
 def filter_green_triangles(tri: Delaunay, yellow_points: List[Tuple[int, int]], 
-                           blue_points: List[Tuple[int, int]], all_points: List[Tuple[int, int]]) -> List[List[int, int, int]]:
+                           blue_points: List[Tuple[int, int]], all_points: List[Tuple[int, int]]) -> List[List[int]]:
     """This function takes in a triangulation and the list of yellow and blue cones
         and returns a list of triangles whose vertices are in both sets of cones.
 
@@ -168,7 +168,7 @@ def filter_green_triangles(tri: Delaunay, yellow_points: List[Tuple[int, int]],
     return green_triangles
 
 
-def find_boundary_edges(triangles : List[List[int, int, int]]) -> List[Tuple[int, int]]:
+def find_boundary_edges(triangles : List[List[int]]) -> List[Tuple[int, int]]:
     """This function takes in a list of triangles making up a triangulation, and returns the edges that form the boundary of that figure.
 
     Keyword arguments:

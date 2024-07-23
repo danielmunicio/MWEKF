@@ -8,7 +8,7 @@ from itertools import permutations
 from shapely.geometry import Polygon, Point, LineString, MultiLineString, MultiPoint
 from scipy.spatial import Voronoi, voronoi_plot_2d
 from shapely.ops import nearest_points, linemerge
-from TrackMap import graph_from_edges, find_longest_simple_path
+from .TrackMap import graph_from_edges, find_longest_simple_path
 
 def N_point_generator(yellow_multiline: MultiLineString, blue_multiline: MultiLineString, N: int) -> Tuple[List[Tuple[int, int]], List[Tuple[int, int]]]:
     """This function takes a two MultiLineStrings representing the yellow and blue boundaries of the racetrack and 

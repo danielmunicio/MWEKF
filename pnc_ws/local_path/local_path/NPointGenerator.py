@@ -8,7 +8,7 @@ from itertools import permutations
 from shapely.geometry import Polygon, Point, LineString, MultiLineString, MultiPoint
 from scipy.spatial import Voronoi, voronoi_plot_2d
 from shapely.ops import nearest_points, linemerge
-from TrackMap import graph_from_edges, find_longest_simple_path
+from .TrackMap import graph_from_edges, find_longest_simple_path
 
 def N_point_generator(yellow_multiline: MultiLineString, blue_multiline: MultiLineString, N: int) -> Tuple[List[Tuple[int, int]], List[Tuple[int, int]]]:
     """This function takes a two MultiLineStrings representing the yellow and blue boundaries of the racetrack and 
@@ -23,7 +23,7 @@ def N_point_generator(yellow_multiline: MultiLineString, blue_multiline: MultiLi
     # generate N points on the linestrings
     new_yellow_points = generate_N_points(yellow_multiline, N)
     new_blue_points = generate_N_points(blue_multiline, N)
-    
+
     # create Voronoi diagram 
     all_points = new_yellow_points + new_blue_points
     all_vertices = [(p.x, p.y) for p in all_points]
@@ -32,7 +32,7 @@ def N_point_generator(yellow_multiline: MultiLineString, blue_multiline: MultiLi
     # find the medial line
     medial_edges = get_medial_line(yellow_multiline, blue_multiline, vor, new_yellow_points, new_blue_points, N)
     mid_string_points = []
-    
+
     step_size = len(medial_edges)/N
     for i in range(N):
         index = int(round(step_size*i))
@@ -85,7 +85,7 @@ def get_medial_line(yellow_multiline: MultiLineString, blue_multiline:MultiLineS
     # remove extraneous edges from the medial line by finding longest path in the graph
     middle_graph = graph_from_edges(middle_edges)
     longest_path = find_longest_simple_path(middle_graph)
-    
+
     longest_path_edges = []
     for i in range(len(longest_path) - 1):
         current_point = Point(longest_path[i])

@@ -13,8 +13,8 @@ def ConeOrdering(msg: Map):
     Returns:
         tuple[ndarray(2, N), ndarray(2, N), N]: pairs of points on the track boundary
     """
-    # N = GlobalOptSettings.N # get size
-    N = 300
+    N = GlobalOptSettings.N # get size
+    # N = 300
     left, right = (
         np.array([list(msg.left_cones_x), list(msg.left_cones_y)]).T.tolist(),
         np.array([list(msg.right_cones_x), list(msg.right_cones_y)]).T.tolist(),
@@ -22,4 +22,8 @@ def ConeOrdering(msg: Map):
     yellow_edges, blue_edges = find_racetrack(left, right)
     yellow_multiline, blue_multiline = racetrack_to_multiline(yellow_edges, blue_edges)
     leftN_points, rightN_points = N_point_generator(yellow_multiline, blue_multiline, N)
+
+    # convert to lists of lists instead of Point objects
+
+    leftN_points, rightN_points = list(map(lambda p: [p.x, p.y], leftN_points)), list(map(lambda p: [p.x, p.y], rightN_points))
     return leftN_points, rightN_points

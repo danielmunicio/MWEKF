@@ -8,7 +8,7 @@ from all_settings.all_settings import SteeringSettings as settings
 from std_msgs.msg import Float64
 
 class SBWMotorCAN(Node):
-    def __init__(self, bus):
+    def __init__(self, bus: can.ThreadSafeBus):
         super().__init__("sbw_can")
         self.bus = bus
 

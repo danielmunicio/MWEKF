@@ -15,6 +15,7 @@ from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import Pose
 from geometry_msgs.msg import Quaternion, Point
 import matplotlib.pyplot as plt
+from time import sleep
 
 class LocalPath(Node):
     def __init__(self):
@@ -38,7 +39,7 @@ class LocalPath(Node):
         print("constructed solver")
         self.state = [0.,0.,0.,0.]
         print("done")
-        self.fails = 0
+        self.fails = -1
         self.finished = False
     def finished_cb(self, msg: Bool):
         self.finished = True
@@ -61,25 +62,28 @@ class LocalPath(Node):
         #Reverse lists
         left = reverse_left#[::-1]
         right = reverse_right#[::-1]
-        with open("sim_data.txt", "a") as f:
-            print("---------------------------------------------", file = f)
-            print("FROM PNC: ", file =f)
-            print(f"state:\t{self.state}", file = f)
-            print(f"left:\t{left}", file=f)
-            print(f"right:\t{right}", file=f)
-            print("--------------------------------------------", file = f)
-            print(file=f)
+        # with open("sim_data.txt", "a") as f:
+        #     print("---------------------------------------------", file = f)
+        #     print("FROM PNC: ", file =f)
+        #     print(f"state:\t{self.state}", file = f)
+        #     print(f"left:\t{left}", file=f)
+        #     print(f"right:\t{right}", file=f)
+        #     print("--------------------------------------------", file = f)
+        #     print(file=f)
+        print("OK HERE")
         try:
-            
-            res = self.g.solve(left, right, self.state)
+            res = self.g.solve(left, right, self.state, err_ok=(self.fails>-0.5))
             self.fails=0
         except RuntimeError:
             self.fails += 1
-            if self.fails <= 2:
+            if 1 <= self.fails <= 2:
                 return
+        print("ok after solve try/except")
         states, _ = self.g.to_constant_tgrid(0.02, **res)
+        print("ok converting to constant tgrid")
         # states = np.zeros((50, 4))
         path_msg = FebPath()
+        print("ok creating FebPath message")
         path_msg.x = states[:, 0].flatten().tolist()
         path_msg.y = states[:, 1].flatten().tolist()
         path_msg.psi = states[:, 2].flatten().tolist()

@@ -12,7 +12,7 @@ class GlobalOptSettings(metaclass=Settings):
     bbox: dict = {'l': 2.7+1, 'w': 1.6+1}
     DF_MAX: float  =  0.5
     ACC_MIN: float = -3.0
-    ACC_MAX_FN: Union[float, Function] = 2.5
+    ACC_MAX_FN: Union[float, Function] = 2.0
     DF_DOT_MAX: float =  0.5
     V_MIN: float = 0.0
     V_MAX: float = 25.0
@@ -39,11 +39,11 @@ class LocalOptSettings(metaclass=Settings):
     bbox: dict = {'l': 2.7, 'w': 1.6}
     DF_MAX: float  =  0.5
     ACC_MIN: float = -3.0
-    ACC_MAX_FN: Union[float, Function] = 2.5
+    ACC_MAX_FN: Union[float, Function] = 2.0
     DF_DOT_MAX: float =  0.5
     V_MIN: float = 0.0
     V_MAX: float = 10.0
-    FRIC_MAX = 12.0 # float or function
+    FRIC_MAX: Union[float, Function] = 12.0
 
 
 class MPCSettings(metaclass=Settings):

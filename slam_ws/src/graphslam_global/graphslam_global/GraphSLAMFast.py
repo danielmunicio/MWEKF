@@ -1,8 +1,6 @@
-from time import perf_counter
-
 import numpy as np
 import scipy as sp
-
+from typing import Union
 class GraphSLAMFast:
     def __init__(self, x0: np.ndarray = np.array([0., 0.]), maxrows: int = 3000, maxcols: int = 3000, max_landmark_distance: float = 1, dx_weight: float = 2.0, z_weight: float = 1.0):
         """initialize GraphSLAMFast object
@@ -42,13 +40,13 @@ class GraphSLAMFast:
         self.xhat[0, :] = x0
 
     # @profile
-    def update_graph(self, dx: np.ndarray, z: np.ndarray, color: np.ndarray):
-        """update graph
+    def update_graph(self, dx: np.ndarray, z: np.ndarray, color: np.ndarray) -> None:
+        """add edges to the graph corresponding to a movement and new vision data
 
         Args:
             dx (ndarray): difference in position from last update. [dx, dy]
             z (ndarray): measurements to landmakrs. [[zx1, zy1], [zx2, zy2], ..., [zxn, zyn]]
-            _color (ndarray): not implemented yet
+            color (ndarray): categorical array of which color each of the measurements are. Elements should be dtype=np.uint8, or they'll be cast.
         """
         color = color.astype(np.uint8)
         # first add two equations and two variables
@@ -105,7 +103,7 @@ class GraphSLAMFast:
                 self.b[self.z[-1]] = z_c[i, 0]*self.z_weight
                 self.b[self.z[-1]+1] = z_c[i, 1]*self.z_weight
     # @profile
-    def solve_graph(self):
+    def solve_graph(self) -> None:
         """solve graph. does not return results.
         """
         # converting to csr here is much more efficient than using csr to begin with
@@ -123,13 +121,14 @@ class GraphSLAMFast:
         # sure what that does; best guess is something about col/row permutations, which we
         # shouldn't really do since our matrix is already fairly nice
         # use_umfpack=False is necessary because for some reason it doesn't work with ufmpack. likely scipy bug
+        #* also turns out ufmpack breaks local_path for some reason? it has trouble linking to MA57 in codegen after installing
+        #* libsuitesparse-dev, a dependency of scikit-ufmpack
 
         # soln = sp.sparse.linalg.lsqr(A, b)[0]
 
         # x0 = np.zeros(self.nvars)
         # for idx, val in zip(self.x+self.l, np.vstack((self.xhat, self.lhat))):
         #     x0[idx:idx+2] = val
-
         # soln = sp.sparse.linalg.lsqr(A, b, x0=x0)[0]
 
         soln = sp.sparse.linalg.spsolve(A.T@A, A.T@b, permc_spec="NATURAL", use_umfpack=False)
@@ -140,3 +139,9 @@ class GraphSLAMFast:
         # above is MUCH better than these lines because it avoids reallocating
         # self.xhat = np.array([soln[i:i+2] for i in self.x])
         # self.lhat = np.array([soln[i:i+2] for i in self.l])
+
+    def get_cones(self, color: Union[np.uint8, None]) -> np.ndarray:
+        if color is None: return self.lhat
+        return self.lhat[self.color==color]
+    def get_positions(self) -> np.ndarray:
+        return self.xhat

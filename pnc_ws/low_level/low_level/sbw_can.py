@@ -8,7 +8,7 @@ from all_settings.all_settings import SteeringSettings as settings
 from std_msgs.msg import Float64
 
 class SBWMotorCAN(Node):
-    def __init__(self, bus):
+    def __init__(self, bus: can.ThreadSafeBus):
         super().__init__("sbw_can")
         self.bus = bus
 
@@ -16,8 +16,8 @@ class SBWMotorCAN(Node):
         self.cmd_sub = self.create_subscription(Float64, '/control/steer', self.steer_cb, 1)
     
     def create_data(self, angle_ticks):
-        return (bytearray([0xA4, 0x00, 0xf4, 0x01])
-                # +int.to_bytes(int(settings.MAX_MOTOR_SPEED*(180/np.pi)), length=2, byteorder='little', signed=False)
+        return (bytearray([0xA4, 0x00])
+                +int.to_bytes(int(settings.MAX_SPEED*(180/np.pi)), length=2, byteorder='little', signed=False)
                 +int.to_bytes(int(angle_ticks), length=4, byteorder='little', signed=True))
 
     def steer_cb(self, msg: Float64):

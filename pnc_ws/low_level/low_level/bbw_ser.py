@@ -8,19 +8,29 @@ from all_settings.all_settings import BrakingSettings as settings
 from std_msgs.msg import Float64
 
 class BBWSerial(Node):
-    def __init__(self, ser):
+    def __init__(self, ser: serial.Serial):
         super().__init__("bbw_ser")
         self.ser = ser
         #Subscribers
         self.cmd_sub = self.create_subscription(Float64, '/control/throttle', self.brake_callback, 1)
     
-    def get_brake_pressure(self, acceleration):
-        return 0.0 if acceleration > 0 else np.abs(acceleration) # idk some fancy formula here
+    def get_brake_pressure(self, acceleration: float):
+        """get pneumatic pressure to send to BBW in PSI to acheive a given acceleration
+        This is not implemented yet and may/should be adapted to include more information about the car's state.
+
+        Args:
+            acceleration (float): desired acceleration in m/s. Brakes should be activated if this is *negative*!
+
+        Returns:
+            float: brake pressure in PSI
+        """
+        return acceleration
 
     def brake_callback(self, msg: Float64):
-        volts = self.get_brake_pressure(msg.data)/settings.PSI_PER_VOLT
-        duty_cycle = int(round(np.clip(volts, 0, settings.VMAX)*(255/5)))
+        volts = self.get_brake_pressure(msg.data)*settings.VOLTS_PER_PSI + settings.VOLTS_FOR_ZERO_PSI
+        duty_cycle = int(round(np.clip(volts, 0, settings.VMAX)*(255/settings.VMAX)))
         self.ser.write((str(duty_cycle)+"\n").encode())
+        # perhaps implement a serial read here to get the current measured pressure
         
 
 def main(args=None):

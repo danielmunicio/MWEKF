@@ -132,7 +132,7 @@ class CompiledLocalOpt:
 
         #* Dynamics constraints: # Math: F(z_i, u_i, \Delta t_i) == z_{i+1}
         for i in range(0, self.N-1):
-            print(self.z[i, :]);
+            # print(self.z[i, :]);
             self._add_constraint(
                 f'dynamics{i}',
                 g = vec(self.fix_angle(
@@ -333,7 +333,7 @@ class CompiledLocalOpt:
         return np.array(states), np.array(controls)
 
         
-    def solve(self, left, right, curr_state):
+    def solve(self, left, right, curr_state, err_ok=True):
         """crunch the numbers.
 
         Args:
@@ -344,6 +344,9 @@ class CompiledLocalOpt:
         Returns:
             dict: result of solve. keys 'z' (states), 'u' (controls), 't' (timestamps)
         """
+        print(repr(left))
+        print(repr(right))
+        print(repr(curr_state))
         center = (left+right)/2
         diffs = np.diff(center, axis=0)
         diffs = np.concatenate([[[1, 0]], diffs], axis=0)
@@ -367,15 +370,22 @@ class CompiledLocalOpt:
             DM([0.0])         # scalar
         ))
         # print(self.x0, self.x0.shape())
-        print("leo is mean!!!!!")
-        print(DM(curr_state).shape, horzcat(DM(left), DM(right)).shape)
+        # print("leo is mean!!!!!")
+        # print(DM(curr_state).shape, horzcat(DM(left), DM(right)).shape)
+        # print(dict(
+        #     x0=self.x0,
+        #     lbg=self.lbg,
+        #     ubg=self.ubg,
+        #     p=vertcat(DM(curr_state).T, horzcat(DM(left), DM(right))),
+        # ))
         self.soln = self.solver(
             x0=self.x0,
             lbg=self.lbg,
             ubg=self.ubg,
             p=vertcat(DM(curr_state).T, horzcat(DM(left), DM(right))),
         )
-        if not self.solver.stats()['success']:
+        # print("SOLVE FINISHED")
+        if err_ok and not self.solver.stats()['success']:
             raise RuntimeError("Solver failed to converge")
         
         self.soln['x'] = np.array(reshape(self.soln['x'][:-1], (self.N, 10)))

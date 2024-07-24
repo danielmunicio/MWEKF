@@ -1,5 +1,6 @@
 from .Settings import Settings
 from casadi import Function
+import numpy as np
 from numpy import pi
 from typing import Union
 
@@ -69,6 +70,14 @@ class MPCSettings(metaclass=Settings):
     TRACK_SLACK_WEIGHT: float = 5e5
     use_rk_dynamics: bool = False
     solver: str = 'ipopt'
+
+class GraphSLAMFastSettings(metaclass=Settings):
+    x0: np.ndarray = np.array([0.0, 0.0])
+    maxrows: int = int(1e5)
+    maxcols: int = int(1e5)
+    max_landmark_distance: float = 1.5
+    dx_weight: float = 1.0
+    z_weight: float = 5.0
 
 class CANSettings(metaclass=Settings):
     interface: str = 'socketcan'

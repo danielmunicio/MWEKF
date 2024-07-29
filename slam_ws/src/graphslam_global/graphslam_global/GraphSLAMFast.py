@@ -1,29 +1,32 @@
 import numpy as np
 import scipy as sp
 from typing import Union
+
 class GraphSLAMFast:
-    def __init__(self, x0: np.ndarray = np.array([0., 0.]), maxrows: int = 3000, maxcols: int = 3000, max_landmark_distance: float = 1, dx_weight: float = 2.0, z_weight: float = 1.0):
+    def __init__(self, x0: np.ndarray = np.array([0., 0.]), initial_rows: int = 100, initial_cols: int = 100, max_landmark_distance: float = 1, dx_weight: float = 2.0, z_weight: float = 1.0, dclip: float = 2.0, expansion_ratio: float = 1.7):
         """initialize GraphSLAMFast object
 
         Args:
             x0 (np.ndarray, optional): array [x, y] of initial state. Defaults to np.array([0.0, 0.0]).
-            maxrows (int, optional): max number of equations this GraphSLAMFast can store (GraphSLAMFast is not dynamically sized, but it's cheap to make this big). Defaults to 3000.
-            maxcols (int, optional): max number of variables this GraphSLAMFast can store (GraphSLAMFast is not dynamically sized, but it's cheap to make this big). Defaults to 3000.
-            max_landmark_distance (float, optional): how far away landmarks can be from the closest landmark guess before they are recognized as independent. Defaults to 1.
+            initial_rows (int, optional): initial number of equations this GraphSLAMFast can store. Will expand after this is reached. Defaults to 100.
+            initial_cols (int, optional): initial number of variables this GraphSLAMFast can store. Will expand after this is reached. Defaults to 100.
+            max_landmark_distance (float, optional): how far away landmarks can be from the closest landmark guess (AFTER data association optimally translates and rotates the landmarks) before they are recognized as independent. Defaults to 1.
             dx_weight (float, optional): weight (certainty) for odometry measurements. Defaults to 2.0.
             z_weight (float, optional): weight (certainty) for landmark measurements. Defaults to 1.0.
+            dclip (float, optional): distance at which to clip cost function for data association. Defaults to 2.0.
+            expansion_ratio (float, optional): amount by which to grow matrices when we run out of space. Defaults to 1.7.
         """
         self.max_landmark_distance = max_landmark_distance
-        self.maxrows=maxrows
-        self.maxcols=maxcols
+        self.maxrows=initial_rows
+        self.maxcols=initial_cols
         self.dx_weight = dx_weight
         self.z_weight = z_weight
         self.A = sp.sparse.lil_array((self.maxrows, self.maxcols), dtype=np.float64)
         self.b = np.zeros((self.maxcols), np.float64)
-        self.A[0, 0] = self.dx_weight
-        self.A[1, 1] = self.dx_weight
-        self.b[0] = x0[0]*self.dx_weight
-        self.b[1] = x0[1]*self.dx_weight
+        self.A[0, 0] = 1
+        self.A[1, 1] = 1
+        self.b[0] = x0[0]
+        self.b[1] = x0[1]
 
         self.nvars = 2
         self.neqns = 2
@@ -38,17 +41,81 @@ class GraphSLAMFast:
         self.lhat = np.zeros((0, 2))
         self.color = np.zeros(0, dtype=np.uint8)
         self.xhat[0, :] = x0
+        self.dclip = dclip
 
-    # @profile
+    def _transform(self, x: np.ndarray, center: np.ndarray, z: np.ndarray) -> np.ndarray:
+        return (np.array([[np.cos(x[2]), -np.sin(x[2])],
+                          [np.sin(x[2]), np.cos(x[2])]])@((z - center).T)).T + center + x[:2]
+    
+    def data_association(self, z: np.ndarray, color: np.ndarray) -> np.ndarray:
+        """rudimentary data association method that tries to rotate and translate `z` until it optimally lines up with self.lhat
+
+        Args:
+            z (np.ndarray): measurements, in global reference frame
+            color (np.ndarray): color of measurements
+
+        Returns:
+            np.ndarray: measurements, translated and rotated optimally
+        """
+        # center = np.mean(z, axis=0)
+        center = self.xhat[-1, :]
+        
+        uniquecolors = filter(lambda x: np.any(self.color==x), np.unique(color))
+        filters = [(self.lhat[self.color==c], color==c) for c in uniquecolors]
+
+        # zprime = np.empty(z.shape)
+        
+        def cost(x: np.ndarray) -> float:
+            """cost function for data association optimization. computes sum of squared distances from each measurement to each point, capped at self.dclip**2. This way further away landmarks don't have an effect.
+
+            Args:
+                x (np.ndarray): array of [x shift, y shift, rotation angle]
+
+            Returns:
+                float: cost of this x
+            """
+            zprime = self._transform(x, center, z)
+            return sum(
+                np.sum(
+                    np.clip(
+                        np.sum(np.square(zprime[filt, np.newaxis]-lhat), axis=2),
+                        a_min=None, 
+                        a_max=self.dclip**2,
+                    )
+                ) for (lhat, filt) in filters
+            )
+
+        res = sp.optimize.minimize(cost, x0=np.zeros(3), jac="2-point", options={"maxiter": 10}, tol=1e-3) 
+
+        return self._transform(res.x, center, z)
+
+
+
+
+    
     def update_graph(self, dx: np.ndarray, z: np.ndarray, color: np.ndarray) -> None:
         """add edges to the graph corresponding to a movement and new vision data
 
         Args:
             dx (ndarray): difference in position from last update. [dx, dy]
-            z (ndarray): measurements to landmakrs. [[zx1, zy1], [zx2, zy2], ..., [zxn, zyn]]
+            z (ndarray): measurements to landmarks. [[zx1, zy1], [zx2, zy2], ..., [zxn, zyn]]
             color (ndarray): categorical array of which color each of the measurements are. Elements should be dtype=np.uint8, or they'll be cast.
         """
         color = color.astype(np.uint8)
+        # resize = (self.neqns, self.nvars)
+        cols = self.nvars + 2 + len(z)*2 > self.maxcols
+        rows = self.neqns + 2 + len(z)*2 > self.maxrows
+        if rows or cols:
+            if cols: 
+                self.maxcols = int(self.maxcols*1.5)
+            if rows: 
+                self.maxrows = int(self.maxrows*1.5)
+                self.b = np.append(self.b, np.zeros(self.maxrows-len(self.b)))
+                # self.b = np.pad(self.b, self.maxrows-len(self.b), constant_values=0.0, mode='constant')
+                
+            
+            self.A.resize((self.maxrows, self.maxcols))
+            
         # first add two equations and two variables
         # for the next position and the dx
         self.x.append(self.nvars)
@@ -66,20 +133,28 @@ class GraphSLAMFast:
         # now add the guess for this position to xhat
         self.xhat = np.append(self.xhat, self.xhat[-1:, :] + dx, axis=0)
 
+
         # now do data association
         # to find the which landmarks correspond
         # to which measurements
 
+        # first we try to rotate and translate z
+        # so that it best lines up with the cones
+        # we've already seen
+        zprime = self.data_association(z+self.xhat[-1, :], color)
+        # zprime = z+self.xhat[-1, :]
+        # then we can check which cones are closest and which are within/outside
+        # of the max landmark distance
+        
         # dists has one row per measurement and one column for each landmark
         # can probably do this faster if we norm at the same time as broadcasting but can't do that easily
         for c in np.unique(color):
-            z_c = z[color==c]
-            # selfz_c = self.z[self.color==c]
-            dists = np.linalg.norm((self.xhat[-1, :]+z_c)[:, np.newaxis, :] - self.lhat[self.color==c], axis=2)
+            z_c = zprime[color==c]
             if len(self.lhat[self.color==c])==0:
                 l_idxs=np.zeros(len(z_c), dtype=int)
                 l_dists=np.zeros(len(z_c))+np.Inf
             else:
+                dists = np.linalg.norm(z_c[:, np.newaxis, :] - self.lhat[self.color==c], axis=2)
                 l_idxs = np.argmin(dists, axis=1)
                 l_dists = np.min(dists, axis=1)
             
@@ -88,7 +163,7 @@ class GraphSLAMFast:
                 if l_dists[i] > self.max_landmark_distance:
                     self.l.append(self.nvars)
                     self.nvars += 2
-                    self.lhat = np.append(self.lhat, self.xhat[-1, :]+z_c[i][np.newaxis], axis=0)
+                    self.lhat = np.append(self.lhat, z[color==c][i][np.newaxis], axis=0)
                     self.color = np.append(self.color, c)
                     l_idxs[i] = np.sum(self.color==c)-1 # len(self.l[self.color==c])-1  but self.l is a list so not bool mask indexable
 
@@ -100,9 +175,9 @@ class GraphSLAMFast:
                 self.A[self.z[-1]+1, l[l_idxs[i]]+1] = self.z_weight
                 self.A[self.z[-1], self.x[-1]] = -self.z_weight
                 self.A[self.z[-1]+1, self.x[-1]+1] = -self.z_weight
-                self.b[self.z[-1]] = z_c[i, 0]*self.z_weight
-                self.b[self.z[-1]+1] = z_c[i, 1]*self.z_weight
-    # @profile
+                self.b[self.z[-1]] = z[color==c][i, 0]*self.z_weight
+                self.b[self.z[-1]+1] = z[color==c][i, 1]*self.z_weight
+    
     def solve_graph(self) -> None:
         """solve graph. does not return results.
         """
@@ -145,3 +220,4 @@ class GraphSLAMFast:
         return self.lhat[self.color==color]
     def get_positions(self) -> np.ndarray:
         return self.xhat
+        

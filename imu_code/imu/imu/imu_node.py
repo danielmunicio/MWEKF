@@ -8,6 +8,7 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Imu 
 from geometry_msgs.msg import Vector3 
+from geometry_msgs.msg import Quaternion
 
 def temperature():
     global last_val  # pylint: disable=global-statement
@@ -32,10 +33,6 @@ class ImuNode(Node):
         i2c = board.I2C()  # uses board.SCL and board.SDA
         # i2c = board.STEMMA_I2C()  # For using the built-in STEMMA QT connector on a microcontroller
         sensor = adafruit_bno055.BNO055_I2C(i2c)
-        print('Hi from imu.')
-        # If you are going to use UART uncomment these lines
-        # uart = board.UART()
-        # sensor = adafruit_bno055.BNO055_UART(uart)
 
         last_val = 0xFFFF
 
@@ -56,6 +53,13 @@ class ImuNode(Node):
             vector.y = cur_acc[1]
             vector.z = cur_acc[2]
             msg.linear_acceleration = vector
+            orientation = Quaternion()
+            orientation.x = sensor.quaternion[0]
+            orientation.y = sensor.quaternion[1]
+            orientation.z = sensor.quaternion[2]
+            orientation.w = sensor.quaternion[3]
+            msg.header.stamp.sec, msg.header.stamp.nanosec = self.get_clock().now().seconds_nanoseconds()
+            msg.orientation = orientation
             self.imu_publisher.publish(msg)
 
 def main(args=None): 

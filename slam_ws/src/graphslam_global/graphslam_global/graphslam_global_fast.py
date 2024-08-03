@@ -184,6 +184,8 @@ class GraphSLAM_Global(Node):
     Output: timediff: float
     """
     def compute_timediff(self, header: Header) -> float:
+        print("Seconds: ", header.stamp.sec)
+        print("NanoSeconds: ", header.stamp.nanosec)
         newtime = header.stamp.sec + 1e-9 * header.stamp.nanosec
         timediff = newtime - self.statetimestamp
         self.statetimestamp = newtime
@@ -200,7 +202,7 @@ class GraphSLAM_Global(Node):
     Output: roll, pitch, yaw
     #NOTE: roll and pitch are irrelevant as of now, we only care about heading angle (pitch)
     """
-    def quat_to_euler(self, quat: Quaternion) -> tuple[float, float, float]:
+    def quat_to_euler(self, quat):#: Quaternion) -> tuple[float, float, float]:
         x = quat.x
         y = quat.y
         z = quat.z
@@ -229,7 +231,8 @@ class GraphSLAM_Global(Node):
         longitudinal_acc = acc.x
         # lateral_acc = acc.y # May be needed in the future if  
         #                       straightline model is not accurate enough
-
+        print("Acceleration: ", longitudinal_acc)
+        print("dt: ", dt)
         linear_velocity = longitudinal_acc * dt
         return linear_velocity
 
@@ -273,6 +276,9 @@ class GraphSLAM_Global(Node):
     - float64[9] angular_velocity_covariance
     - geometry_msgs/Vector3 linear_acceleration
     - float64[9] linear_acceleration_covariance
+
+    Note: Depending on whether or not we are using wheel speeds for velocity,
+    we should delete the integration of the linear acceleration. 
     """
 
     def imu_callback(self, imu: Imu) -> None:
@@ -287,9 +293,9 @@ class GraphSLAM_Global(Node):
         roll, pitch, yaw = self.quat_to_euler(imu.orientation)
 
         # generate current velocity
-        # delta_velocity = self.compute_delta_velocity(imu.linear_acceleration, dt)
-        # velocity = self.currentstate.velocity + delta_velocity
-        # self.currentstate.velocity = velocity
+        delta_velocity = self.compute_delta_velocity(imu.linear_acceleration, dt)
+        velocity = self.currentstate.velocity + delta_velocity
+        self.currentstate.velocity = velocity
 
         # for now, we assume velocity is in the direction of heading
         # generate dx [change in x, change in y] to add new pose to graph
@@ -320,7 +326,7 @@ class GraphSLAM_Global(Node):
  
         pose_msg.header.frame_id = "map"
         pose_msg.header.stamp = self.get_clock().now().to_msg()
- 
+        print("Velocity!", self.currentstate.velocity)
         self.pose_pub.publish(pose_msg)
 
         ## Show Estimated Pose END 

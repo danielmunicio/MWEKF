@@ -87,7 +87,9 @@ class CANSettings(metaclass=Settings):
 class SteeringSettings(metaclass=Settings):
     CAN_SETTINGS: Settings = CANSettings
     MOTOR_TO_WHEELS_RATIO: float = 1.0 # amount motor spins/amount wheels turn
-    MAX_MOTOR_SPEED: float = 10.0 # positive, radians/second
+    MAX_MOTOR_POS: float = np.pi/4.0 # positive radians, furthest distance from zero (max travel/2)
+    MAX_MOTOR_SPEED: float = 50.0 # positive, radians/second
+    MAX_MOTOR_ACC: float = 1000.0 # positive, radians/second/second
     MOTOR_TICKS_PER_RAD: float = 18000/pi # ticks of motor encoder per radian of motor turn
 
 class BBWSerialSettings(metaclass=Settings):

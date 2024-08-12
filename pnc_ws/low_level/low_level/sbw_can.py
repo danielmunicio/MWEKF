@@ -14,12 +14,16 @@ class SBWMotorCAN(Node):
 
         #Subscribers
         self.cmd_sub = self.create_subscription(Float64, '/control/steer', self.steer_cb, 1)
+<<<<<<< HEAD
         self.msg = lambda data: can.Message(
             arbitration_id=0x141,
             is_extended_id=False,
             dlc=8,
             data=data,
         )
+=======
+    
+>>>>>>> e57b6131526867257156bfc7d5ca599c0f043a79
     def create_data(self, angle_ticks):
         return (bytearray([0xA4, 0x00])
                 +int.to_bytes(int(settings.MAX_MOTOR_SPEED*(180/np.pi)), length=2, byteorder='little', signed=False)
@@ -45,10 +49,13 @@ class SBWMotorCAN(Node):
         self.bus.send(acc_msg)
         self.bus.send(dec_msg)
         print(acc+limit)
+<<<<<<< HEAD
     def set_zero_pos(self)
         self.bus.send(self.msg(bytearray([0x64, 0, 0, 0, 0, 0, 0, 0])))
         self.bus.send(self.msg(bytearray([0x76, 0, 0, 0, 0, 0, 0, 0])))
         sleep(0.2)
+=======
+>>>>>>> e57b6131526867257156bfc7d5ca599c0f043a79
     def steer_cb(self, msg: Float64):
         assert np.abs(msg.data) < settings.MAX_MOTOR_POS, f"steering angle too big: must be less than {settings.MAX_MOTOR_POS:.3f} but got {msg.data:.3f}."
         angle_ticks = int(msg.data
@@ -64,14 +71,21 @@ class SBWMotorCAN(Node):
             data=self.create_data(angle_ticks),
         )
         self.bus.send(msg)
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> e57b6131526867257156bfc7d5ca599c0f043a79
 
 def main(args=None):
     rclpy.init(args=args)
     with can.ThreadSafeBus(**settings.CAN_SETTINGS) as bus:
         sbw_can_node = SBWMotorCAN(bus)
         sbw_can_node.set_acc_limits()
+<<<<<<< HEAD
         sbw_can_node.set_zero_pos()
+=======
+>>>>>>> e57b6131526867257156bfc7d5ca599c0f043a79
         rclpy.spin(sbw_can_node)
         rclpy.shutdown()
 

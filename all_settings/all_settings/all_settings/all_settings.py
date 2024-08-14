@@ -87,11 +87,7 @@ class CANSettings(metaclass=Settings):
 class SteeringSettings(metaclass=Settings):
     CAN_SETTINGS: Settings = CANSettings
     MOTOR_TO_WHEELS_RATIO: float = 1.0 # amount motor spins/amount wheels turn
-<<<<<<< HEAD
     MAX_MOTOR_POS: float = 1.35 # positive radians, furthest distance from zero (max travel/2)
-=======
-    MAX_MOTOR_POS: float = np.pi/4.0 # positive radians, furthest distance from zero (max travel/2)
->>>>>>> e57b6131526867257156bfc7d5ca599c0f043a79
     MAX_MOTOR_SPEED: float = 50.0 # positive, radians/second
     MAX_MOTOR_ACC: float = 1000.0 # positive, radians/second/second
     MOTOR_TICKS_PER_RAD: float = 18000/pi # ticks of motor encoder per radian of motor turn
@@ -105,8 +101,4 @@ class BrakingSettings(metaclass=Settings):
     SERIAL_SETTINGS: Settings = BBWSerialSettings
     VOLTS_PER_PSI: float = 0.0271494 # computed using linear regression on desmos with like 3 datapoints
     VOLTS_FOR_ZERO_PSI: float = 0.962366 # same regression ^
-<<<<<<< HEAD
     VMAX: float = 4.7 # max voltage the arduino can output (at PWM duty cycle 255)
-=======
-    VMAX: float = 4.7 # max voltage the arduino can output (at PWM duty cycle 255)
->>>>>>> e57b6131526867257156bfc7d5ca599c0f043a79

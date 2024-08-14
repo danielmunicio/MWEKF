@@ -22,6 +22,8 @@ setup(
         'console_scripts': [
             'sbw_can = low_level.sbw_can:main',
             'bbw_ser = low_level.bbw_ser:main',
+            'sbw_tester = low_level.sbw_tester:main',
+            'bbw_tester = low_level.bbw_tester:main',
         ],
     },
 )

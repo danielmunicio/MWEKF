@@ -3,6 +3,7 @@ from .GraphSLAMFast import GraphSLAMFast
 from all_settings.all_settings import GraphSLAMFastSettings as settings
 from time import perf_counter
 import math
+import time
 # from numpy.random import random, randn
 
 import rclpy
@@ -135,7 +136,7 @@ class GraphSLAM_Global(Node):
         self.local_map = Map()
         self.LPKRDSM = 4 # LaP oK RaDiuS (Meters)
         self.is_clear_of_lap_count_radius = False
-
+        self.time = time.time()
         # radius for which to include local cones ---#UPDATE, perhaps from mpc message
         self.local_radius = 100000 
         
@@ -438,10 +439,17 @@ class GraphSLAM_Global(Node):
         #self.slam.update_backlog_perception(cone_matrix)
         #if (self.solving):
         #    return
-        if np.linalg.norm(self.last_slam_update-np.array([self.currentstate.x, self.currentstate.y])) > 1.0:
+        #if np.linalg.norm(self.last_slam_update-np.array([self.currentstate.x, self.currentstate.y])) > 2:
+            #self.slam.update_graph(np.array([self.currentstate.x, self.currentstate.y])-self.last_slam_update if self.last_slam_update[0]<999999999.0 else np.array([0.0, 0.0]), cartesian_cones[:, :2], cartesian_cones[:, 2].flatten()) # old pre-ros threading
+            #print(cartesian_cones.T.shape)
+            #self.last_slam_update = np.array([self.currentstate.x, self.currentstate.y])
+
+        if (self.time - time.time() > 10000):
             self.slam.update_graph(np.array([self.currentstate.x, self.currentstate.y])-self.last_slam_update if self.last_slam_update[0]<999999999.0 else np.array([0.0, 0.0]), cartesian_cones[:, :2], cartesian_cones[:, 2].flatten()) # old pre-ros threading
             print(cartesian_cones.T.shape)
             self.last_slam_update = np.array([self.currentstate.x, self.currentstate.y])
+            self.time = time.time()
+            print("UPDATING STATE")
         else:
             return
         #self.slam.update_graph_color(perception_backlog_imu, perception_backlog_cones)

@@ -50,12 +50,10 @@ class ConeNode(Node):
         cones_msg = Cones()
         cones_msg.header.stamp = self.get_clock().now().to_msg()
         cone = cd.find_distances(img, self.model)
-        classes = [row[0] for row in cone]
-        distances = [row[1] for row in cone]
-        angles = [row[2] for row in cone]
-        print(classes)
-        print(distances)
-        print(angles)
+        classes = [int(row[0]) for row in cone]
+        distances = [row[1].data for row in cone]
+        angles = [row[2].data for row in cone]
+        print("CLASSES: ", classes)
         cones_msg.r = distances
         cones_msg.theta = angles
         cones_msg.color = classes
@@ -75,4 +73,3 @@ def main():
     rclpy.shutdown()
 if __name__ == "__main__":
     main()
-

@@ -10,7 +10,7 @@ class CameraPublisher(Node):
         super().__init__('camera_publisher')
         self.image_publisher = self.create_publisher(Image, '/sensors/camera/image_color', 10)
         self.info_publisher = self.create_publisher(CameraInfo, '/sensors/camera/camera_info', 10)
-        self.cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
+        self.cap = cv2.VideoCapture(2, cv2.CAP_V4L2)
         while True: 
             ret, frame = self.cap.read()
             if ret:

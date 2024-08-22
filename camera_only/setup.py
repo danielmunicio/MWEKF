@@ -20,7 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'image_processor = camera_only.cone_node:main'
+            'image_processor = camera_only.camera_node:main'
         ],
     },
 )

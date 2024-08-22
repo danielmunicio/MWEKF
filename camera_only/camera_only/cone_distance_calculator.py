@@ -5,21 +5,31 @@ import math
 import numpy as np
 from ultralytics import YOLO
 from std_msgs.msg import Float64
+from feb_msgs.msg import Cones
 
-ps4_camera_focal_length = 141.87108848209382
+
+
+
+#ps4_camera_focal_length = 141.87108848209382
+ps4_camera_focal_length = 93.218
 def bounding_box(img, model):
         # Convert the image to RGB format
         image_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         # Run prediction using model on image
+
+        # Temproarily removed by daniel and sri 
         results = model(image_rgb)
+
+        # results = model.predict(source='CAMERA_JULY_48_IN.png', save=True, save_txt=True)
         # Get the bounding boxes and confidence scores
         boxes = results[0].boxes.xyxy.cpu().numpy()
         conf = results[0].boxes.conf.tolist()
         classes = results[0].boxes.cls.tolist()
-
+        
+        
         # Go through all confidences and remove low confidences
         for i in range(len(conf)-1, -1, -1):
-            if conf[i] < 0.4:
+            if conf[i] < 0.6:
                 boxes = np.delete(boxes, i, axis=0)
                 conf = np.delete(conf, i)
                 classes = np.delete(classes, i)
@@ -52,9 +62,13 @@ def find_distances(img, model):
         distance_per_pixel = (cone_height / object_height_px)
         distance_from_center = distance_per_pixel * diff_from_center
         angle = math.atan2(distance_from_center, distance)
-        cone.append(classes[i])
-        cone.append(Float64(data=distance/25.4))
-        cone.append(Float64(data=angle))
+        if (distance > 1000000): 
+            continue
+        if (distance < -1): 
+            continue
+        cone.append(int (classes[i]))
+        cone.append(distance/25.4)
+        cone.append(angle)
         cones.append(cone)
     return cones
 
@@ -65,9 +79,9 @@ def find_display(img, model):
         cone = []
         cone.append([int(i) for i in bboxes[i]])
         object_height_px = bboxes[i][3] - bboxes[i][1]
-        focalLength = 24
+        focalLength = ps4_camera_focal_length
         cone_height = 12*25.4 # 12 inches * 25.4 to convert to mm
-        sensor_height = 14.4
+        sensor_height = 9.125 * 25.4
         image_height = img.shape[0]
         distance = distance_to_camera(focalLength,cone_height,image_height,object_height_px,sensor_height)
         #cone.append(classes[i])
@@ -161,3 +175,4 @@ def process_webcam(model):
 
     # Close all OpenCV windows
     cv2.destroyAllWindows()
+    

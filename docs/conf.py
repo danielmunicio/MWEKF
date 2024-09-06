@@ -24,7 +24,8 @@ release = 'Mk. S'
 extensions = [
         'sphinx.ext.autodoc',
         'sphinx.ext.napoleon',
-        'sphinx.ext.viewcode'
+        'sphinx.ext.viewcode', 
+        'sphinx_ros'
         ]
 
 templates_path = ['_templates']

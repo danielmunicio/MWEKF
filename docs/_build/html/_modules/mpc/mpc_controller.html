@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>mpc.mpc_controller &mdash; Pipeline 131 Mk. S documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+        <script src="../../_static/documentation_options.js?v=e97658a3"></script>
+        <script src="../../_static/doctools.js?v=9a2dae69"></script>
+        <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../index.html" class="icon icon-home"> Pipeline 131
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">graphslam_global</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Pipeline 131</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+      <li>mpc.mpc_controller</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for mpc.mpc_controller</h1><div class="highlight"><pre>
+<span></span><span class="c1"># XY Nonlinear Kinematic MPC Module.</span>
+
+<span class="c1"># General Imports</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">import</span> <span class="nn">casadi</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">.controller</span> <span class="kn">import</span> <span class="n">Controller</span>
+<span class="kn">from</span> <span class="nn">.utils</span> <span class="kn">import</span> <span class="n">discrete_dynamics</span>
+<span class="kn">from</span> <span class="nn">.utils</span> <span class="kn">import</span> <span class="n">get_update_dict</span>
+<span class="kn">from</span> <span class="nn">all_settings.all_settings</span> <span class="kn">import</span> <span class="n">MPCSettings</span>
+<span class="kn">from</span> <span class="nn">ackermann_msgs.msg</span> <span class="kn">import</span> <span class="n">AckermannDriveStamped</span>
+<span class="kn">from</span> <span class="nn">eufs_msgs.msg</span> <span class="kn">import</span> <span class="n">WheelSpeeds</span>
+
+<span class="c1"># ROS Imports</span>
+<span class="kn">import</span> <span class="nn">rclpy</span>
+<span class="kn">from</span> <span class="nn">rclpy.node</span> <span class="kn">import</span> <span class="n">Node</span>
+<span class="kn">from</span> <span class="nn">std_msgs.msg</span> <span class="kn">import</span> <span class="n">Float64</span>
+<span class="kn">from</span> <span class="nn">.triangles_track_constraints</span> <span class="kn">import</span> <span class="n">get_g_triangulation</span>
+
+<span class="kn">from</span> <span class="nn">sensor_msgs.msg</span> <span class="kn">import</span> <span class="n">PointCloud</span>
+<span class="kn">from</span> <span class="nn">geometry_msgs.msg</span> <span class="kn">import</span> <span class="n">Point32</span>
+<span class="kn">from</span> <span class="nn">feb_msgs.msg</span> <span class="kn">import</span> <span class="n">State</span><span class="p">,</span> <span class="n">FebPath</span>
+
+<div class="viewcode-block" id="KinMPCPathFollower">
+<a class="viewcode-back" href="../../mpc.html#mpc.mpc_controller.KinMPCPathFollower">[docs]</a>
+<span class="k">class</span> <span class="nc">KinMPCPathFollower</span><span class="p">(</span><span class="n">Controller</span><span class="p">,</span> <span class="n">Node</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> 
+                 <span class="n">N</span>          <span class="o">=</span> <span class="mi">10</span><span class="p">,</span>     <span class="c1"># timesteps in MPC Horizon</span>
+                 <span class="n">DT</span>         <span class="o">=</span> <span class="mf">0.2</span><span class="p">,</span>    <span class="c1"># discretization time between timesteps (s)</span>
+                 <span class="n">L_F</span>        <span class="o">=</span> <span class="mf">1.5213</span><span class="p">,</span> <span class="c1"># distance from CoG to front axle (m)</span>
+                 <span class="n">L_R</span>        <span class="o">=</span> <span class="mf">1.4987</span><span class="p">,</span> <span class="c1"># distance from CoG to rear axle (m)</span>
+                 <span class="n">V_MIN</span>      <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>    <span class="c1"># min/max velocity constraint (m/s)</span>
+                 <span class="n">V_MAX</span>      <span class="o">=</span> <span class="mf">25.0</span><span class="p">,</span>     
+                 <span class="n">A_MIN</span>      <span class="o">=</span> <span class="o">-</span><span class="mf">3.0</span><span class="p">,</span>   <span class="c1"># min/max acceleration constraint (m/s^2)</span>
+                 <span class="n">A_MAX</span>      <span class="o">=</span>  <span class="mf">2.0</span><span class="p">,</span>     
+                 <span class="n">DF_MIN</span>     <span class="o">=</span> <span class="o">-</span><span class="mf">0.5</span><span class="p">,</span>   <span class="c1"># min/max front steer angle constraint (rad)</span>
+                 <span class="n">DF_MAX</span>     <span class="o">=</span>  <span class="mf">0.5</span><span class="p">,</span>    
+                 <span class="n">A_DOT_MIN</span>  <span class="o">=</span> <span class="o">-</span><span class="mf">1.5</span><span class="p">,</span>   <span class="c1"># min/max jerk constraint (m/s^3)</span>
+                 <span class="n">A_DOT_MAX</span>  <span class="o">=</span>  <span class="mf">1.5</span><span class="p">,</span>
+                 <span class="n">DF_DOT_MIN</span> <span class="o">=</span> <span class="o">-</span><span class="mf">0.5</span><span class="p">,</span>   <span class="c1"># min/max front steer angle rate constraint (rad/s)</span>
+                 <span class="n">DF_DOT_MAX</span> <span class="o">=</span>  <span class="mf">0.5</span><span class="p">,</span> 
+                 <span class="n">Q</span> <span class="o">=</span> <span class="p">[</span><span class="mf">1.</span><span class="p">,</span> <span class="mf">1.</span><span class="p">,</span> <span class="mf">10.</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">],</span> <span class="c1"># weights on x, y, psi, and v.</span>
+                 <span class="n">R</span> <span class="o">=</span> <span class="p">[</span><span class="mf">10.</span><span class="p">,</span> <span class="mf">100.</span><span class="p">],</span>        <span class="c1"># weights on *change in* drive and steering</span>
+                 <span class="n">F</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">0.</span><span class="p">,</span> <span class="mf">0.</span><span class="p">,</span> <span class="mf">10.</span><span class="p">],</span>  <span class="c1"># final state weights</span>
+                 <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Initializes KinMPCPathFollower object</span>
+
+<span class="sd">        Arguments: see above</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+
+        <span class="c1"># Go through all arguments and set to class attributes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="nb">locals</span><span class="p">()):</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="o">==</span> <span class="s1">&#39;self&#39;</span><span class="p">:</span>
+                <span class="k">pass</span>
+            <span class="k">elif</span> <span class="n">key</span> <span class="ow">in</span> <span class="s1">&#39;QRF&#39;</span><span class="p">:</span> 
+                <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">casadi</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="nb">locals</span><span class="p">()[</span><span class="n">key</span><span class="p">]))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="nb">locals</span><span class="p">()[</span><span class="n">key</span><span class="p">])</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">TRACK_SLACK_WEIGHT</span> <span class="o">=</span> <span class="mf">5e5</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">use_rk_dynamics</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">solver</span> <span class="o">=</span> <span class="s1">&#39;ipopt&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">opti</span> <span class="o">=</span> <span class="n">casadi</span><span class="o">.</span><span class="n">Opti</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">global_path</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">local_path</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">curr_steer</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">curr_acc</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">global_path</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">global_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_path</span>
+        <span class="c1"># self.path = np.array([[1.0, 0.0]*100])</span>
+
+        <span class="c1">### START - ROS Integration Code ###</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="s1">&#39;mpc_node&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Subscribers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">curr_steer_sub</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_subscription</span><span class="p">(</span><span class="n">Float64</span><span class="p">,</span> <span class="s1">&#39;/ground_truth/wheel_speeds&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">steer_callback</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">curr_acc_sub</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_subscription</span><span class="p">(</span><span class="n">Float64</span><span class="p">,</span> <span class="s1">&#39;/odometry/wss&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">acc_callback</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> 
+        <span class="bp">self</span><span class="o">.</span><span class="n">global_path_sub</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_subscription</span><span class="p">(</span><span class="n">FebPath</span><span class="p">,</span> <span class="s1">&#39;/path/global&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">global_path_callback</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">local_path_sub</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_subscription</span><span class="p">(</span><span class="n">FebPath</span><span class="p">,</span> <span class="s1">&#39;/path/local&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_path_callback</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">state_sub</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_subscription</span><span class="p">(</span><span class="n">State</span><span class="p">,</span> <span class="s1">&#39;/slam/state&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">state_callback</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        
+        <span class="c1"># Publishers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">throttle_pub</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_publisher</span><span class="p">(</span><span class="n">Float64</span><span class="p">,</span> <span class="s1">&#39;/control/throttle&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">steer_pub</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_publisher</span><span class="p">(</span><span class="n">Float64</span><span class="p">,</span> <span class="s1">&#39;/control/steer&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">control_pub</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_publisher</span><span class="p">(</span><span class="n">AckermannDriveStamped</span><span class="p">,</span> <span class="s1">&#39;cmd&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pointcloud_pub</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_publisher</span><span class="p">(</span><span class="n">PointCloud</span><span class="p">,</span> <span class="s1">&#39;/mpc/viz&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+        <span class="c1">### END - ROS Integration Code ###</span>
+
+<span class="w">        </span><span class="sd">&#39;&#39;&#39; </span>
+<span class="sd">        (1) Parameters</span>
+<span class="sd">        &#39;&#39;&#39;</span>        
+        <span class="bp">self</span><span class="o">.</span><span class="n">u_prev</span>  <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">parameter</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span> <span class="c1"># previous input: [u_{acc, -1}, u_{df, -1}]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">z_curr</span>  <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">parameter</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span> <span class="c1"># current state:  [x_0, y_0, psi_0, v_0]</span>
+
+        <span class="c1"># Reference trajectory we would like to follow.</span>
+        <span class="c1"># First index corresponds to our desired state at timestep k+1:</span>
+        <span class="c1">#   i.e. z_ref[0,:] = z_{desired, 1}.</span>
+        <span class="c1"># Second index selects the state element from [x_k, y_k, psi_k, v_k].</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">z_ref</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">parameter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">x_ref</span>   <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">z_ref</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y_ref</span>   <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">z_ref</span><span class="p">[:,</span><span class="mi">1</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">psi_ref</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">z_ref</span><span class="p">[:,</span><span class="mi">2</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">v_ref</span>   <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">z_ref</span><span class="p">[:,</span><span class="mi">3</span><span class="p">]</span>
+
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        (2) Decision Variables</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="c1"># Actual trajectory we will follow given the optimal solution.</span>
+        <span class="c1"># First index is the timestep k, i.e. self.z_dv[0,:] is z_0.        </span>
+        <span class="c1"># It has self.N+1 timesteps since we go from z_0, ..., z_self.N.</span>
+        <span class="c1"># Second index is the state element, as detailed below.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">z_dv</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">variable</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+    
+        <span class="bp">self</span><span class="o">.</span><span class="n">x_dv</span>   <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">z_dv</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y_dv</span>   <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">z_dv</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">psi_dv</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">z_dv</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">v_dv</span>   <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">z_dv</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">]</span>
+
+        <span class="c1"># Control inputs used to achieve self.z_dv according to dynamics.</span>
+        <span class="c1"># First index is the timestep k, i.e. self.u_dv[0,:] is u_0.</span>
+        <span class="c1"># Second index is the input element as detailed below.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">u_dv</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">variable</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">acc_dv</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">u_dv</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">df_dv</span>  <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">u_dv</span><span class="p">[:,</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="c1"># Slack variables used to relax input rate and track constraints.</span>
+        <span class="c1"># Matches self.u_dv in structure but timesteps range from -1, ..., N-1.</span>
+        <span class="c1"># then another row for track constraints.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sl_dv</span>  <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">variable</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span> <span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">sl_acc_dv</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sl_dv</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sl_df_dv</span>  <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sl_dv</span><span class="p">[:,</span><span class="mi">1</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sl_tr_dv</span>  <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sl_dv</span><span class="p">[:,</span><span class="mi">2</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">constraint_added</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="c1"># Keep track of previous solution for updates</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prev_soln</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fix_angle</span> <span class="o">=</span> <span class="n">casadi</span><span class="o">.</span><span class="n">Function</span><span class="p">(</span><span class="s1">&#39;fix_angle&#39;</span><span class="p">,</span> <span class="p">[</span><span class="n">x</span><span class="o">:=</span><span class="n">casadi</span><span class="o">.</span><span class="n">MX</span><span class="o">.</span><span class="n">sym</span><span class="p">(</span><span class="s2">&quot;x&quot;</span><span class="p">,</span> <span class="mi">4</span><span class="p">)],</span> <span class="p">[</span><span class="n">casadi</span><span class="o">.</span><span class="n">horzcat</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:],</span> <span class="n">casadi</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="p">:]</span><span class="o">/</span><span class="mi">2</span><span class="p">),</span> <span class="n">x</span><span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="p">:])])</span>
+
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        (3) Problem Setup: Constraints, Cost, Initial Solve</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_add_constraints</span><span class="p">()</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">_add_cost</span><span class="p">()</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">_update_initial_condition</span><span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">0.</span><span class="p">,</span> <span class="mf">0.</span><span class="p">,</span> <span class="mf">1.</span><span class="p">)</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">_update_reference</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">DT</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">)],</span>
+                              <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="o">*</span><span class="p">[</span><span class="mf">0.</span><span class="p">],</span> 
+                              <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="o">*</span><span class="p">[</span><span class="mf">0.</span><span class="p">],</span> 
+                              <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="o">*</span><span class="p">[</span><span class="mf">1.</span><span class="p">])</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">_update_previous_input</span><span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">0.</span><span class="p">)</span>
+        
+        <span class="c1"># Ipopt with custom options: https://web.casadi.org/docs/ -&gt; see sec 9.1 on Opti stack.</span>
+        <span class="c1"># idk where to get info on worhp options</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">p_opts</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;expand&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="c1"># can only expand to sx if not using interpolant </span>
+            <span class="c1"># &#39;print_time&#39;: 0,</span>
+        <span class="p">}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">s_opts</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;max_cpu_time&#39;</span><span class="p">:</span> <span class="mf">0.05</span><span class="p">,</span> 
+            <span class="s1">&#39;linear_solver&#39;</span><span class="p">:</span> <span class="s1">&#39;MA27&#39;</span><span class="p">,</span> 
+            <span class="s1">&#39;print_level&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="c1"># &#39;sb&#39;: &#39;yes&#39;,</span>
+        <span class="p">}</span> 
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">solver</span> <span class="o">==</span> <span class="s1">&#39;worhp&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">s_opts</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span> <span class="c1"># idk what the worhp options are</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">solver</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">solver</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">p_opts</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">s_opts</span><span class="p">)</span>
+
+<span class="c1"># ---------------------------------------------------------------------------------------------- #</span>
+        
+    <span class="c1">### START - ROS Callback Functions ###</span>
+        
+<div class="viewcode-block" id="KinMPCPathFollower.steer_callback">
+<a class="viewcode-back" href="../../mpc.html#mpc.mpc_controller.KinMPCPathFollower.steer_callback">[docs]</a>
+    <span class="k">def</span> <span class="nf">steer_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">:</span> <span class="n">WheelSpeeds</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Return Steering Angle from steering angle sensor on car</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">curr_steer</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">steer</span><span class="p">)</span></div>
+
+    
+<div class="viewcode-block" id="KinMPCPathFollower.acc_callback">
+<a class="viewcode-back" href="../../mpc.html#mpc.mpc_controller.KinMPCPathFollower.acc_callback">[docs]</a>
+    <span class="k">def</span> <span class="nf">acc_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">:</span> <span class="n">Float64</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Set curr_acc to value recieved from </span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">curr_acc</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">data</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="KinMPCPathFollower.global_path_callback">
+<a class="viewcode-back" href="../../mpc.html#mpc.mpc_controller.KinMPCPathFollower.global_path_callback">[docs]</a>
+    <span class="k">def</span> <span class="nf">global_path_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">:</span> <span class="n">FebPath</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Input: msg.PathState -&gt; List of State (from State.msg) vectors</span>
+<span class="sd">        Returns: List of numpy state vectors (len 4: x, y, velocity, heading)</span>
+<span class="sd">        Description: Takes in a local or global path depending on what </span>
+<span class="sd">        lap we&#39;re in and converts to np.array of state vectors</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">y</span><span class="p">)</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">v</span><span class="p">)</span>
+        <span class="n">psi</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">psi</span><span class="p">)</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">column_stack</span><span class="p">((</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">psi</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">global_path</span> <span class="o">=</span> <span class="n">path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">global_path</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">global_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_path</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">constraint_added</span><span class="p">:</span> <span class="k">return</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">constraint_added</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="n">left</span> <span class="o">=</span> <span class="p">[(</span><span class="mf">6.11</span><span class="p">,</span> <span class="mf">2.8</span><span class="p">),</span> <span class="p">(</span><span class="mf">6.109119415283203</span><span class="p">,</span> <span class="mf">2.77589750289917</span><span class="p">),</span> <span class="p">(</span><span class="mf">8.934219360351562</span><span class="p">,</span> <span class="mf">3.0638973712921143</span><span class="p">),</span> <span class="p">(</span><span class="mf">12.868500709533691</span><span class="p">,</span> <span class="mf">3.012697458267212</span><span class="p">),</span> <span class="p">(</span><span class="mf">16.50389862060547</span><span class="p">,</span> <span class="mf">3.4246973991394043</span><span class="p">),</span> <span class="p">(</span><span class="mf">20.136499404907227</span><span class="p">,</span> <span class="mf">4.427197456359863</span><span class="p">),</span> <span class="p">(</span><span class="mf">22.62929916381836</span><span class="p">,</span> <span class="mf">5.538097381591797</span><span class="p">),</span> <span class="p">(</span><span class="mf">25.49173927307129</span><span class="p">,</span> <span class="mf">6.740597248077393</span><span class="p">),</span> <span class="p">(</span><span class="mf">28.138639450073242</span><span class="p">,</span> <span class="mf">6.202697277069092</span><span class="p">),</span> <span class="p">(</span><span class="mf">30.521839141845703</span><span class="p">,</span> <span class="mf">5.081397533416748</span><span class="p">),</span> <span class="p">(</span><span class="mf">32.50313949584961</span><span class="p">,</span> <span class="mf">3.3362975120544434</span><span class="p">),</span> <span class="p">(</span><span class="mf">33.89194107055664</span><span class="p">,</span> <span class="mf">1.401397466659546</span><span class="p">),</span> <span class="p">(</span><span class="mf">34.47583770751953</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.504062533378601</span><span class="p">),</span> <span class="p">(</span><span class="mf">33.998939514160156</span><span class="p">,</span> <span class="o">-</span><span class="mf">5.023182392120361</span><span class="p">),</span> <span class="p">(</span><span class="mf">32.99224090576172</span><span class="p">,</span> <span class="o">-</span><span class="mf">8.059272766113281</span><span class="p">),</span> <span class="p">(</span><span class="mf">32.09803771972656</span><span class="p">,</span> <span class="o">-</span><span class="mf">10.299802780151367</span><span class="p">),</span> <span class="p">(</span><span class="mf">30.182140350341797</span><span class="p">,</span> <span class="o">-</span><span class="mf">13.539742469787598</span><span class="p">),</span> <span class="p">(</span><span class="mf">27.282838821411133</span><span class="p">,</span> <span class="o">-</span><span class="mf">15.564172744750977</span><span class="p">),</span> <span class="p">(</span><span class="mf">24.113739013671875</span><span class="p">,</span> <span class="o">-</span><span class="mf">17.043882369995117</span><span class="p">),</span> <span class="p">(</span><span class="mf">21.25337028503418</span><span class="p">,</span> <span class="o">-</span><span class="mf">18.83869171142578</span><span class="p">),</span> <span class="p">(</span><span class="mf">18.06159019470215</span><span class="p">,</span> <span class="o">-</span><span class="mf">20.45490264892578</span><span class="p">),</span> <span class="p">(</span><span class="mf">14.420599937438965</span><span class="p">,</span> <span class="o">-</span><span class="mf">22.263202667236328</span><span class="p">),</span> <span class="p">(</span><span class="mf">10.502239227294922</span><span class="p">,</span> <span class="o">-</span><span class="mf">24.330303192138672</span><span class="p">),</span> <span class="p">(</span><span class="mf">7.251099586486816</span><span class="p">,</span> <span class="o">-</span><span class="mf">26.4215030670166</span><span class="p">),</span> <span class="p">(</span><span class="mf">3.651329517364502</span><span class="p">,</span> <span class="o">-</span><span class="mf">27.45490264892578</span><span class="p">),</span> <span class="p">(</span><span class="mf">0.7883395552635193</span><span class="p">,</span> <span class="o">-</span><span class="mf">26.945703506469727</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">1.4627604484558105</span><span class="p">,</span> <span class="o">-</span><span class="mf">25.224702835083008</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">3.2429604530334473</span><span class="p">,</span> <span class="o">-</span><span class="mf">23.575801849365234</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">5.143360614776611</span><span class="p">,</span> <span class="o">-</span><span class="mf">21.38580322265625</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">5.6176605224609375</span><span class="p">,</span> <span class="o">-</span><span class="mf">17.860652923583984</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">5.938460350036621</span><span class="p">,</span> <span class="o">-</span><span class="mf">15.4548921585083</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">5.556060314178467</span><span class="p">,</span> <span class="o">-</span><span class="mf">12.859972953796387</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">5.120860576629639</span><span class="p">,</span> <span class="o">-</span><span class="mf">10.299802780151367</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">4.784360408782959</span><span class="p">,</span> <span class="o">-</span><span class="mf">7.257342338562012</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">4.843460559844971</span><span class="p">,</span> <span class="o">-</span><span class="mf">4.028892517089844</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">3.7221603393554688</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.7304625511169434</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">2.1866605281829834</span><span class="p">,</span> <span class="mf">1.4138973951339722</span><span class="p">),</span> <span class="p">(</span><span class="mf">0.24443955719470978</span><span class="p">,</span> <span class="mf">2.190197467803955</span><span class="p">)]</span>
+        <span class="n">right</span> <span class="o">=</span> <span class="p">[(</span><span class="mf">6.08</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.85</span><span class="p">),</span> <span class="p">(</span><span class="mf">6.089759349822998</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.8552625179290771</span><span class="p">),</span> <span class="p">(</span><span class="mf">8.982789993286133</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.796582579612732</span><span class="p">),</span> <span class="p">(</span><span class="mf">12.939980506896973</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.9238924980163574</span><span class="p">),</span> <span class="p">(</span><span class="mf">16.51483917236328</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.6030025482177734</span><span class="p">),</span> <span class="p">(</span><span class="mf">20.14760971069336</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.3732425570487976</span><span class="p">),</span> <span class="p">(</span><span class="mf">23.430938720703125</span><span class="p">,</span> <span class="mf">0.49919745326042175</span><span class="p">),</span> <span class="p">(</span><span class="mf">25.965240478515625</span><span class="p">,</span> <span class="mf">1.5015974044799805</span><span class="p">),</span> <span class="p">(</span><span class="mf">27.96493911743164</span><span class="p">,</span> <span class="mf">0.9834974408149719</span><span class="p">),</span> <span class="p">(</span><span class="mf">29.605138778686523</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.1794525384902954</span><span class="p">),</span> <span class="p">(</span><span class="mf">29.706039428710938</span><span class="p">,</span> <span class="o">-</span><span class="mf">4.192082405090332</span><span class="p">),</span> <span class="p">(</span><span class="mf">28.87574005126953</span><span class="p">,</span> <span class="o">-</span><span class="mf">6.820742607116699</span><span class="p">),</span> <span class="p">(</span><span class="mf">28.10573959350586</span><span class="p">,</span> <span class="o">-</span><span class="mf">8.797102928161621</span><span class="p">),</span> <span class="p">(</span><span class="mf">26.676239013671875</span><span class="p">,</span> <span class="o">-</span><span class="mf">10.299802780151367</span><span class="p">),</span> <span class="p">(</span><span class="mf">25.072938919067383</span><span class="p">,</span> <span class="o">-</span><span class="mf">11.731022834777832</span><span class="p">),</span> <span class="p">(</span><span class="mf">22.419269561767578</span><span class="p">,</span> <span class="o">-</span><span class="mf">13.14719295501709</span><span class="p">),</span> <span class="p">(</span><span class="mf">20.26255989074707</span><span class="p">,</span> <span class="o">-</span><span class="mf">14.240602493286133</span><span class="p">),</span> <span class="p">(</span><span class="mf">17.651329040527344</span><span class="p">,</span> <span class="o">-</span><span class="mf">15.4548921585083</span><span class="p">),</span> <span class="p">(</span><span class="mf">14.787479400634766</span><span class="p">,</span> <span class="o">-</span><span class="mf">16.96703338623047</span><span class="p">),</span> <span class="p">(</span><span class="mf">11.020049095153809</span><span class="p">,</span> <span class="o">-</span><span class="mf">18.86309242248535</span><span class="p">),</span> <span class="p">(</span><span class="mf">7.818509578704834</span><span class="p">,</span> <span class="o">-</span><span class="mf">20.855302810668945</span><span class="p">),</span> <span class="p">(</span><span class="mf">5.429309368133545</span><span class="p">,</span> <span class="o">-</span><span class="mf">22.412302017211914</span><span class="p">),</span> <span class="p">(</span><span class="mf">3.2358596324920654</span><span class="p">,</span> <span class="o">-</span><span class="mf">23.007902145385742</span><span class="p">),</span> <span class="p">(</span><span class="mf">0.9659395813941956</span><span class="p">,</span> <span class="o">-</span><span class="mf">21.971603393554688</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.9300604462623596</span><span class="p">,</span> <span class="o">-</span><span class="mf">19.282712936401367</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">1.157760500907898</span><span class="p">,</span> <span class="o">-</span><span class="mf">16.07309341430664</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">1.0045604705810547</span><span class="p">,</span> <span class="o">-</span><span class="mf">12.92978286743164</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.6089604496955872</span><span class="p">,</span> <span class="o">-</span><span class="mf">10.299802780151367</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.3480604290962219</span><span class="p">,</span> <span class="o">-</span><span class="mf">7.242682456970215</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.34576043486595154</span><span class="p">,</span> <span class="o">-</span><span class="mf">4.511722564697266</span><span class="p">),</span> <span class="p">(</span><span class="mf">0.7813395857810974</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.6917724609375</span><span class="p">)]</span>
+        <span class="n">left</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="nb">list</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">left</span><span class="p">])</span>
+        <span class="n">right</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="nb">list</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">right</span><span class="p">])</span>
+        <span class="n">tr_con_fun</span> <span class="o">=</span> <span class="n">get_g_triangulation</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">,</span> <span class="p">[</span><span class="mi">13</span><span class="p">,</span> <span class="o">-</span><span class="mi">10</span><span class="p">],</span> <span class="n">n_pts</span><span class="o">=</span><span class="mi">40</span><span class="p">,</span> <span class="n">n_meshes</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">sink</span><span class="o">=</span><span class="mf">0.02</span><span class="p">)</span>
+        <span class="n">constraint</span> <span class="o">=</span> <span class="n">tr_con_fun</span><span class="p">(</span><span class="n">casadi</span><span class="o">.</span><span class="n">horzcat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">x_dv</span><span class="p">[</span><span class="mi">1</span><span class="p">:],</span> <span class="bp">self</span><span class="o">.</span><span class="n">y_dv</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span><span class="o">.</span><span class="n">T</span><span class="p">)</span></div>
+
+        <span class="c1"># self.opti.subject_to(constraint-self.sl_tr_dv.T &lt; 0 )</span>
+
+
+    
+<div class="viewcode-block" id="KinMPCPathFollower.local_path_callback">
+<a class="viewcode-back" href="../../mpc.html#mpc.mpc_controller.KinMPCPathFollower.local_path_callback">[docs]</a>
+    <span class="k">def</span> <span class="nf">local_path_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">:</span> <span class="n">FebPath</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Input: msg.PathState -&gt; List of State (from State.msg) vectors</span>
+<span class="sd">        Returns: List of numpy state vectors (len 4: x, y, velocity, heading)</span>
+<span class="sd">        Description: Takes in a local or global path depending on what </span>
+<span class="sd">        lap we&#39;re in and converts to np.array of state vectors</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">y</span><span class="p">)</span>
+        <span class="n">psi</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">psi</span><span class="p">)</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">v</span><span class="p">)</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">column_stack</span><span class="p">((</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">psi</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">local_path</span> <span class="o">=</span> <span class="n">path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">global_path</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">global_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_path</span></div>
+
+
+<div class="viewcode-block" id="KinMPCPathFollower.state_callback">
+<a class="viewcode-back" href="../../mpc.html#mpc.mpc_controller.KinMPCPathFollower.state_callback">[docs]</a>
+    <span class="k">def</span> <span class="nf">state_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">carstate</span><span class="p">:</span> <span class="n">State</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Input: Float64[4]</span>
+<span class="sd">        Description: Converts State msg to numpy vector, </span>
+<span class="sd">            updates variables initalized in __init__ (e.g. self.z_ref, self.z_curr, etc.) with get_update_dict and self.update,</span>
+<span class="sd">            and solves mpc problem -&gt; stores result in self.prev_soln</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="c1"># returns the current state as an np array with these values in this order: x,y,velocity,heading</span>
+        <span class="c1">#curr_state = msg.carstate</span>
+        <span class="n">curr_state</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">0.</span><span class="p">,</span> <span class="mf">0.</span><span class="p">,</span> <span class="mf">0.</span><span class="p">]</span>
+        <span class="n">curr_state</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">carstate</span><span class="o">.</span><span class="n">x</span> <span class="c1"># x value</span>
+        <span class="n">curr_state</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">carstate</span><span class="o">.</span><span class="n">y</span> <span class="c1"># y value</span>
+        <span class="n">curr_state</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">carstate</span><span class="o">.</span><span class="n">heading</span>
+        <span class="n">curr_state</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">carstate</span><span class="o">.</span><span class="n">velocity</span>
+        
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span> 
+            <span class="n">prev_controls</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">curr_steer</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">curr_acc</span><span class="p">][::</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+            <span class="n">new_values</span> <span class="o">=</span> <span class="n">get_update_dict</span><span class="p">(</span><span class="n">pose</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">curr_state</span><span class="p">),</span> <span class="n">prev_u</span><span class="o">=</span><span class="n">prev_controls</span><span class="p">,</span> <span class="n">kmpc</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span> <span class="n">states</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">,</span> <span class="n">prev_soln</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">prev_soln</span><span class="p">)</span>
+
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">new_values</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">prev_soln</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">solve</span><span class="p">()</span>
+
+            <span class="c1"># print(&#39;drive message:&#39;, self.prev_soln[&#39;u_control&#39;][0])</span>
+            <span class="c1"># print(&#39;steering message:&#39;, self.prev_soln[&#39;u_control&#39;][1])</span>
+            <span class="c1"># Publishing controls</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="n">AckermannDriveStamped</span><span class="p">()</span>
+            <span class="n">msg</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">stamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_clock</span><span class="p">()</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">to_msg</span><span class="p">()</span>
+            <span class="n">msg</span><span class="o">.</span><span class="n">drive</span><span class="o">.</span><span class="n">acceleration</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">prev_soln</span><span class="p">[</span><span class="s1">&#39;u_control&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>  
+            <span class="n">msg</span><span class="o">.</span><span class="n">drive</span><span class="o">.</span><span class="n">steering_angle</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">prev_soln</span><span class="p">[</span><span class="s1">&#39;u_control&#39;</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+
+            <span class="c1"># with open(&quot;sim_data.txt&quot;, &quot;a&quot;) as f:</span>
+            <span class="c1">#     print(&quot;------------------------------------------------&quot;, file=f)</span>
+            <span class="c1">#     print(&quot;FROM MPC:&quot;, file=f)</span>
+            <span class="c1">#     print(&quot;Sending Acceleration Of:&quot;, msg.drive.acceleration, file=f)</span>
+            <span class="c1">#     print(&quot;Sending Steering Of:&quot;, msg.drive.steering_angle, file=f)</span>
+            <span class="c1">#     print(&quot;-------------------------------------------------&quot;, file=f)</span>
+                
+            <span class="bp">self</span><span class="o">.</span><span class="n">control_pub</span><span class="o">.</span><span class="n">publish</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+            <span class="n">throttle_msg</span> <span class="o">=</span> <span class="n">Float64</span><span class="p">()</span>
+            <span class="n">steer_msg</span> <span class="o">=</span> <span class="n">Float64</span><span class="p">()</span>
+            <span class="n">throttle_msg</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">prev_soln</span><span class="p">[</span><span class="s1">&#39;u_control&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">steer_msg</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">prev_soln</span><span class="p">[</span><span class="s1">&#39;u_control&#39;</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">throttle_pub</span><span class="o">.</span><span class="n">publish</span><span class="p">(</span><span class="n">throttle_msg</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">steer_pub</span><span class="o">.</span><span class="n">publish</span><span class="p">(</span><span class="n">steer_msg</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">prev_soln</span><span class="p">[</span><span class="s1">&#39;u_mpc&#39;</span><span class="p">]</span>
+            <span class="n">pc_msg</span> <span class="o">=</span> <span class="n">PointCloud</span><span class="p">()</span>
+            <span class="n">pts</span> <span class="o">=</span> <span class="p">[]</span>
+            
+            <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">prev_soln</span><span class="p">[</span><span class="s1">&#39;z_mpc&#39;</span><span class="p">]):</span>
+                <span class="n">pts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Point32</span><span class="p">())</span>
+                <span class="n">pts</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">x</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">pts</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">y</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">pts</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">z</span> <span class="o">=</span> <span class="mf">0.0</span>
+
+            <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="n">new_values</span><span class="p">[</span><span class="s1">&#39;x_ref&#39;</span><span class="p">],</span> <span class="n">new_values</span><span class="p">[</span><span class="s1">&#39;y_ref&#39;</span><span class="p">]])</span><span class="o">.</span><span class="n">T</span><span class="p">:</span>
+                <span class="n">pts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Point32</span><span class="p">())</span>
+                <span class="n">pts</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">x</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">pts</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">y</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">pts</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">z</span> <span class="o">=</span> <span class="mf">0.0</span>
+            <span class="n">pc_msg</span><span class="o">.</span><span class="n">points</span> <span class="o">=</span> <span class="n">pts</span>
+            <span class="n">pc_msg</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">frame_id</span> <span class="o">=</span> <span class="s2">&quot;map&quot;</span>
+            <span class="n">pc_msg</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">stamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_clock</span><span class="p">()</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">to_msg</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pointcloud_pub</span><span class="o">.</span><span class="n">publish</span><span class="p">(</span><span class="n">pc_msg</span><span class="p">)</span></div>
+
+
+    <span class="c1">### END - ROS Callback Functions ###</span>
+
+<span class="c1"># ---------------------------------------------------------------------------------------------- #</span>
+        
+    <span class="c1">### START - Update Functions to update relevant class variables ###</span>
+    
+<div class="viewcode-block" id="KinMPCPathFollower.update">
+<a class="viewcode-back" href="../../mpc.html#mpc.mpc_controller.KinMPCPathFollower.update">[docs]</a>
+    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">update_dict</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Input: </span>
+<span class="sd">        - update_dict: all mpc variables to be updated </span>
+<span class="sd">        Description: calls _update_initial_condition, _update_reference, and _update_previous_input to actually update</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_update_initial_condition</span><span class="p">(</span> <span class="o">*</span><span class="p">[</span><span class="n">update_dict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;x0&#39;</span><span class="p">,</span> <span class="s1">&#39;y0&#39;</span><span class="p">,</span> <span class="s1">&#39;psi0&#39;</span><span class="p">,</span> <span class="s1">&#39;v0&#39;</span><span class="p">]]</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_update_reference</span><span class="p">(</span> <span class="o">*</span><span class="p">[</span><span class="n">update_dict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;x_ref&#39;</span><span class="p">,</span> <span class="s1">&#39;y_ref&#39;</span><span class="p">,</span> <span class="s1">&#39;psi_ref&#39;</span><span class="p">,</span> <span class="s1">&#39;v_ref&#39;</span><span class="p">]]</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_update_previous_input</span><span class="p">(</span> <span class="o">*</span><span class="p">[</span><span class="n">update_dict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;acc_prev&#39;</span><span class="p">,</span> <span class="s1">&#39;df_prev&#39;</span><span class="p">]]</span> <span class="p">)</span>
+
+        <span class="k">if</span> <span class="s1">&#39;warm_start&#39;</span> <span class="ow">in</span> <span class="n">update_dict</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="c1"># Warm Start used if provided.  Else I believe the problem is solved from scratch with initial values of 0.</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">set_initial</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">z_dv</span><span class="p">,</span>  <span class="n">update_dict</span><span class="p">[</span><span class="s1">&#39;warm_start&#39;</span><span class="p">][</span><span class="s1">&#39;z_ws&#39;</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">set_initial</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">u_dv</span><span class="p">,</span>  <span class="n">update_dict</span><span class="p">[</span><span class="s1">&#39;warm_start&#39;</span><span class="p">][</span><span class="s1">&#39;u_ws&#39;</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">set_initial</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sl_dv</span><span class="p">,</span> <span class="n">update_dict</span><span class="p">[</span><span class="s1">&#39;warm_start&#39;</span><span class="p">][</span><span class="s1">&#39;sl_ws&#39;</span><span class="p">])</span></div>
+
+
+    <span class="k">def</span> <span class="nf">_update_initial_condition</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x0</span><span class="p">,</span> <span class="n">y0</span><span class="p">,</span> <span class="n">psi0</span><span class="p">,</span> <span class="n">vel0</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Inputs:</span>
+<span class="sd">        - x0: current x</span>
+<span class="sd">        - y0: current y</span>
+<span class="sd">        - psi0: current heading</span>
+<span class="sd">        - vel0: current velocity</span>
+
+<span class="sd">        Updates current state (z_curr)</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">set_value</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">z_curr</span><span class="p">,</span> <span class="p">[</span><span class="n">x0</span><span class="p">,</span> <span class="n">y0</span><span class="p">,</span> <span class="n">psi0</span><span class="p">,</span> <span class="n">vel0</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">_update_reference</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x_ref</span><span class="p">,</span> <span class="n">y_ref</span><span class="p">,</span> <span class="n">psi_ref</span><span class="p">,</span> <span class="n">v_ref</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Inputs: reference = where car should be</span>
+<span class="sd">        - x_ref: reference x</span>
+<span class="sd">        - y_ref: reference y</span>
+<span class="sd">        - psi_ref: reference heading</span>
+<span class="sd">        - v_ref: reference velocity</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">set_value</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">x_ref</span><span class="p">,</span>   <span class="n">x_ref</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">set_value</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">y_ref</span><span class="p">,</span>   <span class="n">y_ref</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">set_value</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">psi_ref</span><span class="p">,</span> <span class="n">psi_ref</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">set_value</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">v_ref</span><span class="p">,</span>   <span class="n">v_ref</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_update_previous_input</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">acc_prev</span><span class="p">,</span> <span class="n">df_prev</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Inputs: previous = last solve</span>
+<span class="sd">        - acc_prev: previous acceleration value</span>
+<span class="sd">        - df_prev: previous steering angle value</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">set_value</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">u_prev</span><span class="p">,</span> <span class="p">[</span><span class="n">acc_prev</span><span class="p">,</span> <span class="n">df_prev</span><span class="p">])</span>
+    
+    <span class="c1">### END - Update Functions to update relevant class variables ###</span>
+
+<span class="c1"># ---------------------------------------------------------------------------------------------- #</span>
+
+    <span class="c1">### START - MPC Main Functions (Setting Up and Solving MPC Optimization Problem) ###</span>
+        
+    <span class="k">def</span> <span class="nf">_add_constraints</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Description:</span>
+<span class="sd">        -&gt; State Bound Constraints, Input Bound Constraints, Input Rate Bound Constraints, Other Constraints: </span>
+<span class="sd">            Ensures variables are inside bounds set in __init__, Other Contraints ensures slack variables are &gt;= 0</span>
+<span class="sd">        -&gt; Initial State Constraint: Makes sure first state of planned trajectory matches current car state</span>
+<span class="sd">        -&gt; State Dynamics Constraints: Ensures car can move appropriately based on Car Dynamics</span>
+<span class="sd">            - For more on equations used, read this section: </span>
+<span class="sd">            https://www.notion.so/MPC-Overview-31d7d1b2a56e4e36bcdf5c195f8ec5b3?pvs=4#9b47dac35e68479f81217baee5237da8</span>
+<span class="sd">        -&gt; Track Constraints: Car stays inside track limits</span>
+<span class="sd">            - For more, read: https://www.notion.so/MPC-Overview-31d7d1b2a56e4e36bcdf5c195f8ec5b3?pvs=4#566651b3c5444c9e85b89aec223f2cf8</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="c1"># State Bound Constraints</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">subject_to</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">bounded</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">V_MIN</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">v_dv</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">V_MAX</span><span class="p">)</span> <span class="p">)</span>        
+        
+        <span class="c1"># Initial State Constraint</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">subject_to</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_dv</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>   <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">z_curr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">subject_to</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">y_dv</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>   <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">z_curr</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">subject_to</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">psi_dv</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">z_curr</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">subject_to</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">v_dv</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>   <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">z_curr</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="p">)</span>
+
+        <span class="c1"># State Dynamics Constraints</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_rk_dynamics</span><span class="p">:</span>
+            <span class="n">F</span> <span class="o">=</span> <span class="n">discrete_dynamics</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">DT</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">L_R</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">L_F</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">subject_to</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">z_dv</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">F</span><span class="p">(</span><span class="n">x0</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">z_dv</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">u</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">u_dv</span><span class="p">[</span><span class="n">i</span><span class="p">])[</span><span class="s1">&#39;xf&#39;</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">):</span>
+                <span class="n">beta</span> <span class="o">=</span> <span class="n">casadi</span><span class="o">.</span><span class="n">atan</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">L_R</span> <span class="o">/</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">L_F</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">L_R</span><span class="p">)</span> <span class="o">*</span> <span class="n">casadi</span><span class="o">.</span><span class="n">tan</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">df_dv</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">subject_to</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_dv</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span>   <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_dv</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>   <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">DT</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">v_dv</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">casadi</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">psi_dv</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="n">beta</span><span class="p">))</span> <span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">subject_to</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">y_dv</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span>   <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">y_dv</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>   <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">DT</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">v_dv</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">casadi</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">psi_dv</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="n">beta</span><span class="p">))</span> <span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">subject_to</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">psi_dv</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">psi_dv</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">DT</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">v_dv</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">L_R</span> <span class="o">*</span> <span class="n">casadi</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">beta</span><span class="p">))</span> <span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">subject_to</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">v_dv</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span>   <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">v_dv</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>   <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">DT</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">acc_dv</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="p">)</span>
+
+        <span class="c1"># Input Bound Constraints</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">subject_to</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">bounded</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">A_MIN</span><span class="p">,</span>  <span class="bp">self</span><span class="o">.</span><span class="n">acc_dv</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">A_MAX</span><span class="p">)</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">subject_to</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">bounded</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">DF_MIN</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">df_dv</span><span class="p">,</span>  <span class="bp">self</span><span class="o">.</span><span class="n">DF_MAX</span><span class="p">)</span> <span class="p">)</span>
+
+        <span class="c1"># Input Rate Bound Constraints</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">subject_to</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">bounded</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">A_DOT_MIN</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">DT</span> <span class="o">-</span>  <span class="bp">self</span><span class="o">.</span><span class="n">sl_acc_dv</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> 
+                                                 <span class="bp">self</span><span class="o">.</span><span class="n">acc_dv</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">u_prev</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                                                 <span class="bp">self</span><span class="o">.</span><span class="n">A_DOT_MAX</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">DT</span>   <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">sl_acc_dv</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">subject_to</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">bounded</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">DF_DOT_MIN</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">DT</span>  <span class="o">-</span>  <span class="bp">self</span><span class="o">.</span><span class="n">sl_df_dv</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> 
+                                                 <span class="bp">self</span><span class="o">.</span><span class="n">df_dv</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">u_prev</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+                                                 <span class="bp">self</span><span class="o">.</span><span class="n">DF_DOT_MAX</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">DT</span>  <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">sl_df_dv</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">subject_to</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">bounded</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">A_DOT_MIN</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">DT</span>   <span class="o">-</span>  <span class="bp">self</span><span class="o">.</span><span class="n">sl_acc_dv</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">],</span> 
+                                                     <span class="bp">self</span><span class="o">.</span><span class="n">acc_dv</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">acc_dv</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                                                     <span class="bp">self</span><span class="o">.</span><span class="n">A_DOT_MAX</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">DT</span>   <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">sl_acc_dv</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">])</span> <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">subject_to</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">bounded</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">DF_DOT_MIN</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">DT</span>  <span class="o">-</span>  <span class="bp">self</span><span class="o">.</span><span class="n">sl_df_dv</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">],</span> 
+                                                     <span class="bp">self</span><span class="o">.</span><span class="n">df_dv</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span>  <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">df_dv</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                                                     <span class="bp">self</span><span class="o">.</span><span class="n">DF_DOT_MAX</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">DT</span>  <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">sl_df_dv</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">])</span> <span class="p">)</span>
+        <span class="c1"># Other Constraints</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">subject_to</span><span class="p">(</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sl_df_dv</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">subject_to</span><span class="p">(</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sl_acc_dv</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">subject_to</span><span class="p">(</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sl_tr_dv</span> <span class="p">)</span>
+        <span class="c1"># e.g. things like collision avoidance or lateral acceleration bounds could go here.</span>
+
+        <span class="c1"># Track Constraints</span>
+        <span class="k">if</span> <span class="s1">&#39;TRACK_CON_FUN&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">:</span> <span class="k">return</span>
+        <span class="n">constraint</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">TRACK_CON_FUN</span><span class="p">(</span><span class="n">casadi</span><span class="o">.</span><span class="n">horzcat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">x_dv</span><span class="p">[</span><span class="mi">1</span><span class="p">:],</span> <span class="bp">self</span><span class="o">.</span><span class="n">y_dv</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">subject_to</span><span class="p">(</span><span class="n">constraint</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">sl_tr_dv</span><span class="o">.</span><span class="n">T</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_add_cost</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Description: Our cost function penalizes 3 main things</span>
+<span class="sd">        -&gt; _quad_form: returns (z.T)Qz where z is vector and Q is matrix</span>
+<span class="sd">        -&gt; 1. Error between current state and reference state for each planned timestep</span>
+<span class="sd">        -&gt; 2. Error between current state and reference state for last planned timestep</span>
+<span class="sd">        -&gt; 3. Use of controls</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">def</span> <span class="nf">_quad_form</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">Q</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">casadi</span><span class="o">.</span><span class="n">mtimes</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">casadi</span><span class="o">.</span><span class="n">mtimes</span><span class="p">(</span><span class="n">Q</span><span class="p">,</span> <span class="n">z</span><span class="o">.</span><span class="n">T</span><span class="p">))</span>
+        <span class="c1"># casadi.MX.sym(&#39;m&#39;).inv()</span>
+        <span class="n">cost</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">dx</span> <span class="o">=</span> <span class="n">casadi</span><span class="o">.</span><span class="n">vertsplit</span><span class="p">(</span><span class="n">casadi</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">z_ref</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[:,</span> <span class="p">:</span><span class="mi">2</span><span class="p">])</span>
+        <span class="n">dx</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">dx</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+        <span class="c1"># print(dx)</span>
+        <span class="c1"># print(self.z_ref.shape)</span>
+        <span class="c1"># print(self.N, len(dx))</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">):</span>
+            <span class="n">segment</span> <span class="o">=</span> <span class="n">dx</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">/</span><span class="n">casadi</span><span class="o">.</span><span class="n">norm_2</span><span class="p">(</span><span class="n">dx</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+            <span class="c1"># print(segment)</span>
+            <span class="n">a</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="n">segment</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">segment</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="o">-</span><span class="n">segment</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">segment</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="c1"># segment[0]  -segment[-1]</span>
+            <span class="c1"># segment[1]   segment[0]</span>
+            <span class="n">det</span> <span class="o">=</span> <span class="n">a</span><span class="o">*</span><span class="n">d</span><span class="o">-</span><span class="n">b</span><span class="o">*</span><span class="n">c</span>
+            <span class="n">mat</span> <span class="o">=</span> <span class="n">casadi</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">casadi</span><span class="o">.</span><span class="n">horzcat</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="o">-</span><span class="n">b</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> 
+                                               <span class="o">-</span><span class="n">c</span><span class="p">,</span>  <span class="n">a</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> 
+                                                <span class="mi">0</span><span class="p">,</span>  <span class="mi">0</span><span class="p">,</span> <span class="n">det</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> 
+                                                <span class="mi">0</span><span class="p">,</span>  <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">det</span><span class="p">),</span> <span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">))</span><span class="o">.</span><span class="n">T</span><span class="o">/</span><span class="n">det</span>
+            
+            <span class="c1"># 1. Error between current state and reference state for each planned timestep</span>
+            <span class="c1"># cost += _quad_form((mat @ (self.z_dv[i+1, :]-self.z_ref[i, :]).T).T, self.Q)</span>
+            <span class="c1"># cost += _quad_form(self.z_dv[i+1, :] - self.z_ref[i,:], 9*self.Q/(i+9)) # tracking cost</span>
+            <span class="c1"># cost += _quad_form(self.fix_angle(self.z_dv[i+1, :] - self.z_ref[i,:]), self.Q) # tracking cost</span>
+            <span class="n">cost</span> <span class="o">+=</span> <span class="n">_quad_form</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fix_angle</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">z_dv</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="p">:]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">z_ref</span><span class="p">[</span><span class="n">i</span><span class="p">,:]),</span> <span class="bp">self</span><span class="o">.</span><span class="n">Q</span><span class="p">)</span> <span class="c1"># tracking cost</span>
+
+        <span class="c1"># 2. Error between current state and reference state for last planned timestep</span>
+        <span class="c1"># cost += _quad_form(self.z_dv[-1, :] - self.z_ref[-1, :], self.F)</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="c1"># 3. Use of controls</span>
+            <span class="n">cost</span> <span class="o">+=</span> <span class="n">_quad_form</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">u_dv</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="p">:]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">u_dv</span><span class="p">[</span><span class="n">i</span><span class="p">,:],</span> <span class="bp">self</span><span class="o">.</span><span class="n">R</span><span class="p">)</span>  <span class="c1"># input derivative cost</span>
+        
+        <span class="c1"># slack costs for soft constraints</span>
+        <span class="n">cost</span> <span class="o">+=</span> <span class="p">(</span><span class="n">casadi</span><span class="o">.</span><span class="n">sum1</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sl_df_dv</span><span class="p">)</span>
+               <span class="o">+</span> <span class="n">casadi</span><span class="o">.</span><span class="n">sum1</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sl_acc_dv</span><span class="p">)</span>
+               <span class="o">+</span> <span class="n">casadi</span><span class="o">.</span><span class="n">sum1</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sl_tr_dv</span><span class="p">)</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">TRACK_SLACK_WEIGHT</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">minimize</span><span class="p">(</span> <span class="n">cost</span> <span class="p">)</span>
+
+<div class="viewcode-block" id="KinMPCPathFollower.solve">
+<a class="viewcode-back" href="../../mpc.html#mpc.mpc_controller.KinMPCPathFollower.solve">[docs]</a>
+    <span class="k">def</span> <span class="nf">solve</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Returns: sol_dict (solution variables and other data related to solve) -&gt; see below for specific info</span>
+<span class="sd">        Description: self.opti.solve() uses casadi to find solution to mpc problem and publishes control to apply</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">st</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">sol</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">solve</span><span class="p">()</span>
+            <span class="c1"># Optimal solution.</span>
+            <span class="n">u_mpc</span>  <span class="o">=</span> <span class="n">sol</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">u_dv</span><span class="p">)</span>
+            <span class="n">z_mpc</span>  <span class="o">=</span> <span class="n">sol</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">z_dv</span><span class="p">)</span>
+            <span class="n">sl_mpc</span> <span class="o">=</span> <span class="n">sol</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sl_dv</span><span class="p">)</span>
+            <span class="n">z_ref</span>  <span class="o">=</span> <span class="n">sol</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">z_ref</span><span class="p">)</span>
+            <span class="n">is_opt</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="c1"># Suboptimal solution (e.g. timed out).</span>
+            <span class="n">u_mpc</span>  <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">debug</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">u_dv</span><span class="p">)</span>
+            <span class="n">z_mpc</span>  <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">debug</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">z_dv</span><span class="p">)</span>
+            <span class="n">sl_mpc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">debug</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sl_dv</span><span class="p">)</span>
+            <span class="n">z_ref</span>  <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">opti</span><span class="o">.</span><span class="n">debug</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">z_ref</span><span class="p">)</span>
+            <span class="n">is_opt</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="n">solve_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">st</span>
+        
+        <span class="n">sol_dict</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">sol_dict</span><span class="p">[</span><span class="s1">&#39;u_control&#39;</span><span class="p">]</span>  <span class="o">=</span> <span class="n">u_mpc</span><span class="p">[</span><span class="mi">0</span><span class="p">,:]</span>  <span class="c1"># control input to apply based on solution</span>
+        <span class="n">sol_dict</span><span class="p">[</span><span class="s1">&#39;optimal&#39;</span><span class="p">]</span>    <span class="o">=</span> <span class="n">is_opt</span>      <span class="c1"># whether the solution is optimal or not</span>
+        <span class="n">sol_dict</span><span class="p">[</span><span class="s1">&#39;solve_time&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">solve_time</span>  <span class="c1"># how long the solver took in seconds</span>
+        <span class="n">sol_dict</span><span class="p">[</span><span class="s1">&#39;u_mpc&#39;</span><span class="p">]</span>      <span class="o">=</span> <span class="n">u_mpc</span>       <span class="c1"># solution inputs (N by 2, see self.u_dv above) </span>
+        <span class="n">sol_dict</span><span class="p">[</span><span class="s1">&#39;z_mpc&#39;</span><span class="p">]</span>      <span class="o">=</span> <span class="n">z_mpc</span>       <span class="c1"># solution states (N+1 by 4, see self.z_dv above)</span>
+        <span class="n">sol_dict</span><span class="p">[</span><span class="s1">&#39;sl_mpc&#39;</span><span class="p">]</span>     <span class="o">=</span> <span class="n">sl_mpc</span>      <span class="c1"># solution slack vars (N by 3, see self.sl_dv above)</span>
+        <span class="n">sol_dict</span><span class="p">[</span><span class="s1">&#39;z_ref&#39;</span><span class="p">]</span>      <span class="o">=</span> <span class="n">z_ref</span>       <span class="c1"># state reference (N by 4, see self.z_ref above)</span>
+
+        <span class="k">return</span> <span class="n">sol_dict</span></div>
+</div>
+
+
+    <span class="c1">### END - MPC Main Functions (Setting Up and Solving MPC Optimization Problem) ###</span>
+        
+<span class="c1"># ---------------------------------------------------------------------------------------------- #</span>
+
+
+
+
+<span class="c1">### START - RUNNING MPC NODE ###</span>
+        
+<div class="viewcode-block" id="main">
+<a class="viewcode-back" href="../../mpc.html#mpc.mpc_controller.main">[docs]</a>
+<span class="k">def</span> <span class="nf">main</span><span class="p">(</span><span class="n">args</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">rclpy</span><span class="o">.</span><span class="n">init</span><span class="p">(</span><span class="n">args</span><span class="o">=</span><span class="n">args</span><span class="p">)</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;init failed&quot;</span><span class="p">)</span>
+        
+    <span class="n">mpc_node</span> <span class="o">=</span> <span class="n">KinMPCPathFollower</span><span class="p">(</span><span class="o">**</span><span class="n">MPCSettings</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">rclpy</span><span class="o">.</span><span class="n">spin</span><span class="p">(</span><span class="n">mpc_node</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;mpc node down&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;fiona and cake&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="n">e</span>
+    <span class="n">rclpy</span><span class="o">.</span><span class="n">shutdown</span><span class="p">()</span></div>
+
+
+<span class="c1">### END - RUNNING MPC NODE ###</span>
+    
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">main</span><span class="p">()</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Daniel Municio.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

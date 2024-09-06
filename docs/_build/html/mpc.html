@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>mpc package &mdash; Pipeline 131 Mk. S documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  
+        <script src="_static/documentation_options.js?v=e97658a3"></script>
+        <script src="_static/doctools.js?v=9a2dae69"></script>
+        <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="index.html" class="icon icon-home"> Pipeline 131
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="modules.html">graphslam_global</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Pipeline 131</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
+      <li>mpc package</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/mpc.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="mpc-package">
+<h1>mpc package<a class="headerlink" href="#mpc-package" title="Link to this heading"></a></h1>
+<section id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Link to this heading"></a></h2>
+</section>
+<section id="module-mpc.Settings">
+<span id="mpc-settings-module"></span><h2>mpc.Settings module<a class="headerlink" href="#module-mpc.Settings" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="mpc.Settings.Settings">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mpc.Settings.</span></span><span class="sig-name descname"><span class="pre">Settings</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bases</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dct</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/Settings.html#Settings"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.Settings.Settings" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Mapping</span></code></p>
+<p>a metaclass to allow settings to be unpacked into dictionaries</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="mpc.Settings.Settings.keys">
+<span class="sig-name descname"><span class="pre">keys</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">a</span> <span class="pre">set-like</span> <span class="pre">object</span> <span class="pre">providing</span> <span class="pre">a</span> <span class="pre">view</span> <span class="pre">on</span> <span class="pre">D's</span> <span class="pre">keys</span></span></span><a class="reference internal" href="_modules/mpc/Settings.html#Settings.keys"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.Settings.Settings.keys" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-mpc.controller">
+<span id="mpc-controller-module"></span><h2>mpc.controller module<a class="headerlink" href="#module-mpc.controller" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="mpc.controller.Controller">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mpc.controller.</span></span><span class="sig-name descname"><span class="pre">Controller</span></span><a class="reference internal" href="_modules/mpc/controller.html#Controller"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.controller.Controller" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Abstract Base Class for control implementation.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="mpc.controller.Controller.solve">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">solve</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/controller.html#Controller.solve"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.controller.Controller.solve" title="Link to this definition"></a></dt>
+<dd><p>Returns a dictionary sol_dict with control input to apply,
+as well as other useful information (e.g. MPC solution).</p>
+<dl class="simple">
+<dt>In particular, sol_dict must have a key “u_control” such that</dt><dd><p>sol_dict[“u_control”][0] = acceleration input to apply
+sol_dict[“u_control”][1] = steering input to apply</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mpc.controller.Controller.update">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">update</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">update_dict</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/controller.html#Controller.update"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.controller.Controller.update" title="Link to this definition"></a></dt>
+<dd><p>Updates the state of the controller with feedback info contained in update_dict.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-mpc.mpc_controller">
+<span id="mpc-mpc-controller-module"></span><h2>mpc.mpc_controller module<a class="headerlink" href="#module-mpc.mpc_controller" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="mpc.mpc_controller.KinMPCPathFollower">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mpc.mpc_controller.</span></span><span class="sig-name descname"><span class="pre">KinMPCPathFollower</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">N</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">DT</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">L_F</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.5213</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">L_R</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.4987</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">V_MIN</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">V_MAX</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">25.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A_MIN</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-3.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A_MAX</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">DF_MIN</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">DF_MAX</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A_DOT_MIN</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-1.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A_DOT_MAX</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">DF_DOT_MIN</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">DF_DOT_MAX</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Q</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[1.0,</span> <span class="pre">1.0,</span> <span class="pre">10.0,</span> <span class="pre">0.1]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">R</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[10.0,</span> <span class="pre">100.0]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">F</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[0.0,</span> <span class="pre">0.0,</span> <span class="pre">0.0,</span> <span class="pre">10.0]</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/mpc_controller.html#KinMPCPathFollower"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.mpc_controller.KinMPCPathFollower" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="#mpc.controller.Controller" title="mpc.controller.Controller"><code class="xref py py-class docutils literal notranslate"><span class="pre">Controller</span></code></a>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Node</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="mpc.mpc_controller.KinMPCPathFollower.acc_callback">
+<span class="sig-name descname"><span class="pre">acc_callback</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">msg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Float64</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/mpc_controller.html#KinMPCPathFollower.acc_callback"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.mpc_controller.KinMPCPathFollower.acc_callback" title="Link to this definition"></a></dt>
+<dd><p>Set curr_acc to value recieved from</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mpc.mpc_controller.KinMPCPathFollower.fix_angle">
+<span class="sig-name descname"><span class="pre">fix_angle</span></span><a class="headerlink" href="#mpc.mpc_controller.KinMPCPathFollower.fix_angle" title="Link to this definition"></a></dt>
+<dd><p>Constraints, Cost, Initial Solve</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><ol class="arabic simple" start="3">
+<li><p>Problem Setup</p></li>
+</ol>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mpc.mpc_controller.KinMPCPathFollower.global_path_callback">
+<span class="sig-name descname"><span class="pre">global_path_callback</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">msg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">feb_msgs.msg.FebPath</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/mpc_controller.html#KinMPCPathFollower.global_path_callback"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.mpc_controller.KinMPCPathFollower.global_path_callback" title="Link to this definition"></a></dt>
+<dd><p>Input: msg.PathState -&gt; List of State (from State.msg) vectors
+Returns: List of numpy state vectors (len 4: x, y, velocity, heading)
+Description: Takes in a local or global path depending on what
+lap we’re in and converts to np.array of state vectors</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mpc.mpc_controller.KinMPCPathFollower.local_path_callback">
+<span class="sig-name descname"><span class="pre">local_path_callback</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">msg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">feb_msgs.msg.FebPath</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/mpc_controller.html#KinMPCPathFollower.local_path_callback"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.mpc_controller.KinMPCPathFollower.local_path_callback" title="Link to this definition"></a></dt>
+<dd><p>Input: msg.PathState -&gt; List of State (from State.msg) vectors
+Returns: List of numpy state vectors (len 4: x, y, velocity, heading)
+Description: Takes in a local or global path depending on what
+lap we’re in and converts to np.array of state vectors</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mpc.mpc_controller.KinMPCPathFollower.pointcloud_pub">
+<span class="sig-name descname"><span class="pre">pointcloud_pub</span></span><a class="headerlink" href="#mpc.mpc_controller.KinMPCPathFollower.pointcloud_pub" title="Link to this definition"></a></dt>
+<dd><ol class="arabic simple">
+<li><p>Parameters</p></li>
+</ol>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mpc.mpc_controller.KinMPCPathFollower.solve">
+<span class="sig-name descname"><span class="pre">solve</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/mpc_controller.html#KinMPCPathFollower.solve"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.mpc_controller.KinMPCPathFollower.solve" title="Link to this definition"></a></dt>
+<dd><p>Returns: sol_dict (solution variables and other data related to solve) -&gt; see below for specific info
+Description: self.opti.solve() uses casadi to find solution to mpc problem and publishes control to apply</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mpc.mpc_controller.KinMPCPathFollower.state_callback">
+<span class="sig-name descname"><span class="pre">state_callback</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">carstate</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">feb_msgs.msg.State</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/mpc_controller.html#KinMPCPathFollower.state_callback"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.mpc_controller.KinMPCPathFollower.state_callback" title="Link to this definition"></a></dt>
+<dd><p>Input: Float64[4]
+Description: Converts State msg to numpy vector,</p>
+<blockquote>
+<div><p>updates variables initalized in __init__ (e.g. self.z_ref, self.z_curr, etc.) with get_update_dict and self.update,
+and solves mpc problem -&gt; stores result in self.prev_soln</p>
+</div></blockquote>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mpc.mpc_controller.KinMPCPathFollower.steer_callback">
+<span class="sig-name descname"><span class="pre">steer_callback</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">msg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">WheelSpeeds</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/mpc_controller.html#KinMPCPathFollower.steer_callback"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.mpc_controller.KinMPCPathFollower.steer_callback" title="Link to this definition"></a></dt>
+<dd><p>Return Steering Angle from steering angle sensor on car</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mpc.mpc_controller.KinMPCPathFollower.update">
+<span class="sig-name descname"><span class="pre">update</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">update_dict</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/mpc_controller.html#KinMPCPathFollower.update"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.mpc_controller.KinMPCPathFollower.update" title="Link to this definition"></a></dt>
+<dd><p>Input:
+- update_dict: all mpc variables to be updated
+Description: calls _update_initial_condition, _update_reference, and _update_previous_input to actually update</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mpc.mpc_controller.KinMPCPathFollower.v_ref">
+<span class="sig-name descname"><span class="pre">v_ref</span></span><a class="headerlink" href="#mpc.mpc_controller.KinMPCPathFollower.v_ref" title="Link to this definition"></a></dt>
+<dd><ol class="arabic simple" start="2">
+<li><p>Decision Variables</p></li>
+</ol>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mpc.mpc_controller.main">
+<span class="sig-prename descclassname"><span class="pre">mpc.mpc_controller.</span></span><span class="sig-name descname"><span class="pre">main</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/mpc_controller.html#main"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.mpc_controller.main" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</section>
+<section id="module-mpc.mpc_settings">
+<span id="mpc-mpc-settings-module"></span><h2>mpc.mpc_settings module<a class="headerlink" href="#module-mpc.mpc_settings" title="Link to this heading"></a></h2>
+</section>
+<section id="module-mpc.track_constraints">
+<span id="mpc-track-constraints-module"></span><h2>mpc.track_constraints module<a class="headerlink" href="#module-mpc.track_constraints" title="Link to this heading"></a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="mpc.track_constraints.get_full_g">
+<span class="sig-prename descclassname"><span class="pre">mpc.track_constraints.</span></span><span class="sig-name descname"><span class="pre">get_full_g</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">left</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">right</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">opts</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/track_constraints.html#get_full_g"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.track_constraints.get_full_g" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mpc.track_constraints.get_g_one_side">
+<span class="sig-prename descclassname"><span class="pre">mpc.track_constraints.</span></span><span class="sig-name descname"><span class="pre">get_g_one_side</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">opts</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/track_constraints.html#get_g_one_side"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.track_constraints.get_g_one_side" title="Link to this definition"></a></dt>
+<dd><p>gets a function <cite>g(x): R²-&gt;R</cite> approximating the turning number of <cite>path</cite> about <cite>x</cite></p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>path</strong> (<em>numpy.ndarray</em>) – array of points to convert to path. must be 2-index, and one index must be length 2.</p></li>
+<li><p><strong>interp_method</strong> (<em>str</em><em>, </em><em>optional</em>) – the interpolation method to use. see docs for <cite>casadi.interpolant</cite>. Defaults to <cite>‘linear’</cite>.</p></li>
+<li><p><strong>n_points</strong> (<em>int</em><em>, </em><em>optional</em>) – number of points along the path to sample for the approximation. Defaults to the number of points in <cite>path</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The function <cite>g(x)</cite></p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>casadi.Function</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mpc.track_constraints.get_interpolants">
+<span class="sig-prename descclassname"><span class="pre">mpc.track_constraints.</span></span><span class="sig-name descname"><span class="pre">get_interpolants</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">interp_method</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/track_constraints.html#get_interpolants"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.track_constraints.get_interpolants" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mpc.track_constraints.loopify">
+<span class="sig-prename descclassname"><span class="pre">mpc.track_constraints.</span></span><span class="sig-name descname"><span class="pre">loopify</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/track_constraints.html#loopify"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.track_constraints.loopify" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</section>
+<section id="module-mpc.triangles_track_constraints">
+<span id="mpc-triangles-track-constraints-module"></span><h2>mpc.triangles_track_constraints module<a class="headerlink" href="#module-mpc.triangles_track_constraints" title="Link to this heading"></a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="mpc.triangles_track_constraints.find_g_fast">
+<span class="sig-prename descclassname"><span class="pre">mpc.triangles_track_constraints.</span></span><span class="sig-name descname"><span class="pre">find_g_fast</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mats</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">p_aug</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/triangles_track_constraints.html#find_g_fast"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.triangles_track_constraints.find_g_fast" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mpc.triangles_track_constraints.get_g_triangulation">
+<span class="sig-prename descclassname"><span class="pre">mpc.triangles_track_constraints.</span></span><span class="sig-name descname"><span class="pre">get_g_triangulation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">left</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">right</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">interior_point</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_pts</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">200</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_meshes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sink</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tr_opts</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'D'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_mats</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/triangles_track_constraints.html#get_g_triangulation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.triangles_track_constraints.get_g_triangulation" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mpc.triangles_track_constraints.get_interp_g">
+<span class="sig-prename descclassname"><span class="pre">mpc.triangles_track_constraints.</span></span><span class="sig-name descname"><span class="pre">get_interp_g</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">g</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xrange</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">yrange</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">resolution</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_cores</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">14</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">compile_g</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">compile_opt_flag</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'-Ofast'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/triangles_track_constraints.html#get_interp_g"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.triangles_track_constraints.get_interp_g" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mpc.triangles_track_constraints.get_interp_g_fast">
+<span class="sig-prename descclassname"><span class="pre">mpc.triangles_track_constraints.</span></span><span class="sig-name descname"><span class="pre">get_interp_g_fast</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mats</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xrange</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">yrange</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">resolution</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_cores</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">14</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/triangles_track_constraints.html#get_interp_g_fast"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.triangles_track_constraints.get_interp_g_fast" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</section>
+<section id="module-mpc.utils">
+<span id="mpc-utils-module"></span><h2>mpc.utils module<a class="headerlink" href="#module-mpc.utils" title="Link to this heading"></a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="mpc.utils.closest_point">
+<span class="sig-prename descclassname"><span class="pre">mpc.utils.</span></span><span class="sig-name descname"><span class="pre">closest_point</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">kmpc</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">states</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/utils.html#closest_point"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.utils.closest_point" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mpc.utils.continuous_dynamics_fixed_x_order">
+<span class="sig-prename descclassname"><span class="pre">mpc.utils.</span></span><span class="sig-name descname"><span class="pre">continuous_dynamics_fixed_x_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">l_r</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">l_f</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">m</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/utils.html#continuous_dynamics_fixed_x_order"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.utils.continuous_dynamics_fixed_x_order" title="Link to this definition"></a></dt>
+<dd><p>Defines dynamics of the car, i.e. equality constraints.
+parameters:
+state x = [xPos,yPos,v,theta]
+input u = [F,phi]</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mpc.utils.discrete_dynamics">
+<span class="sig-prename descclassname"><span class="pre">mpc.utils.</span></span><span class="sig-name descname"><span class="pre">discrete_dynamics</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tstep</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">l_r</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">l_f</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">m</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/utils.html#discrete_dynamics"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.utils.discrete_dynamics" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mpc.utils.get_update_dict">
+<span class="sig-prename descclassname"><span class="pre">mpc.utils.</span></span><span class="sig-name descname"><span class="pre">get_update_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pose</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prev_u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">kmpc</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">states</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prev_soln</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/utils.html#get_update_dict"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.utils.get_update_dict" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</section>
+<section id="module-mpc">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-mpc" title="Link to this heading"></a></h2>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Daniel Municio.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

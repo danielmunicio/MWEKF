@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>mpc.triangles_track_constraints &mdash; Pipeline 131 Mk. S documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+        <script src="../../_static/documentation_options.js?v=e97658a3"></script>
+        <script src="../../_static/doctools.js?v=9a2dae69"></script>
+        <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../index.html" class="icon icon-home"> Pipeline 131
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">graphslam_global</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Pipeline 131</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+      <li>mpc.triangles_track_constraints</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for mpc.triangles_track_constraints</h1><div class="highlight"><pre>
+<span></span><span class="c1">#%%</span>
+<span class="kn">import</span> <span class="nn">casadi</span> <span class="k">as</span> <span class="nn">ca</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">casadi</span> <span class="kn">import</span> <span class="n">MX</span><span class="p">,</span> <span class="n">DM</span>
+<span class="kn">from</span> <span class="nn">.track_constraints</span> <span class="kn">import</span> <span class="n">get_interpolants</span>
+<span class="kn">from</span> <span class="nn">sys</span> <span class="kn">import</span> <span class="n">path</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+
+<span class="kn">import</span> <span class="nn">triangle</span> <span class="k">as</span> <span class="nn">tr</span>
+<span class="kn">import</span> <span class="nn">multiprocessing</span> <span class="k">as</span> <span class="nn">mp</span>
+<span class="kn">import</span> <span class="nn">itertools</span>
+<span class="kn">import</span> <span class="nn">os</span>
+
+<div class="viewcode-block" id="get_g_triangulation">
+<a class="viewcode-back" href="../../mpc.html#mpc.triangles_track_constraints.get_g_triangulation">[docs]</a>
+<span class="k">def</span> <span class="nf">get_g_triangulation</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">,</span> <span class="n">interior_point</span><span class="p">,</span> <span class="n">n_pts</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span> <span class="n">n_meshes</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sink</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">tr_opts</span><span class="o">=</span><span class="s1">&#39;D&#39;</span><span class="p">,</span> <span class="n">return_mats</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="n">n_meshes</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;must have at least one mesh! you passed n_meshes=</span><span class="si">{</span><span class="n">n_meshes</span><span class="si">}</span><span class="s2">.&quot;</span>
+
+    <span class="n">xlutl</span><span class="p">,</span> <span class="n">ylutl</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">get_interpolants</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="s1">&#39;bspline&#39;</span><span class="p">)</span>
+    <span class="n">xlutr</span><span class="p">,</span> <span class="n">ylutr</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">get_interpolants</span><span class="p">(</span><span class="n">right</span><span class="p">,</span> <span class="s1">&#39;bspline&#39;</span><span class="p">)</span>
+
+    <span class="n">n_pts</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">n_pts</span><span class="o">/</span><span class="n">n_meshes</span><span class="p">)</span> <span class="c1"># since we&#39;re splitting into multiple triangulations</span>
+    <span class="n">tgrid</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">n_pts</span><span class="p">,</span> <span class="n">endpoint</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+
+    <span class="n">dt</span> <span class="o">=</span> <span class="mi">1</span><span class="o">/</span><span class="n">n_pts</span> <span class="c1"># distance in t (units of tgrid, 0=start, 1=end) to offset each mesh&#39;s points</span>
+
+    <span class="n">l</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="n">xlutl</span><span class="p">(</span><span class="n">tgrid</span> <span class="o">+</span> <span class="n">i</span><span class="o">/</span><span class="n">n_meshes</span> <span class="o">*</span> <span class="n">dt</span><span class="p">),</span> <span class="n">ylutl</span><span class="p">(</span><span class="n">tgrid</span> <span class="o">+</span> <span class="n">i</span><span class="o">/</span><span class="n">n_meshes</span> <span class="o">*</span> <span class="n">dt</span><span class="p">)])</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_meshes</span><span class="p">)</span>
+    <span class="p">]</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="n">xlutr</span><span class="p">(</span><span class="n">tgrid</span> <span class="o">+</span> <span class="n">i</span><span class="o">/</span><span class="n">n_meshes</span> <span class="o">*</span> <span class="n">dt</span><span class="p">),</span> <span class="n">ylutr</span><span class="p">(</span><span class="n">tgrid</span> <span class="o">+</span> <span class="n">i</span><span class="o">/</span><span class="n">n_meshes</span> <span class="o">*</span> <span class="n">dt</span><span class="p">)])</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_meshes</span><span class="p">)</span>
+    <span class="p">]</span>
+    
+    <span class="n">polygon</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">path</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;vertices&#39;</span><span class="p">:</span> <span class="n">path</span><span class="p">,</span>
+        <span class="s1">&#39;segments&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="n">path</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]]</span><span class="o">+</span><span class="p">[[</span><span class="n">i</span><span class="p">,</span> <span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">path</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">-</span><span class="mi">1</span><span class="p">)],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+    <span class="p">}</span>
+
+    <span class="n">pls</span> <span class="o">=</span> <span class="p">[</span><span class="n">polygon</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">l</span><span class="p">]</span>
+    <span class="n">prs</span> <span class="o">=</span> <span class="p">[</span><span class="n">polygon</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">r</span><span class="p">]</span>
+
+    <span class="n">p_i</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;vertices&#39;</span><span class="p">:</span> <span class="n">pls</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="s1">&#39;vertices&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span> <span class="o">+</span> <span class="n">prs</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="s1">&#39;vertices&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">(),</span>
+        <span class="s1">&#39;segments&#39;</span><span class="p">:</span> <span class="n">pls</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="s1">&#39;segments&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span> <span class="o">+</span> <span class="p">(</span><span class="n">prs</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="s1">&#39;segments&#39;</span><span class="p">]</span><span class="o">+</span><span class="nb">len</span><span class="p">(</span><span class="n">pls</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="s1">&#39;segments&#39;</span><span class="p">]))</span><span class="o">.</span><span class="n">tolist</span><span class="p">(),</span>
+        <span class="s1">&#39;holes&#39;</span><span class="p">:</span>    <span class="p">[</span><span class="n">interior_point</span><span class="p">]</span>
+    <span class="p">}</span>
+    <span class="n">ps</span> <span class="o">=</span> <span class="p">[</span><span class="n">p_i</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_meshes</span><span class="p">)]</span>
+
+    <span class="n">ts</span> <span class="o">=</span> <span class="p">[</span><span class="n">tr</span><span class="o">.</span><span class="n">triangulate</span><span class="p">(</span><span class="n">ps</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="s1">&#39;p&#39;</span><span class="o">+</span><span class="n">tr_opts</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_meshes</span><span class="p">)]</span>
+
+    <span class="c1"># tr.plot(plt.axes(), **ts[0])</span>
+    <span class="c1"># plt.show()</span>
+    <span class="n">mats_out</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">g</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">MX</span><span class="o">.</span><span class="n">sym</span><span class="p">(</span><span class="s1">&#39;p&#39;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">p_aug</span> <span class="o">=</span> <span class="n">ca</span><span class="o">.</span><span class="n">vertcat</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">DM</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
+    <span class="n">I</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">ts</span><span class="p">:</span>
+        <span class="n">verts</span> <span class="o">=</span> <span class="n">t</span><span class="p">[</span><span class="s1">&#39;vertices&#39;</span><span class="p">]</span>
+        <span class="n">trigs</span> <span class="o">=</span> <span class="n">t</span><span class="p">[</span><span class="s1">&#39;triangles&#39;</span><span class="p">]</span>
+        <span class="n">mats</span> <span class="o">=</span> <span class="n">DM</span><span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span>
+                    <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span>
+                        <span class="n">verts</span><span class="p">[</span><span class="nb">list</span><span class="p">(</span><span class="n">i</span><span class="p">)]</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> 
+                        <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+                    <span class="p">]),</span>
+                    <span class="n">I</span>
+                <span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">trigs</span>
+            <span class="p">])</span>
+        <span class="p">)</span>
+        <span class="n">mats_out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">mats</span><span class="p">)</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="n">mats</span><span class="nd">@p_aug</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="n">ca</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="n">ca</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">s</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="n">s</span><span class="p">,</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="n">t</span><span class="p">[</span><span class="s1">&#39;triangles&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+
+        <span class="n">x</span> <span class="o">=</span> <span class="n">MX</span><span class="o">.</span><span class="n">sym</span><span class="p">(</span><span class="s1">&#39;x&#39;</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+        <span class="c1"># s = (ca.sign(x)-1)*x</span>
+        <span class="c1"># f = ca.Function(&#39;f&#39;, [x], [ca.sum1(res)])</span>
+
+        <span class="n">g</span><span class="o">+=</span> <span class="n">ca</span><span class="o">.</span><span class="n">mmin</span><span class="p">(</span><span class="n">ca</span><span class="o">.</span><span class="n">sum1</span><span class="p">(</span><span class="n">res</span><span class="p">))</span>
+
+
+    <span class="n">opts</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;post_expand&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span> <span class="c1"># made it abt 47% faster on my computer</span>
+    <span class="n">g</span> <span class="o">=</span> <span class="n">ca</span><span class="o">.</span><span class="n">Function</span><span class="p">(</span><span class="s1">&#39;g&#39;</span><span class="p">,</span> <span class="p">[</span><span class="n">p</span><span class="p">],</span> <span class="p">[</span><span class="n">g</span><span class="o">-</span><span class="n">sink</span><span class="p">],</span> <span class="n">opts</span><span class="p">)</span>
+    
+    <span class="k">if</span> <span class="n">return_mats</span><span class="p">:</span> <span class="k">return</span> <span class="n">mats_out</span><span class="p">,</span> <span class="n">g</span>
+    <span class="k">return</span> <span class="n">g</span></div>
+
+
+
+<div class="viewcode-block" id="find_g_fast">
+<a class="viewcode-back" href="../../mpc.html#mpc.triangles_track_constraints.find_g_fast">[docs]</a>
+<span class="k">def</span> <span class="nf">find_g_fast</span><span class="p">(</span><span class="n">mats</span><span class="p">,</span> <span class="n">p_aug</span><span class="p">):</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">mats</span><span class="nd">@p_aug</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">((</span><span class="n">np</span><span class="o">.</span><span class="n">signbit</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">*</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="nb">int</span><span class="p">(</span><span class="n">mats</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">/</span><span class="mi">3</span><span class="p">),</span> <span class="mi">3</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="get_interp_g_fast">
+<a class="viewcode-back" href="../../mpc.html#mpc.triangles_track_constraints.get_interp_g_fast">[docs]</a>
+<span class="k">def</span> <span class="nf">get_interp_g_fast</span><span class="p">(</span><span class="n">mats</span><span class="p">,</span> <span class="n">xrange</span><span class="p">,</span> <span class="n">yrange</span><span class="p">,</span> <span class="n">resolution</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">n_cores</span><span class="o">=</span><span class="mi">14</span><span class="p">):</span>
+    <span class="n">mats</span> <span class="o">=</span> <span class="n">mats</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">xrange</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="n">xrange</span><span class="p">),</span> <span class="n">resolution</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">yrange</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="n">yrange</span><span class="p">),</span> <span class="n">resolution</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+
+    <span class="n">pts</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+    <span class="n">pts</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="n">pts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">flatten</span><span class="p">(),</span> <span class="n">pts</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">flatten</span><span class="p">(),</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">pts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)])</span>
+
+    <span class="n">z</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span><span class="n">mp</span><span class="o">.</span><span class="n">Pool</span><span class="p">(</span><span class="n">n_cores</span><span class="p">)</span><span class="o">.</span><span class="n">starmap</span><span class="p">(</span><span class="n">find_g_fast</span><span class="p">,</span> <span class="nb">zip</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">mats</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">],</span> <span class="n">n_cores</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">array_split</span><span class="p">(</span><span class="n">pts</span><span class="p">,</span> <span class="n">n_cores</span><span class="p">,</span> <span class="mi">1</span><span class="p">))))</span>
+    
+    <span class="k">return</span> <span class="n">ca</span><span class="o">.</span><span class="n">interpolant</span><span class="p">(</span><span class="s1">&#39;interp_g&#39;</span><span class="p">,</span> <span class="s1">&#39;linear&#39;</span><span class="p">,</span> <span class="p">[</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">],</span> <span class="n">z</span><span class="p">)</span></div>
+
+    <span class="c1"># z = np.hstack(*mp.Pool(n_cores).starmap(find_g_fast, [itertools.repeat(mats), np.array_split(pts, n_cores, 1)]))</span>
+
+<div class="viewcode-block" id="get_interp_g">
+<a class="viewcode-back" href="../../mpc.html#mpc.triangles_track_constraints.get_interp_g">[docs]</a>
+<span class="k">def</span> <span class="nf">get_interp_g</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">xrange</span><span class="p">,</span> <span class="n">yrange</span><span class="p">,</span> <span class="n">resolution</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">n_cores</span><span class="o">=</span><span class="mi">14</span><span class="p">,</span> <span class="n">compile_g</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">compile_opt_flag</span><span class="o">=</span><span class="s1">&#39;-Ofast&#39;</span><span class="p">):</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">xrange</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="n">xrange</span><span class="p">),</span> <span class="n">resolution</span><span class="p">)</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">yrange</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="n">yrange</span><span class="p">),</span> <span class="n">resolution</span><span class="p">)</span>
+
+    <span class="n">pts</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+    <span class="n">pts</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="n">pts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">flatten</span><span class="p">(),</span> <span class="n">pts</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">flatten</span><span class="p">()])</span><span class="o">.</span><span class="n">T</span>
+
+    <span class="k">if</span> <span class="n">compile_g</span><span class="p">:</span>
+        <span class="n">g</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s1">&#39;g_gen.c&#39;</span><span class="p">)</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">system</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;gcc -fPIC </span><span class="si">{</span><span class="n">compile_opt_flag</span><span class="si">}</span><span class="s1"> -shared g_gen.c -o g_gen.so&#39;</span><span class="p">)</span>
+        <span class="n">g</span> <span class="o">=</span> <span class="n">ca</span><span class="o">.</span><span class="n">external</span><span class="p">(</span><span class="s1">&#39;g&#39;</span><span class="p">,</span> <span class="s1">&#39;./g_gen.so&#39;</span><span class="p">)</span>
+
+    <span class="c1"># multiprocessing! cut runtime down by n_cores times</span>
+    <span class="n">z</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">ca</span><span class="o">.</span><span class="n">horzcat</span><span class="p">(</span>
+        <span class="o">*</span><span class="n">mp</span><span class="o">.</span><span class="n">Pool</span><span class="p">(</span><span class="n">n_cores</span><span class="p">)</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">array_split</span><span class="p">(</span><span class="n">pts</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">n_cores</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
+    
+    <span class="k">return</span> <span class="n">ca</span><span class="o">.</span><span class="n">interpolant</span><span class="p">(</span><span class="s1">&#39;interp_g&#39;</span><span class="p">,</span> <span class="s1">&#39;linear&#39;</span><span class="p">,</span> <span class="p">[</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">],</span> <span class="n">z</span><span class="p">)</span></div>
+
+
+
+<span class="c1">#%%</span>
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">os</span>
+    <span class="kn">from</span> <span class="nn">time</span> <span class="kn">import</span> <span class="n">perf_counter</span>
+    <span class="n">jit</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">path</span> <span class="o">=</span> <span class="n">traj</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">spacing</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+    <span class="n">tic</span> <span class="o">=</span> <span class="n">perf_counter</span><span class="p">()</span>
+    <span class="n">mats</span><span class="p">,</span> <span class="n">g</span> <span class="o">=</span> <span class="n">get_g_triangulation</span><span class="p">(</span><span class="n">path</span><span class="o">.</span><span class="n">l</span><span class="p">,</span> <span class="n">path</span><span class="o">.</span><span class="n">r</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">20</span><span class="p">],</span> <span class="n">n_pts</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">n_meshes</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">return_mats</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="c1"># g.generate(&#39;g_gen.c&#39;)</span>
+    <span class="c1"># # get_interp_g_fast(np.array(mats[0]), (-100, 100), (-100, 100), 1)</span>
+    <span class="c1"># #%%</span>
+    <span class="c1"># if jit:</span>
+    <span class="c1">#     C = ca.Importer(&#39;g_gen.c&#39;, &#39;clang&#39;)</span>
+    <span class="c1">#     g = ca.external(&#39;g&#39;, C)</span>
+    <span class="c1"># else:</span>
+    <span class="c1">#     tic2 = perf_counter()</span>
+    <span class="c1">#     os.system(&#39;gcc -fPIC -Ofast -shared g_gen.c -o g_gen.so&#39;)</span>
+    <span class="c1">#     print(f&#39;compile time: {perf_counter()-tic2:.3f}s&#39;)</span>
+    <span class="c1">#     g = ca.external(&#39;g&#39;, &#39;./g_gen.so&#39;)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;total pre-execution time: </span><span class="si">{</span><span class="n">perf_counter</span><span class="p">()</span><span class="o">-</span><span class="n">tic</span><span class="si">:</span><span class="s1">.3f</span><span class="si">}</span><span class="s1">s&#39;</span><span class="p">)</span>
+    <span class="n">g</span> <span class="o">=</span> <span class="n">get_interp_g</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="p">(</span><span class="o">-</span><span class="mi">120</span><span class="p">,</span> <span class="mi">120</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mi">120</span><span class="p">,</span> <span class="mi">120</span><span class="p">),</span> <span class="mf">0.2</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;time: &#39;</span><span class="p">,</span> <span class="n">perf_counter</span><span class="p">()</span><span class="o">-</span><span class="n">tic</span><span class="p">)</span>
+    <span class="c1"># %%</span>
+    <span class="n">n</span><span class="o">=</span><span class="mi">160</span>
+    <span class="n">div</span><span class="o">=</span><span class="mi">1</span>
+    <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="o">-</span><span class="n">n</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">div</span><span class="p">),</span> 
+                    <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="o">-</span><span class="n">n</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">div</span><span class="p">))</span>
+    <span class="n">z</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+        <span class="n">ca</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span>
+            <span class="n">g</span><span class="p">(</span>
+                <span class="n">ca</span><span class="o">.</span><span class="n">horzcat</span><span class="p">(</span>
+                    <span class="n">DM</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">flatten</span><span class="p">()),</span> 
+                    <span class="n">DM</span><span class="p">(</span><span class="n">y</span><span class="o">.</span><span class="n">flatten</span><span class="p">())</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">T</span>
+            <span class="p">),</span>
+            <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">subplot_kw</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;projection&quot;</span><span class="p">:</span> <span class="s2">&quot;3d&quot;</span><span class="p">})</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">plot_surface</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;coolwarm&#39;</span><span class="p">)</span>
+
+    <span class="n">path</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">ax</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+<span class="c1"># %%</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Daniel Municio.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

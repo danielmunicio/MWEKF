@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>mpc.utils &mdash; Pipeline 131 Mk. S documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+        <script src="../../_static/documentation_options.js?v=e97658a3"></script>
+        <script src="../../_static/doctools.js?v=9a2dae69"></script>
+        <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../index.html" class="icon icon-home"> Pipeline 131
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">graphslam_global</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Pipeline 131</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+      <li>mpc.utils</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for mpc.utils</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">casadi</span> <span class="k">as</span> <span class="nn">ca</span>
+<span class="kn">from</span> <span class="nn">casadi</span> <span class="kn">import</span> <span class="n">MX</span><span class="p">,</span> <span class="n">DM</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<div class="viewcode-block" id="continuous_dynamics_fixed_x_order">
+<a class="viewcode-back" href="../../mpc.html#mpc.utils.continuous_dynamics_fixed_x_order">[docs]</a>
+<span class="k">def</span> <span class="nf">continuous_dynamics_fixed_x_order</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">l_r</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">l_f</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">m</span><span class="o">=</span><span class="mf">1.0</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Defines dynamics of the car, i.e. equality constraints.</span>
+<span class="sd">    parameters:</span>
+<span class="sd">    state x = [xPos,yPos,v,theta]</span>
+<span class="sd">    input u = [F,phi]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># physical constants</span>
+    <span class="c1"># l_r  distance rear wheels to center of gravitiy of the car</span>
+    <span class="c1"># l_f  distance front wheels to center of gravitiy of the car</span>
+    <span class="c1"># m    mass of the car</span>
+
+    <span class="c1"># set parameters</span>
+    <span class="n">beta</span> <span class="o">=</span> <span class="n">ca</span><span class="o">.</span><span class="n">arctan</span><span class="p">(</span><span class="n">l_r</span><span class="o">/</span><span class="p">(</span><span class="n">l_f</span> <span class="o">+</span> <span class="n">l_r</span><span class="p">)</span> <span class="o">*</span> <span class="n">ca</span><span class="o">.</span><span class="n">tan</span><span class="p">(</span><span class="n">u</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+
+    <span class="c1"># calculate dx/dt</span>
+    <span class="k">return</span> <span class="n">ca</span><span class="o">.</span><span class="n">vertcat</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">*</span> <span class="n">ca</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">+</span> <span class="n">beta</span><span class="p">),</span>  <span class="c1"># dxPos/dt = v*cos(theta+beta)</span>
+                      <span class="n">x</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">*</span> <span class="n">ca</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">+</span> <span class="n">beta</span><span class="p">),</span>  <span class="c1"># dyPos/dt = v*sin(theta+beta)</span>
+                      <span class="n">x</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">/</span> <span class="n">l_r</span> <span class="o">*</span> <span class="n">ca</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">beta</span><span class="p">),</span>   <span class="c1"># dtheta/dt = v/l_r*sin(beta)</span>
+                      <span class="n">u</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">/</span> <span class="n">m</span><span class="p">)</span>                    <span class="c1"># dv/dt = F/m</span></div>
+
+
+<div class="viewcode-block" id="discrete_dynamics">
+<a class="viewcode-back" href="../../mpc.html#mpc.utils.discrete_dynamics">[docs]</a>
+<span class="k">def</span> <span class="nf">discrete_dynamics</span><span class="p">(</span><span class="n">tstep</span><span class="p">,</span> <span class="n">l_r</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">l_f</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">m</span><span class="o">=</span><span class="mf">1.0</span><span class="p">):</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">MX</span><span class="o">.</span><span class="n">sym</span><span class="p">(</span><span class="s1">&#39;x&#39;</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+    <span class="n">u</span> <span class="o">=</span> <span class="n">MX</span><span class="o">.</span><span class="n">sym</span><span class="p">(</span><span class="s1">&#39;u&#39;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">xdot</span> <span class="o">=</span> <span class="n">continuous_dynamics_fixed_x_order</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">l_r</span><span class="p">,</span> <span class="n">l_f</span><span class="p">,</span> <span class="n">m</span><span class="p">)</span>
+    <span class="n">ode</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;x&#39;</span><span class="p">:</span> <span class="n">x</span><span class="p">,</span>
+        <span class="s1">&#39;u&#39;</span><span class="p">:</span> <span class="n">u</span><span class="p">,</span>
+        <span class="s1">&#39;ode&#39;</span><span class="p">:</span> <span class="n">xdot</span><span class="p">,</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="n">ca</span><span class="o">.</span><span class="n">integrator</span><span class="p">(</span><span class="s1">&#39;integrator&#39;</span><span class="p">,</span> <span class="s1">&#39;rk&#39;</span><span class="p">,</span> <span class="n">ode</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">tstep</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;number_of_finite_elements&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;expand&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;simplify&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span></div>
+
+
+<div class="viewcode-block" id="closest_point">
+<a class="viewcode-back" href="../../mpc.html#mpc.utils.closest_point">[docs]</a>
+<span class="k">def</span> <span class="nf">closest_point</span><span class="p">(</span><span class="n">pt</span><span class="p">,</span> <span class="n">kmpc</span><span class="p">,</span> <span class="n">states</span><span class="p">):</span>
+    <span class="n">idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">states</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="n">pt</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span>
+    <span class="n">idxs</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="n">idx</span><span class="o">+</span><span class="mi">10</span><span class="o">*</span><span class="n">kmpc</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span><span class="o">%</span><span class="nb">len</span><span class="p">(</span><span class="n">states</span><span class="p">))</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">states</span><span class="p">[</span><span class="n">idxs</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">idx</span> <span class="o">+</span> <span class="n">kmpc</span><span class="o">.</span><span class="n">N</span> <span class="o">&gt;</span> <span class="n">states</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="n">states</span><span class="p">[</span><span class="n">idx</span><span class="p">:],</span> <span class="n">states</span><span class="p">[:</span><span class="n">kmpc</span><span class="o">.</span><span class="n">N</span> <span class="o">-</span> <span class="p">(</span><span class="n">states</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">idx</span><span class="p">)]])</span>
+    <span class="k">return</span> <span class="n">states</span><span class="p">[</span><span class="n">idx</span> <span class="p">:</span> <span class="n">idx</span> <span class="o">+</span> <span class="n">kmpc</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="p">:]</span></div>
+
+
+<div class="viewcode-block" id="get_update_dict">
+<a class="viewcode-back" href="../../mpc.html#mpc.utils.get_update_dict">[docs]</a>
+<span class="k">def</span> <span class="nf">get_update_dict</span><span class="p">(</span><span class="n">pose</span><span class="p">,</span> <span class="n">prev_u</span><span class="p">,</span> <span class="n">kmpc</span><span class="p">,</span> <span class="n">states</span><span class="p">,</span> <span class="n">prev_soln</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="c1"># pts = g.subpath_from_point(pose[:2], kmpc.N, 0.).T</span>
+    <span class="c1"># idx = np.argmin(np.linalg.norm(path[:65, :2]-pose[:2], axis=1))</span>
+    <span class="c1"># pts = path[idx:idx+kmpc.N]</span>
+    <span class="c1"># pts = time_path.subpath_from_point(pose[:2], kmpc.N+1)[1:]</span>
+    <span class="n">pts</span> <span class="o">=</span> <span class="n">closest_point</span><span class="p">(</span><span class="n">pose</span><span class="p">[:</span><span class="mi">2</span><span class="p">],</span> <span class="n">kmpc</span><span class="p">,</span> <span class="n">states</span><span class="p">)</span>
+    <span class="n">update_dict</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+        <span class="n">x0</span> <span class="o">=</span> <span class="n">pose</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+        <span class="n">y0</span> <span class="o">=</span> <span class="n">pose</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+        <span class="n">psi0</span> <span class="o">=</span> <span class="n">pose</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>
+        <span class="n">v0</span> <span class="o">=</span> <span class="n">pose</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span>
+
+        <span class="n">x_ref</span> <span class="o">=</span> <span class="n">pts</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span>
+        <span class="n">y_ref</span> <span class="o">=</span> <span class="n">pts</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">],</span>
+        <span class="n">psi_ref</span> <span class="o">=</span> <span class="n">pts</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">],</span>
+        <span class="n">v_ref</span> <span class="o">=</span> <span class="n">pts</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">],</span>
+
+        <span class="n">acc_prev</span> <span class="o">=</span> <span class="n">prev_u</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+        <span class="n">df_prev</span> <span class="o">=</span> <span class="n">prev_u</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+    <span class="p">)</span>
+        <span class="c1">##* warm start: use values from previous solve</span>
+    <span class="k">if</span> <span class="n">prev_soln</span><span class="p">:</span>
+        <span class="n">update_dict</span><span class="p">[</span><span class="s1">&#39;warm_start&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+            <span class="n">z_ws</span> <span class="o">=</span> <span class="n">prev_soln</span><span class="p">[</span><span class="s1">&#39;z_mpc&#39;</span><span class="p">],</span> <span class="c1"># state</span>
+            <span class="n">u_ws</span> <span class="o">=</span> <span class="n">prev_soln</span><span class="p">[</span><span class="s1">&#39;u_mpc&#39;</span><span class="p">],</span> <span class="c1"># control</span>
+            <span class="n">sl_ws</span> <span class="o">=</span> <span class="n">prev_soln</span><span class="p">[</span><span class="s1">&#39;sl_mpc&#39;</span><span class="p">]</span> <span class="c1"># slack vars for soft constraints</span>
+        <span class="p">)</span>
+    
+    <span class="k">return</span> <span class="n">update_dict</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Daniel Municio.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

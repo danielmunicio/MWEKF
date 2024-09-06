@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>graphslam_global.graphslam_global_fast &mdash; Pipeline 131 Mk. S documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+        <script src="../../_static/documentation_options.js?v=e97658a3"></script>
+        <script src="../../_static/doctools.js?v=9a2dae69"></script>
+        <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../index.html" class="icon icon-home"> Pipeline 131
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">graphslam_global</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Pipeline 131</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+      <li>graphslam_global.graphslam_global_fast</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for graphslam_global.graphslam_global_fast</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">.GraphSLAMFast</span> <span class="kn">import</span> <span class="n">GraphSLAMFast</span>
+<span class="kn">from</span> <span class="nn">all_settings.all_settings</span> <span class="kn">import</span> <span class="n">GraphSLAMFastSettings</span> <span class="k">as</span> <span class="n">settings</span>
+<span class="kn">from</span> <span class="nn">time</span> <span class="kn">import</span> <span class="n">perf_counter</span>
+<span class="kn">import</span> <span class="nn">math</span>
+<span class="c1"># from numpy.random import random, randn</span>
+
+<span class="kn">import</span> <span class="nn">rclpy</span>
+<span class="kn">from</span> <span class="nn">rclpy.node</span> <span class="kn">import</span> <span class="n">Node</span>
+<span class="kn">from</span> <span class="nn">std_msgs.msg</span> <span class="kn">import</span> <span class="n">Float64</span><span class="p">,</span> <span class="n">Header</span><span class="p">,</span> <span class="n">Bool</span>
+<span class="kn">from</span> <span class="nn">sensor_msgs.msg</span> <span class="kn">import</span> <span class="n">Imu</span>
+<span class="kn">from</span> <span class="nn">eufs_msgs.msg</span> <span class="kn">import</span> <span class="n">WheelSpeedsStamped</span>
+<span class="kn">from</span> <span class="nn">eufs_msgs.msg</span> <span class="kn">import</span> <span class="n">CarState</span>
+<span class="kn">from</span> <span class="nn">geometry_msgs.msg</span> <span class="kn">import</span> <span class="n">Quaternion</span><span class="p">,</span> <span class="n">Vector3</span><span class="p">,</span> <span class="n">PoseStamped</span><span class="p">,</span> <span class="n">Pose</span><span class="p">,</span> <span class="n">Point</span><span class="p">,</span> <span class="n">Point32</span>
+<span class="kn">from</span> <span class="nn">sensor_msgs.msg</span> <span class="kn">import</span> <span class="n">PointCloud</span>
+<span class="kn">from</span> <span class="nn">feb_msgs</span> <span class="kn">import</span> <span class="n">Cones</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span> 
+
+
+<span class="kn">from</span> <span class="nn">feb_msgs.msg</span> <span class="kn">import</span> <span class="n">State</span><span class="p">,</span> <span class="n">FebPath</span><span class="p">,</span> <span class="n">Map</span>
+<span class="kn">from</span> <span class="nn">eufs_msgs.msg</span> <span class="kn">import</span> <span class="n">ConeArrayWithCovariance</span><span class="p">,</span> <span class="n">ConeWithCovariance</span>
+
+<div class="viewcode-block" id="GraphSLAM_Global">
+<a class="viewcode-back" href="../../graphslam_global.html#graphslam_global.graphslam_global_fast.GraphSLAM_Global">[docs]</a>
+<span class="k">class</span> <span class="nc">GraphSLAM_Global</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+
+        <span class="c1"># ROS2 INTEGRATIONS</span>
+
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="s1">&#39;graphslam_global_node&#39;</span><span class="p">)</span>
+
+        <span class="c1"># SUBSCRIBERS</span>
+
+        <span class="c1"># Handle IMU messages for vehicle state</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">imu_sub</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_subscription</span><span class="p">(</span>
+            <span class="n">Imu</span><span class="p">,</span>
+            <span class="s1">&#39;/imu&#39;</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">imu_callback</span><span class="p">,</span>
+            <span class="mi">1</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Handle new cone readings from perception</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cones_sub</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_subscription</span><span class="p">(</span>
+            <span class="n">ConeArrayWithCovariance</span><span class="p">,</span>
+            <span class="s1">&#39;/fusion/cones&#39;</span><span class="p">,</span> 
+            <span class="bp">self</span><span class="o">.</span><span class="n">cones_callback</span><span class="p">,</span>
+            <span class="mi">1</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Once path is finished, turn this node callbacks funcs off</span>
+        <span class="c1"># self.finish_sub = self.create_subscription(</span>
+        <span class="c1">#     Bool,</span>
+        <span class="c1">#     &#39;/path/finished&#39;,</span>
+        <span class="c1">#     self.finish_callback,</span>
+        <span class="c1">#     1</span>
+        <span class="c1"># )</span>
+
+        <span class="c1"># PUBLISHERS</span>
+        
+        <span class="c1"># Publish the current vehicle&#39;s state: X, Y, Velo, Theta</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">state_pub</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_publisher</span><span class="p">(</span>
+            <span class="n">State</span><span class="p">,</span>
+            <span class="s1">&#39;/slam/state&#39;</span><span class="p">,</span>
+            <span class="mi">1</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Publish the current map (GLOBAL_NODE, so this will send the whole map)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">global_map_pub</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_publisher</span><span class="p">(</span>
+            <span class="n">Map</span><span class="p">,</span> 
+            <span class="s1">&#39;/slam/map/global&#39;</span><span class="p">,</span>
+            <span class="mi">1</span>
+        <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">local_map_pub</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_publisher</span><span class="p">(</span>
+            <span class="n">Map</span><span class="p">,</span> 
+            <span class="s1">&#39;/slam/map/local&#39;</span><span class="p">,</span>
+            <span class="mi">1</span>
+        <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">wheelspeeds</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_subscription</span><span class="p">(</span>
+            <span class="n">WheelSpeedsStamped</span><span class="p">,</span>
+            <span class="s1">&#39;/ground_truth/wheel_speeds&#39;</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">wheelspeed_sub</span><span class="p">,</span>
+            <span class="mi">1</span>
+        <span class="p">)</span>
+
+        
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">state_subby</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_subscription</span><span class="p">(</span>
+            <span class="n">CarState</span><span class="p">,</span>
+            <span class="s1">&#39;/ground_truth/state&#39;</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">state_sub</span><span class="p">,</span>
+            <span class="mi">1</span><span class="p">,</span>
+        <span class="p">)</span>
+
+
+        <span class="c1">##These are for Visuals in the SIM </span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cones_vis_pub</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_publisher</span><span class="p">(</span>
+            <span class="n">PointCloud</span><span class="p">,</span>
+            <span class="s1">&#39;/slam/conemap&#39;</span><span class="p">,</span>
+            <span class="mi">1</span>
+        <span class="p">)</span>
+
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">positionguess</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_publisher</span><span class="p">(</span>
+            <span class="n">PointCloud</span><span class="p">,</span>
+            <span class="s1">&#39;/slam/guessed_positions&#39;</span><span class="p">,</span>
+            <span class="mi">1</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pose_pub</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_publisher</span><span class="p">(</span>
+            <span class="n">PoseStamped</span><span class="p">,</span>
+            <span class="s1">&#39;/slam/pose&#39;</span><span class="p">,</span>
+            <span class="mi">1</span>
+        <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">cones_polar_pub</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_publisher</span><span class="p">(</span>
+            <span class="n">Cones</span><span class="p">,</span>
+            <span class="s1">&#39;/cones/polar&#39;</span><span class="p">,</span>
+            <span class="mi">1</span>
+        <span class="p">)</span>
+        <span class="c1"># SLAM Initialization</span>
+
+        <span class="c1"># Initializes a new instance of graphslam from the graphslam</span>
+        <span class="c1"># Data Association Threshold is to be tweaked</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">slam</span> <span class="o">=</span> <span class="n">GraphSLAMFast</span><span class="p">(</span><span class="o">**</span><span class="n">settings</span><span class="p">)</span>
+        
+        <span class="c1"># used to calculate the state of the vehicle</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">currentstate_simulator</span> <span class="o">=</span> <span class="n">State</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">currentstate_simulator</span><span class="o">.</span><span class="n">x</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">currentstate_simulator</span><span class="o">.</span><span class="n">y</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">statetimestamp</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span> <span class="o">=</span> <span class="n">State</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">x</span> <span class="o">=</span> <span class="mf">0.0</span> 
+        <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">y</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">velocity</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">heading</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">lap_count</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">state_seq</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cone_seq</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">distance_traveled_danny</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">global_map</span> <span class="o">=</span> <span class="n">Map</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">local_map</span> <span class="o">=</span> <span class="n">Map</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">LPKRDSM</span> <span class="o">=</span> <span class="mi">4</span> <span class="c1"># LaP oK RaDiuS (Meters)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">is_clear_of_lap_count_radius</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="c1"># radius for which to include local cones ---#UPDATE, perhaps from mpc message</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">local_radius</span> <span class="o">=</span> <span class="mi">100000</span> 
+        
+        <span class="c1"># how far into periphery of robot heading on each side to include local cones (robot has tunnel vision if this is small) (radians)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">local_vision_delta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="mi">2</span> 
+
+        <span class="c1"># for handling new messages during the solve step</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">solving</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">finished</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">usefastslam</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">last_slam_update</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">Inf</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">Inf</span><span class="p">])</span>
+
+<div class="viewcode-block" id="GraphSLAM_Global.state_sub">
+<a class="viewcode-back" href="../../graphslam_global.html#graphslam_global.graphslam_global_fast.GraphSLAM_Global.state_sub">[docs]</a>
+    <span class="k">def</span> <span class="nf">state_sub</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">:</span> <span class="n">CarState</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot; This is a callback function for the SIMULATORS ground truth carstate. </span>
+<span class="sd">            Currently being used to get the cars position so we can calculate the cones R, theta properly.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1">#with open(&quot;sim_data.txt&quot;, &quot;a&quot;) as f:</span>
+            <span class="c1"># print(&quot;---------------------------------------&quot;, file =f)</span>
+            <span class="c1"># print(&quot;GROUND TRUTH CAR STATE: &quot;, file =f)</span>
+            <span class="c1"># print(&quot;x position: &quot;, msg.pose.pose.position.x, file=f)</span>
+            <span class="c1"># print(&quot;y position: &quot;, msg.pose.pose.position.y, file=f)</span>
+            <span class="c1"># print(&quot;heading: &quot;, self.quat_to_euler(msg.pose.pose.orientation)[-1], file=f)</span>
+            <span class="c1"># print(&quot;----------------------------------------&quot;, file=f)</span>
+        <span class="c1"># self.currentstate.x = msg.pose.pose.position.x</span>
+        <span class="c1"># self.currentstate.y = msg.pose.pose.position.y</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">currentstate_simulator</span><span class="o">.</span><span class="n">x</span> <span class="o">=</span> <span class="n">msg</span><span class="o">.</span><span class="n">pose</span><span class="o">.</span><span class="n">pose</span><span class="o">.</span><span class="n">position</span><span class="o">.</span><span class="n">x</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">currentstate_simulator</span><span class="o">.</span><span class="n">y</span> <span class="o">=</span> <span class="n">msg</span><span class="o">.</span><span class="n">pose</span><span class="o">.</span><span class="n">pose</span><span class="o">.</span><span class="n">position</span><span class="o">.</span><span class="n">y</span>
+        <span class="c1"># self.currentstate.velocity = np.sqrt(msg.twist.twist.linear.x**2 + msg.twist.twist.linear.y**2)</span>
+        <span class="k">return</span></div>
+
+
+<div class="viewcode-block" id="GraphSLAM_Global.wheelspeed_sub">
+<a class="viewcode-back" href="../../graphslam_global.html#graphslam_global.graphslam_global_fast.GraphSLAM_Global.wheelspeed_sub">[docs]</a>
+    <span class="k">def</span> <span class="nf">wheelspeed_sub</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">:</span> <span class="n">WheelSpeedsStamped</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">velocity</span> <span class="o">=</span> <span class="p">((</span><span class="n">msg</span><span class="o">.</span><span class="n">speeds</span><span class="o">.</span><span class="n">lb_speed</span> <span class="o">+</span> <span class="n">msg</span><span class="o">.</span><span class="n">speeds</span><span class="o">.</span><span class="n">rb_speed</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="mf">0.505</span><span class="o">/</span><span class="mi">60</span></div>
+
+        
+
+<div class="viewcode-block" id="GraphSLAM_Global.finish_callback">
+<a class="viewcode-back" href="../../graphslam_global.html#graphslam_global.graphslam_global_fast.GraphSLAM_Global.finish_callback">[docs]</a>
+    <span class="k">def</span> <span class="nf">finish_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">:</span> <span class="n">Bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">usefastslam</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">finished</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">data</span><span class="p">)</span></div>
+
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Function that takes in message header and computes difference in time from last state msg</span>
+<span class="sd">    Input: Header (std_msg/Header)</span>
+<span class="sd">    - uint32 seq</span>
+<span class="sd">    - time stamp</span>
+<span class="sd">    - string frame_id</span>
+<span class="sd">    Output: timediff: float</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+<div class="viewcode-block" id="GraphSLAM_Global.compute_timediff">
+<a class="viewcode-back" href="../../graphslam_global.html#graphslam_global.graphslam_global_fast.GraphSLAM_Global.compute_timediff">[docs]</a>
+    <span class="k">def</span> <span class="nf">compute_timediff</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">header</span><span class="p">:</span> <span class="n">Header</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+        <span class="n">newtime</span> <span class="o">=</span> <span class="n">header</span><span class="o">.</span><span class="n">stamp</span><span class="o">.</span><span class="n">sec</span> <span class="o">+</span> <span class="mf">1e-9</span> <span class="o">*</span> <span class="n">header</span><span class="o">.</span><span class="n">stamp</span><span class="o">.</span><span class="n">nanosec</span>
+        <span class="n">timediff</span> <span class="o">=</span> <span class="n">newtime</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">statetimestamp</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">statetimestamp</span> <span class="o">=</span> <span class="n">newtime</span>
+
+        <span class="k">return</span> <span class="n">timediff</span></div>
+
+<span class="w">    </span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Function that takes in quaternion and converts to Eulerian angles</span>
+<span class="sd">    Input: Quat (Quaternion)</span>
+<span class="sd">    - float x</span>
+<span class="sd">    - float y</span>
+<span class="sd">    - float z</span>
+<span class="sd">    - float w</span>
+<span class="sd">    Output: roll, pitch, yaw</span>
+<span class="sd">    #NOTE: roll and pitch are irrelevant as of now, we only care about heading angle (pitch)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+<div class="viewcode-block" id="GraphSLAM_Global.quat_to_euler">
+<a class="viewcode-back" href="../../graphslam_global.html#graphslam_global.graphslam_global_fast.GraphSLAM_Global.quat_to_euler">[docs]</a>
+    <span class="k">def</span> <span class="nf">quat_to_euler</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">quat</span><span class="p">:</span> <span class="n">Quaternion</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">quat</span><span class="o">.</span><span class="n">x</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">quat</span><span class="o">.</span><span class="n">y</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="n">quat</span><span class="o">.</span><span class="n">z</span>
+        <span class="n">w</span> <span class="o">=</span> <span class="n">quat</span><span class="o">.</span><span class="n">w</span>
+
+        <span class="n">roll</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">atan2</span><span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="p">(</span><span class="n">w</span> <span class="o">*</span> <span class="n">x</span> <span class="o">+</span> <span class="n">y</span> <span class="o">*</span> <span class="n">z</span><span class="p">),</span> <span class="mf">1.0</span> <span class="o">-</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span> <span class="o">*</span> <span class="n">x</span> <span class="o">+</span> <span class="n">y</span> <span class="o">*</span> <span class="n">x</span><span class="p">))</span>
+        <span class="n">pitch</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">asin</span><span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="p">(</span><span class="n">w</span> <span class="o">*</span> <span class="n">y</span> <span class="o">-</span> <span class="n">z</span> <span class="o">*</span> <span class="n">x</span><span class="p">))</span>
+        <span class="n">yaw</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">atan2</span><span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="p">(</span><span class="n">w</span> <span class="o">*</span> <span class="n">z</span> <span class="o">+</span> <span class="n">x</span> <span class="o">*</span> <span class="n">y</span><span class="p">),</span> <span class="mf">1.0</span> <span class="o">-</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="p">(</span><span class="n">y</span> <span class="o">*</span> <span class="n">y</span> <span class="o">+</span> <span class="n">z</span> <span class="o">*</span> <span class="n">z</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">roll</span><span class="p">,</span> <span class="n">pitch</span><span class="p">,</span> <span class="n">yaw</span></div>
+
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Function that takes in linear acceleration and dt and outputs velocity (linear)</span>
+<span class="sd">    Input:</span>
+<span class="sd">    - linear_acceleration: from imu message</span>
+<span class="sd">    - dt: calculated at each time step</span>
+<span class="sd">    Output:</span>
+<span class="sd">    - linear_velocity</span>
+<span class="sd">    #NOTE: we assume linear acceleration is in the car&#39;s frame. This means</span>
+<span class="sd">            x is in the longitudinal direction (positive = forwards)</span>
+<span class="sd">            y is in the lateral direction (positive = to the right)</span>
+<span class="sd">            depending on how IMU is providing this data, change accordingly</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+<div class="viewcode-block" id="GraphSLAM_Global.compute_delta_velocity">
+<a class="viewcode-back" href="../../graphslam_global.html#graphslam_global.graphslam_global_fast.GraphSLAM_Global.compute_delta_velocity">[docs]</a>
+    <span class="k">def</span> <span class="nf">compute_delta_velocity</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">acc</span><span class="p">:</span> <span class="n">Vector3</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+        <span class="c1"># longitudinal_acc = np.linalg.norm([acc.x, acc.y])</span>
+        <span class="n">longitudinal_acc</span> <span class="o">=</span> <span class="n">acc</span><span class="o">.</span><span class="n">x</span>
+        <span class="c1"># lateral_acc = acc.y # May be needed in the future if  </span>
+        <span class="c1">#                       straightline model is not accurate enough</span>
+
+        <span class="n">linear_velocity</span> <span class="o">=</span> <span class="n">longitudinal_acc</span> <span class="o">*</span> <span class="n">dt</span>
+        <span class="k">return</span> <span class="n">linear_velocity</span></div>
+
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Function that updates the State.msg variables after a new state has been produced</span>
+<span class="sd">    Inputs: </span>
+<span class="sd">    - dx: change in position [delta_x, delta_y]</span>
+<span class="sd">    - yaw: new heading (theta)</span>
+<span class="sd">    - velocity</span>
+<span class="sd">    Outputs: None</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+<div class="viewcode-block" id="GraphSLAM_Global.update_state">
+<a class="viewcode-back" href="../../graphslam_global.html#graphslam_global.graphslam_global_fast.GraphSLAM_Global.update_state">[docs]</a>
+    <span class="k">def</span> <span class="nf">update_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dx</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">,</span> <span class="n">yaw</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">velocity</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># All carstates should be float #&#39;s </span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">x</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">y</span><span class="o">**</span><span class="mi">2</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">LPKRDSM</span><span class="o">**</span><span class="mi">2</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_clear_of_lap_count_radius</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">lap_count</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">global_map_pub</span><span class="o">.</span><span class="n">publish</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">local_map</span><span class="p">)</span>
+
+                <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">lap_count</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">is_clear_of_lap_count_radius</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">is_clear_of_lap_count_radius</span> <span class="o">=</span> <span class="kc">True</span>
+
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">x</span> <span class="o">+=</span> <span class="n">dx</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">y</span> <span class="o">+=</span> <span class="n">dx</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">velocity</span> <span class="o">=</span> <span class="n">velocity</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">heading</span> <span class="o">=</span> <span class="n">yaw</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">state_seq</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="c1">#self.currentstate.header.seq = self.state_seq</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">stamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_clock</span><span class="p">()</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">to_msg</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">frame_id</span> <span class="o">=</span> <span class="s2">&quot;map&quot;</span></div>
+
+
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Function that takes in IMU messages and processes GraphSLAM based upon </span>
+<span class="sd">    Input: imu (Imu_msg)</span>
+<span class="sd">    - geometry_msgs/Quarternion orientation</span>
+<span class="sd">    - float64[9] orientation_covariance</span>
+<span class="sd">    - geometry_msgs/Vector3 angular_velocity</span>
+<span class="sd">    - float64[9] angular_velocity_covariance</span>
+<span class="sd">    - geometry_msgs/Vector3 linear_acceleration</span>
+<span class="sd">    - float64[9] linear_acceleration_covariance</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="GraphSLAM_Global.imu_callback">
+<a class="viewcode-back" href="../../graphslam_global.html#graphslam_global.graphslam_global_fast.GraphSLAM_Global.imu_callback">[docs]</a>
+    <span class="k">def</span> <span class="nf">imu_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">imu</span><span class="p">:</span> <span class="n">Imu</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">finished</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="c1"># process time</span>
+        <span class="n">dt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">compute_timediff</span><span class="p">(</span><span class="n">imu</span><span class="o">.</span><span class="n">header</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">dt</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="k">return</span>
+
+        <span class="c1"># generate current heading</span>
+        <span class="n">roll</span><span class="p">,</span> <span class="n">pitch</span><span class="p">,</span> <span class="n">yaw</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">quat_to_euler</span><span class="p">(</span><span class="n">imu</span><span class="o">.</span><span class="n">orientation</span><span class="p">)</span>
+
+        <span class="c1"># generate current velocity</span>
+        <span class="c1"># delta_velocity = self.compute_delta_velocity(imu.linear_acceleration, dt)</span>
+        <span class="c1"># velocity = self.currentstate.velocity + delta_velocity</span>
+        <span class="c1"># self.currentstate.velocity = velocity</span>
+
+        <span class="c1"># for now, we assume velocity is in the direction of heading</span>
+        <span class="c1"># generate dx [change in x, change in y] to add new pose to graph</span>
+        <span class="n">dx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">velocity</span> <span class="o">*</span> <span class="n">dt</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">yaw</span><span class="p">),</span> <span class="n">math</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">yaw</span><span class="p">)])</span>
+        
+        <span class="c1"># add new position node to graph</span>
+        <span class="c1"># self.slam.update_position(dx)</span>
+        <span class="c1">#self.slam.update_backlog_imu(dx)</span>
+
+        <span class="c1"># update state msg</span>
+        <span class="c1"># self.currentstate.heading = yaw</span>
+        <span class="c1"># self.currentstate.heading = yaw</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">update_state</span><span class="p">(</span><span class="n">dx</span><span class="p">,</span> <span class="n">yaw</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">velocity</span><span class="p">)</span>
+        
+        <span class="c1">## Show the estimated Pose on the Sim        </span>
+        <span class="n">pose_msg</span> <span class="o">=</span> <span class="n">PoseStamped</span><span class="p">()</span>
+        <span class="c1"># pose_msg.pose = Pose()</span>
+        <span class="c1"># pose_msg.pose.position = Point()</span>
+        <span class="c1"># pose_msg.pose.orientation = Quaternion()</span>
+ 
+        <span class="n">pose_msg</span><span class="o">.</span><span class="n">pose</span><span class="o">.</span><span class="n">position</span><span class="o">.</span><span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">x</span>
+        <span class="n">pose_msg</span><span class="o">.</span><span class="n">pose</span><span class="o">.</span><span class="n">position</span><span class="o">.</span><span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">y</span>
+        <span class="n">pose_msg</span><span class="o">.</span><span class="n">pose</span><span class="o">.</span><span class="n">position</span><span class="o">.</span><span class="n">z</span> <span class="o">=</span> <span class="mi">0</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">velocity</span>
+        <span class="n">pose_msg</span><span class="o">.</span><span class="n">pose</span><span class="o">.</span><span class="n">orientation</span><span class="o">.</span><span class="n">w</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">heading</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span>
+        <span class="n">pose_msg</span><span class="o">.</span><span class="n">pose</span><span class="o">.</span><span class="n">orientation</span><span class="o">.</span><span class="n">x</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="n">pose_msg</span><span class="o">.</span><span class="n">pose</span><span class="o">.</span><span class="n">orientation</span><span class="o">.</span><span class="n">y</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="n">pose_msg</span><span class="o">.</span><span class="n">pose</span><span class="o">.</span><span class="n">orientation</span><span class="o">.</span><span class="n">z</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">heading</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span>
+ 
+        <span class="n">pose_msg</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">frame_id</span> <span class="o">=</span> <span class="s2">&quot;map&quot;</span>
+        <span class="n">pose_msg</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">stamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_clock</span><span class="p">()</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">to_msg</span><span class="p">()</span>
+ 
+        <span class="bp">self</span><span class="o">.</span><span class="n">pose_pub</span><span class="o">.</span><span class="n">publish</span><span class="p">(</span><span class="n">pose_msg</span><span class="p">)</span>
+
+        <span class="c1">## Show Estimated Pose END </span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">state_pub</span><span class="o">.</span><span class="n">publish</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="p">)</span>
+
+        <span class="n">delta_pos</span> <span class="o">=</span> <span class="n">dt</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">velocity</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">distance_traveled_danny</span> <span class="o">+=</span> <span class="n">delta_pos</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;SLAM_Solve.txt&quot;</span><span class="p">,</span> <span class="s2">&quot;a&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;----------------------------------------------------------&quot;</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="n">f</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;FROM SLAM: &quot;</span><span class="p">,</span> <span class="n">file</span> <span class="o">=</span> <span class="n">f</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;x guess: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">x</span><span class="si">}</span><span class="s2"> </span><span class="se">\n</span><span class="s2"> y guess: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">y</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="n">f</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;ACTUAL xpos: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">currentstate_simulator</span><span class="o">.</span><span class="n">x</span><span class="si">}</span><span class="s2"> </span><span class="se">\n</span><span class="s2"> y guess: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">currentstate_simulator</span><span class="o">.</span><span class="n">y</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="n">f</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;ACTUAL VELOCITY: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">velocity</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">file</span> <span class="o">=</span> <span class="n">f</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;dt: </span><span class="si">{</span><span class="n">dt</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">file</span> <span class="o">=</span> <span class="n">f</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Distance Traveled: </span><span class="si">{</span><span class="n">delta_pos</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">file</span> <span class="o">=</span> <span class="n">f</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Total Distance: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">distance_traveled_danny</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">file</span> <span class="o">=</span> <span class="n">f</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;-----------------------------------------------------------&quot;</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="n">f</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">file</span><span class="o">=</span><span class="n">f</span><span class="p">)</span></div>
+
+
+        <span class="c1"># print(f&quot;TIME TAKEN FOR IMU CALLBACK: {times}&quot;)</span>
+
+<div class="viewcode-block" id="GraphSLAM_Global.cartesian_to_polar">
+<a class="viewcode-back" href="../../graphslam_global.html#graphslam_global.graphslam_global_fast.GraphSLAM_Global.cartesian_to_polar">[docs]</a>
+    <span class="k">def</span> <span class="nf">cartesian_to_polar</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">car_state</span><span class="p">,</span> <span class="n">cone</span><span class="p">):</span>
+        <span class="n">p_x</span> <span class="o">=</span> <span class="n">cone</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">car_state</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">p_y</span> <span class="o">=</span> <span class="n">cone</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">car_state</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">r</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">p_x</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">p_y</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+        <span class="n">angle</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">atan2</span><span class="p">(</span><span class="n">p_y</span><span class="p">,</span> <span class="n">p_x</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">r</span><span class="p">,</span> <span class="n">angle</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">p_x</span> <span class="o">==</span> <span class="mi">0</span><span class="p">):</span>
+            <span class="n">angle</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">asin</span><span class="p">(</span><span class="n">p_y</span><span class="o">/</span><span class="n">r</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">angle</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">atan</span><span class="p">(</span><span class="n">p_y</span> <span class="o">/</span> <span class="n">p_x</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">p_x</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">angle</span> <span class="o">=</span> <span class="n">angle</span> <span class="o">+</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span>
+        <span class="k">return</span> <span class="n">r</span><span class="p">,</span> <span class="n">angle</span></div>
+
+<span class="w">    </span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Function that takes the list of cones, updates and solves the graph</span>
+<span class="sd">    </span>
+<span class="sd">    &quot;&quot;&quot;</span>
+<div class="viewcode-block" id="GraphSLAM_Global.cones_callback">
+<a class="viewcode-back" href="../../graphslam_global.html#graphslam_global.graphslam_global_fast.GraphSLAM_Global.cones_callback">[docs]</a>
+    <span class="k">def</span> <span class="nf">cones_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cones</span><span class="p">:</span> <span class="n">ConeArrayWithCovariance</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span> <span class="c1"># abt todo: we have had cones as a placeholder message structure yet to be defined (cones.r, cones.theta, cones.color) for now</span>
+        <span class="n">bloobs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="n">i</span><span class="o">.</span><span class="n">point</span><span class="o">.</span><span class="n">x</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">cones</span><span class="o">.</span><span class="n">blue_cones</span><span class="p">],</span>
+                           <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">point</span><span class="o">.</span><span class="n">y</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">cones</span><span class="o">.</span><span class="n">blue_cones</span><span class="p">]])</span>
+        <span class="n">yellow</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="n">i</span><span class="o">.</span><span class="n">point</span><span class="o">.</span><span class="n">x</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">cones</span><span class="o">.</span><span class="n">yellow_cones</span><span class="p">],</span>
+                           <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">point</span><span class="o">.</span><span class="n">y</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">cones</span><span class="o">.</span><span class="n">yellow_cones</span><span class="p">]])</span>
+        
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;bloobsnyellers.txt&quot;</span><span class="p">,</span> <span class="s2">&quot;a&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">bloobs</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="n">f</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">yellow</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="n">f</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">*</span><span class="mi">2</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="n">f</span><span class="p">)</span>
+
+        <span class="n">carstate_array</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">y</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">velocity</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">heading</span><span class="p">]</span>
+        <span class="n">rot</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">theta</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">theta</span><span class="p">),</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">theta</span><span class="p">)],</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">theta</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">theta</span><span class="p">)]])</span>
+        <span class="n">pos</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">carstate_array</span><span class="p">[:</span><span class="mi">2</span><span class="p">])[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+        <span class="n">bloobs</span> <span class="o">=</span> <span class="n">rot</span><span class="p">(</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">heading</span><span class="p">)</span><span class="nd">@bloobs</span> <span class="o">+</span> <span class="n">pos</span>
+        <span class="n">yellow</span> <span class="o">=</span> <span class="n">rot</span><span class="p">(</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">heading</span><span class="p">)</span><span class="nd">@yellow</span> <span class="o">+</span> <span class="n">pos</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">local_map</span><span class="o">.</span><span class="n">left_cones_x</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">bloobs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">local_map</span><span class="o">.</span><span class="n">left_cones_y</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">bloobs</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">local_map</span><span class="o">.</span><span class="n">right_cones_x</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">yellow</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">local_map</span><span class="o">.</span><span class="n">right_cones_y</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">yellow</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+        <span class="c1"># self.local_map_pub.publish(self.local_map)</span>
+
+        <span class="c1"># with open(&quot;sim_data.txt&quot;, &quot;a&quot;) as f:</span>
+        <span class="c1">#     print(&quot;From SLAM cones map:&quot;, self.local_map, file=f)</span>
+        <span class="c1">#     print(file=f)</span>
+
+    
+        <span class="c1"># x_s = [cone.point.x for cone in cones.blue_cones] + [cone.point.x for cone in cones.yellow_cones]</span>
+        <span class="c1"># y_s = [cone.point.y for cone in cones.blue_cones] + [cone.point.y for cone in cones.yellow_cones]</span>
+
+        <span class="c1"># plt.scatter(x_s, y_s)</span>
+        <span class="c1"># plt.show()</span>
+
+        <span class="c1"># Dummy function for now, need to update graph and solve graph on each timestep</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">finished</span><span class="p">:</span>
+            <span class="k">return</span>
+        
+        <span class="c1">#input cone list &amp; dummy dx since we are already doing that in update_graph with imu data</span>
+        <span class="c1"># cone_matrix = np.hstack(Cones.r, Cones.theta, Cones.color)</span>
+        <span class="n">cone_matrix</span> <span class="o">=</span> <span class="p">[[],</span> <span class="p">[],</span> <span class="p">[]]</span>
+        <span class="k">for</span> <span class="n">cone</span> <span class="ow">in</span> <span class="n">cones</span><span class="o">.</span><span class="n">blue_cones</span><span class="p">:</span>
+            <span class="n">r</span><span class="p">,</span> <span class="n">theta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartesian_to_polar</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">(</span><span class="n">cone</span><span class="o">.</span><span class="n">point</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="n">cone</span><span class="o">.</span><span class="n">point</span><span class="o">.</span><span class="n">y</span><span class="p">))</span>
+            <span class="n">cone_matrix</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
+            <span class="n">cone_matrix</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">theta</span><span class="p">)</span>
+            <span class="n">cone_matrix</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">cone</span> <span class="ow">in</span> <span class="n">cones</span><span class="o">.</span><span class="n">yellow_cones</span><span class="p">:</span>
+            <span class="n">r</span><span class="p">,</span> <span class="n">theta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartesian_to_polar</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">(</span><span class="n">cone</span><span class="o">.</span><span class="n">point</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="n">cone</span><span class="o">.</span><span class="n">point</span><span class="o">.</span><span class="n">y</span><span class="p">))</span>
+            <span class="n">cone_matrix</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
+            <span class="n">cone_matrix</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">theta</span><span class="p">)</span>
+            <span class="n">cone_matrix</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="c1"># for cone in cones.big_orange_cones:</span>
+        <span class="c1">#     r, theta = self.cartesian_to_polar([0.0, 0.0], (cone.point.x, cone.point.y))</span>
+        <span class="c1">#     cone_matrix[0].append(r)</span>
+        <span class="c1">#     cone_matrix[1].append(theta)</span>
+        <span class="c1">#     cone_matrix[2].append(0)</span>
+
+        <span class="n">cone_matrix</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">cone_matrix</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+        <span class="c1"># print(&quot;CONESHAPE&quot;, cone_matrix.shape)</span>
+        <span class="n">cone_dx</span> <span class="o">=</span> <span class="n">cone_matrix</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">cone_matrix</span><span class="p">[:,</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">heading</span><span class="p">)</span> <span class="c1"># r * cos(theta) element wise</span>
+        <span class="n">cone_dy</span> <span class="o">=</span> <span class="n">cone_matrix</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">cone_matrix</span><span class="p">[:,</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">heading</span><span class="p">)</span> <span class="c1"># r * sin(theta) element_wise</span>
+        <span class="n">cartesian_cones</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">cone_dx</span><span class="p">,</span> <span class="n">cone_dy</span><span class="p">,</span> <span class="n">cone_matrix</span><span class="p">[:,</span><span class="mi">2</span><span class="p">]))</span><span class="o">.</span><span class="n">T</span> <span class="c1"># n x 3 array of n cones and dx, dy, color   -- input for update_graph</span>
+
+
+        <span class="c1"># cone_matrix = np.hstack([np.vstack([bloobs.T, yellow.T]), np.array([[0]*len(bloobs[0]) + [1]*len(yellow[0])]).T])</span>
+        <span class="c1"># process all new cone messages separately while one thread is solving slam        </span>
+        
+        <span class="c1">#lock</span>
+        <span class="c1">#self.slam.update_backlog_perception(cone_matrix)</span>
+        <span class="c1">#if (self.solving):</span>
+        <span class="c1">#    return</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">last_slam_update</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">y</span><span class="p">]))</span> <span class="o">&gt;</span> <span class="mf">1.0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">slam</span><span class="o">.</span><span class="n">update_graph</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">y</span><span class="p">])</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">last_slam_update</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">last_slam_update</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">&lt;</span><span class="mf">999999999.0</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]),</span> <span class="n">cartesian_cones</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">2</span><span class="p">],</span> <span class="n">cartesian_cones</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">flatten</span><span class="p">())</span> <span class="c1"># old pre-ros threading</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">cartesian_cones</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">last_slam_update</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">y</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="c1">#self.slam.update_graph_color(perception_backlog_imu, perception_backlog_cones)</span>
+        <span class="c1">#self.perception_backlog_cones = []</span>
+        <span class="c1">#self.perception_backlog_imu = []</span>
+        <span class="c1">#self.slam.update_graph_block()</span>
+        <span class="c1">#x_guess, lm_guess = self.solveGraphSlamLock()</span>
+        
+        <span class="c1"># x_guess, lm_guess = self.slam.solve_graph()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">slam</span><span class="o">.</span><span class="n">solve_graph</span><span class="p">()</span>
+        <span class="n">x_guess</span><span class="p">,</span> <span class="n">lm_guess</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">slam</span><span class="o">.</span><span class="n">xhat</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">slam</span><span class="o">.</span><span class="n">lhat</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">slam</span><span class="o">.</span><span class="n">color</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]))</span>
+
+        <span class="n">position_guess</span> <span class="o">=</span> <span class="n">PointCloud</span><span class="p">()</span>
+        <span class="n">positions</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">pos</span> <span class="ow">in</span> <span class="n">x_guess</span><span class="p">:</span> 
+            <span class="n">positions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Point32</span><span class="p">())</span>
+            <span class="n">positions</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">x</span> <span class="o">=</span> <span class="n">pos</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">positions</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">y</span> <span class="o">=</span> <span class="n">pos</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">positions</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">z</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="n">position_guess</span><span class="o">.</span><span class="n">points</span> <span class="o">=</span> <span class="n">positions</span>
+        <span class="n">position_guess</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">frame_id</span> <span class="o">=</span> <span class="s2">&quot;map&quot;</span>
+        <span class="n">position_guess</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">stamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_clock</span><span class="p">()</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">to_msg</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">positionguess</span><span class="o">.</span><span class="n">publish</span><span class="p">(</span><span class="n">position_guess</span><span class="p">)</span>
+        
+        <span class="n">pos</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">x_guess</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">x</span> <span class="o">=</span> <span class="n">pos</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">y</span> <span class="o">=</span> <span class="n">pos</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="c1">#x and lm guess come out as lists, so change to numpy arrays</span>
+        <span class="n">x_guess</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">x_guess</span><span class="p">)</span>
+        <span class="n">lm_guess</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">lm_guess</span><span class="p">)</span>
+        
+
+        <span class="n">blue_array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">2</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">lm_guess</span><span class="p">[:,</span><span class="mi">2</span><span class="p">]))])</span>
+        <span class="n">left_cones</span> <span class="o">=</span> <span class="n">lm_guess</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="n">lm_guess</span><span class="p">[:,</span><span class="mi">2</span><span class="p">])</span> <span class="o">==</span> <span class="mi">2</span><span class="p">][:,:</span><span class="mi">2</span><span class="p">]</span> <span class="c1"># blue</span>
+        <span class="n">right_cones</span> <span class="o">=</span> <span class="n">lm_guess</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="n">lm_guess</span><span class="p">[:,</span><span class="mi">2</span><span class="p">])</span> <span class="o">==</span> <span class="mi">1</span><span class="p">][:,:</span><span class="mi">2</span><span class="p">]</span> <span class="c1"># yellow</span>
+        <span class="nb">print</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">slam</span><span class="o">.</span><span class="n">color</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">slam</span><span class="o">.</span><span class="n">lhat</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">left_cones</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">right_cones</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">lm_guess</span><span class="p">,</span> <span class="n">cartesian_cones</span><span class="p">)</span>
+        <span class="n">total_cones</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">left_cones</span><span class="p">,</span><span class="n">right_cones</span><span class="p">))</span>
+        <span class="n">cones_msg</span> <span class="o">=</span> <span class="n">PointCloud</span><span class="p">()</span>
+        <span class="n">cones_to_send</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">cone</span> <span class="ow">in</span> <span class="n">lm_guess</span><span class="p">:</span> 
+            <span class="n">cones_to_send</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Point32</span><span class="p">())</span>
+            <span class="n">cones_to_send</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">x</span> <span class="o">=</span> <span class="n">cone</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">cones_to_send</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">y</span> <span class="o">=</span> <span class="n">cone</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">cones_to_send</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">z</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="n">cones_msg</span><span class="o">.</span><span class="n">points</span> <span class="o">=</span> <span class="n">cones_to_send</span>
+        <span class="n">cones_msg</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">frame_id</span> <span class="o">=</span> <span class="s2">&quot;map&quot;</span>
+        <span class="n">cones_msg</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">stamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_clock</span><span class="p">()</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">to_msg</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cones_vis_pub</span><span class="o">.</span><span class="n">publish</span><span class="p">(</span><span class="n">cones_msg</span><span class="p">)</span>
+
+
+        <span class="c1">#left_cones = lm_guess[lm_guess[:,2] == 0][:,:2] # orange</span>
+
+        <span class="c1"># print(&#39;left_cones: &#39;)</span>
+        <span class="c1"># print(left_cones)</span>
+        <span class="c1"># print(&#39;___________________________&#39;)</span>
+        <span class="c1"># print(&#39;right_cones: &#39;)</span>
+        <span class="c1"># print(right_cones)</span>
+        <span class="c1"># print(&#39;_____________________&#39;)</span>
+
+        <span class="c1"># #update map message with new map data </span>
+        <span class="c1"># self.global_map.left_cones_x = list(left_cones[:,0])</span>
+        <span class="c1"># self.global_map.left_cones_y = list(left_cones[:,1]) </span>
+        <span class="c1"># self.global_map.right_cones_x = list(right_cones[:,0]) </span>
+        <span class="c1"># self.global_map.right_cones_y = list(right_cones[:,1]) </span>
+
+        <span class="c1"># #update message header</span>
+        <span class="c1"># self.cone_seq += 1</span>
+        <span class="c1"># #self.global_map.header.seq = self.seq</span>
+        <span class="c1"># self.global_map.header.stamp = self.get_clock().now().to_msg()</span>
+        <span class="c1"># self.global_map.header.frame_id = &quot;rslidar&quot;</span>
+
+        <span class="c1"># self.global_map_pub.publish(self.global_map)</span>
+        <span class="c1"># print(&#39;len of left and right cones:&#39;)</span>
+        <span class="c1"># print(len(left_cones))</span>
+        <span class="c1"># print(len(right_cones))</span>
+
+        <span class="n">local_left</span><span class="p">,</span> <span class="n">local_right</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">localCones</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">local_radius</span><span class="o">*</span><span class="mi">0</span> <span class="o">+</span> <span class="mi">20</span><span class="p">,</span> <span class="n">left_cones</span><span class="p">,</span> <span class="n">right_cones</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;here8&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">local_left</span><span class="p">))</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">local_right</span><span class="p">))</span> <span class="o">==</span> <span class="mi">0</span><span class="p">):</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;here9&quot;</span><span class="p">)</span>
+            <span class="k">return</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;here10&quot;</span><span class="p">)</span>
+        <span class="c1"># local_left, local_right = left_cones, right_cones</span>
+
+        <span class="c1"># print(&#39;len of local left and local right cones:&#39;)</span>
+        <span class="c1"># print(len(local_left))</span>
+        <span class="c1"># print(len(local_right))</span>
+        <span class="c1"># print(&#39;local left: &#39;)</span>
+        <span class="c1"># print(local_left)</span>
+        <span class="c1"># print(&#39;local right: &#39;)</span>
+        <span class="c1"># print(local_right)</span>
+        <span class="c1">#update map message with new map data </span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">local_map</span><span class="o">.</span><span class="n">left_cones_x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">local_left</span><span class="p">)[:,</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">local_map</span><span class="o">.</span><span class="n">left_cones_y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">local_left</span><span class="p">)[:,</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">local_map</span><span class="o">.</span><span class="n">right_cones_x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">local_right</span><span class="p">)[:,</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">local_map</span><span class="o">.</span><span class="n">right_cones_y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">local_right</span><span class="p">)[:,</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+
+        <span class="c1">#update message header</span>
+        <span class="c1">#self.local_map.header.seq = self.seq</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">local_map</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">stamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_clock</span><span class="p">()</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">to_msg</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">local_map</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">frame_id</span> <span class="o">=</span> <span class="s2">&quot;map&quot;</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;here11&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">local_map_pub</span><span class="o">.</span><span class="n">publish</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">local_map</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;here12&quot;</span><span class="p">)</span></div>
+
+    
+<div class="viewcode-block" id="GraphSLAM_Global.compareAngle">
+<a class="viewcode-back" href="../../graphslam_global.html#graphslam_global.graphslam_global_fast.GraphSLAM_Global.compareAngle">[docs]</a>
+    <span class="k">def</span> <span class="nf">compareAngle</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">threshold</span><span class="p">):</span> <span class="c1"># a&lt;b</span>
+        <span class="n">mn</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">b</span><span class="o">-</span><span class="n">a</span><span class="p">,</span> <span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">-</span> <span class="n">b</span> <span class="o">+</span> <span class="n">a</span><span class="p">)</span> <span class="c1"># (ex. in degrees): a = 15 and b = 330 are 45 degrees apart (not 315)</span>
+        <span class="k">return</span> <span class="n">mn</span> <span class="o">&lt;</span> <span class="n">threshold</span></div>
+
+
+    <span class="c1"># publishes all cones within given radius</span>
+<div class="viewcode-block" id="GraphSLAM_Global.localCones">
+<a class="viewcode-back" href="../../graphslam_global.html#graphslam_global.graphslam_global_fast.GraphSLAM_Global.localCones">[docs]</a>
+    <span class="k">def</span> <span class="nf">localCones</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">radius</span><span class="p">,</span> <span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Find cones within a given radius around the car&#39;s current position.</span>
+
+<span class="sd">        Parameters:</span>
+<span class="sd">            radius (float): The radius within which to search for cones.</span>
+<span class="sd">            left (list): List of left cones.</span>
+<span class="sd">            right (list): List of right cones.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            tuple: A tuple containing lists of left and right cones found within the radius.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">left</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">left</span><span class="p">)</span>
+        <span class="n">right</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">right</span><span class="p">)</span>
+        <span class="n">curpos</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">y</span><span class="p">])</span>
+        <span class="n">heading</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">currentstate</span><span class="o">.</span><span class="n">heading</span>
+
+        <span class="n">ret_localcones_left</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">ret_localcones_right</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="c1"># Cones within radius</span>
+        <span class="n">close_left</span> <span class="o">=</span> <span class="n">left</span><span class="p">[((</span><span class="n">left</span> <span class="o">-</span> <span class="n">curpos</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">radius</span> <span class="o">*</span> <span class="n">radius</span><span class="p">]</span>
+        <span class="n">close_right</span> <span class="o">=</span> <span class="n">right</span><span class="p">[((</span><span class="n">right</span> <span class="o">-</span> <span class="n">curpos</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">radius</span> <span class="o">*</span> <span class="n">radius</span><span class="p">]</span>
+                
+        <span class="c1"># print(&#39;close_left cones: &#39;)</span>
+        <span class="c1"># print(close_left)</span>
+        <span class="c1"># print(&#39;------------------&#39;)</span>
+        <span class="c1"># print(&#39;close_right cones:&#39;)</span>
+        <span class="c1"># print(close_right)</span>
+        <span class="c1"># print(&#39;------------------&#39;)</span>
+
+        <span class="c1"># Concatenate close_left and close_right</span>
+        <span class="n">close</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">close_left</span><span class="p">,</span> <span class="n">close_right</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">left_len</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">close_left</span><span class="p">)</span>
+
+        <span class="c1"># Calculate delta vectors</span>
+        <span class="n">delta_vecs</span> <span class="o">=</span> <span class="n">close</span> <span class="o">-</span> <span class="n">curpos</span>
+        <span class="n">delta_vecs</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="o">-</span><span class="n">heading</span><span class="p">),</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="o">-</span><span class="n">heading</span><span class="p">)],</span>
+                                 <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="o">-</span><span class="n">heading</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="o">-</span><span class="n">heading</span><span class="p">)]])</span><span class="o">@</span><span class="p">(</span><span class="n">delta_vecs</span><span class="o">.</span><span class="n">T</span><span class="p">))</span><span class="o">.</span><span class="n">T</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;delta_and_heading&quot;</span><span class="p">,</span> <span class="s2">&quot;a&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;DELTA_VECS&quot;</span><span class="p">,</span> <span class="n">delta_vecs</span><span class="p">,</span> <span class="s2">&quot;HEADING&quot;</span><span class="p">,</span> <span class="n">heading</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="n">f</span><span class="p">)</span>
+        <span class="c1"># Calculate delta angles</span>
+        <span class="c1"># delta_ang = np.arctan2(delta_vecs[:, 1], delta_vecs[:, 0])</span>
+        <span class="c1"># delta_ang = (delta_ang + 2*np.pi) % (2*np.pi)  # Ensure delta_ang is between 0 and 2*pi</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="n">delta_vecs</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">&gt;</span><span class="mi">0</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;here1&quot;</span><span class="p">)</span>
+        <span class="n">to_plot</span> <span class="o">=</span> <span class="n">close</span><span class="p">[</span><span class="n">mask</span><span class="p">]</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;here2&quot;</span><span class="p">)</span>
+        <span class="n">cones_msg</span> <span class="o">=</span> <span class="n">PointCloud</span><span class="p">()</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;here3&quot;</span><span class="p">)</span>
+        <span class="n">cones_to_send</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;here4&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">cone</span> <span class="ow">in</span> <span class="n">to_plot</span><span class="p">:</span> 
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;here5&quot;</span><span class="p">)</span>
+            <span class="n">cones_to_send</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Point32</span><span class="p">())</span>
+            <span class="n">cones_to_send</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">x</span> <span class="o">=</span> <span class="n">cone</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">cones_to_send</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">y</span> <span class="o">=</span> <span class="n">cone</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">cones_to_send</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">z</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;here6&quot;</span><span class="p">)</span>
+        <span class="n">cones_msg</span><span class="o">.</span><span class="n">points</span> <span class="o">=</span> <span class="n">cones_to_send</span>
+        <span class="n">cones_msg</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">frame_id</span> <span class="o">=</span> <span class="s2">&quot;map&quot;</span>
+        <span class="n">cones_msg</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">stamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_clock</span><span class="p">()</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">to_msg</span><span class="p">()</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;here7&quot;</span><span class="p">)</span>
+        <span class="c1"># self.cones_vis_pub.publish(cones_msg)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;local cones done!!&quot;</span><span class="p">)</span>
+
+
+
+        <span class="k">return</span> <span class="n">close</span><span class="p">[:</span><span class="n">left_len</span><span class="p">][</span><span class="n">mask</span><span class="p">[:</span><span class="n">left_len</span><span class="p">]],</span> <span class="n">close</span><span class="p">[</span><span class="n">left_len</span><span class="p">:][</span><span class="n">mask</span><span class="p">[</span><span class="n">left_len</span><span class="p">:]]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">delta_ang</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">compareAngle</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">delta_ang</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">heading</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="n">delta_ang</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">heading</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_vision_delta</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="n">left_len</span><span class="p">:</span>
+                    <span class="n">ret_localcones_left</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">close</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">ret_localcones_right</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">close</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+
+        <span class="k">return</span> <span class="n">ret_localcones_left</span><span class="p">,</span> <span class="n">ret_localcones_right</span></div>
+
+
+
+<div class="viewcode-block" id="GraphSLAM_Global.solveGraphSlamLock">
+<a class="viewcode-back" href="../../graphslam_global.html#graphslam_global.graphslam_global_fast.GraphSLAM_Global.solveGraphSlamLock">[docs]</a>
+    <span class="k">def</span> <span class="nf">solveGraphSlamLock</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">solving</span> <span class="o">=</span> <span class="kc">True</span> 
+        <span class="n">x_guess</span><span class="p">,</span> <span class="n">lm_guess</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">slam</span><span class="o">.</span><span class="n">solve_graph</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">solving</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="n">x_guess</span><span class="p">,</span> <span class="n">lm_guess</span></div>
+
+
+<div class="viewcode-block" id="GraphSLAM_Global.update_recent_cones">
+<a class="viewcode-back" href="../../graphslam_global.html#graphslam_global.graphslam_global_fast.GraphSLAM_Global.update_recent_cones">[docs]</a>
+    <span class="k">def</span> <span class="nf">update_recent_cones</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">imu_state</span><span class="p">,</span> <span class="n">cone_input</span><span class="p">):</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">perception_backlog_cones</span> <span class="o">+=</span> <span class="p">[</span><span class="n">cone_input</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">perception_backlog_imu</span> <span class="o">+=</span> <span class="p">[[</span><span class="n">imu_state</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">imu_state</span><span class="p">[</span><span class="mi">1</span><span class="p">]]]</span></div>
+</div>
+
+
+<span class="c1"># For running node</span>
+<div class="viewcode-block" id="main">
+<a class="viewcode-back" href="../../graphslam_global.html#graphslam_global.graphslam_global_fast.main">[docs]</a>
+<span class="k">def</span> <span class="nf">main</span><span class="p">(</span><span class="n">args</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">rclpy</span><span class="o">.</span><span class="n">init</span><span class="p">(</span><span class="n">args</span><span class="o">=</span><span class="n">args</span><span class="p">)</span>
+    <span class="n">graphslam_global_node</span> <span class="o">=</span> <span class="n">GraphSLAM_Global</span><span class="p">()</span>
+    <span class="n">rclpy</span><span class="o">.</span><span class="n">spin</span><span class="p">(</span><span class="n">graphslam_global_node</span><span class="p">)</span>
+    <span class="n">rclpy</span><span class="o">.</span><span class="n">shutdown</span><span class="p">()</span></div>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">main</span><span class="p">()</span>
+    
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Daniel Municio.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

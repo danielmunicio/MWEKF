@@ -9,6 +9,8 @@
 import os 
 import sys
 
+#os.system("source /opt/ros/humble/setup.bash")
+#os.system("source ~/feb-system-integration/devel/setup.bash")
 sys.path.insert(0, os.path.abspath('..'))
 
 project = 'Pipeline 131'
@@ -28,7 +30,8 @@ extensions = [
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
-
+# Imports that sphinx will not be able to find, that we should ignore
+autodoc_mock_imports = ["feb_msgs"]
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output

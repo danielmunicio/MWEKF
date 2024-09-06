@@ -149,22 +149,12 @@ class GraphSLAM_Global(Node):
         self.usefastslam = False
         self.last_slam_update = np.array([np.Inf, np.Inf])
 
-    def state_sub(self, msg: CarState):
+    def state_sub(self, msg: CarState) -> None:
         """ This is a callback function for the SIMULATORS ground truth carstate. 
             Currently being used to get the cars position so we can calculate the cones R, theta properly.
         """
-        #with open("sim_data.txt", "a") as f:
-            # print("---------------------------------------", file =f)
-            # print("GROUND TRUTH CAR STATE: ", file =f)
-            # print("x position: ", msg.pose.pose.position.x, file=f)
-            # print("y position: ", msg.pose.pose.position.y, file=f)
-            # print("heading: ", self.quat_to_euler(msg.pose.pose.orientation)[-1], file=f)
-            # print("----------------------------------------", file=f)
-        # self.currentstate.x = msg.pose.pose.position.x
-        # self.currentstate.y = msg.pose.pose.position.y
         self.currentstate_simulator.x = msg.pose.pose.position.x
         self.currentstate_simulator.y = msg.pose.pose.position.y
-        # self.currentstate.velocity = np.sqrt(msg.twist.twist.linear.x**2 + msg.twist.twist.linear.y**2)
         return
 
     def wheelspeed_sub(self, msg: WheelSpeedsStamped):

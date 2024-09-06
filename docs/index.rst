@@ -17,11 +17,12 @@ Since we don't run perception, our pipeline on the simulator is more condensed, 
    :alt: Diagram illustrating FEB Condensed Pipeline
 .. toctree::
    :maxdepth: 1
-   :caption: Contents:
+   :hidden:
 
-   modules
+   Graph-Based SLAM Algorithm <graphslam_global>
+   Model Predictive Control <mpc>
 
-
+One last important thing to note, is we use a Structured Concurrency program called ROS (Robot Operating System). More specifically, we use `ROS2 Humble <insert_ros_link>`_
 
 Thank Yous:
 

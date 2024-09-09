@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>local_path.ConeOrdering &mdash; Pipeline 131 Mk. S documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+        <script src="../../_static/documentation_options.js?v=e97658a3"></script>
+        <script src="../../_static/doctools.js?v=9a2dae69"></script>
+        <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../index.html" class="icon icon-home"> Pipeline 131
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../graphslam_global.html">Graph-Based SLAM Algorithm</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../mpc.html">Model Predictive Control</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Pipeline 131</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+      <li>local_path.ConeOrdering</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for local_path.ConeOrdering</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">all_settings.all_settings</span> <span class="kn">import</span> <span class="n">LocalOptSettings</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">feb_msgs.msg</span> <span class="kn">import</span> <span class="n">Map</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">scipy</span> <span class="k">as</span> <span class="nn">sp</span>
+<span class="kn">from</span> <span class="nn">scipy.spatial</span> <span class="kn">import</span> <span class="n">Voronoi</span>
+<span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">from</span> <span class="nn">scipy.spatial</span> <span class="kn">import</span> <span class="n">KDTree</span>
+<span class="kn">from</span> <span class="nn">shapely.geometry</span> <span class="kn">import</span> <span class="n">Polygon</span><span class="p">,</span> <span class="n">Point</span><span class="p">,</span> <span class="n">LineString</span><span class="p">,</span> <span class="n">MultiLineString</span>
+<span class="kn">from</span> <span class="nn">shapely.ops</span> <span class="kn">import</span> <span class="n">linemerge</span>
+<span class="kn">from</span> <span class="nn">.MapPolygon</span> <span class="kn">import</span> <span class="n">find_polygons_from_points</span>
+<span class="kn">from</span> <span class="nn">.Graph</span> <span class="kn">import</span> <span class="n">Graph</span>
+
+<div class="viewcode-block" id="ConeOrdering">
+<a class="viewcode-back" href="../../local_path.html#local_path.ConeOrdering.ConeOrdering">[docs]</a>
+<span class="k">def</span> <span class="nf">ConeOrdering</span><span class="p">(</span><span class="n">msg</span><span class="p">:</span> <span class="n">Map</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;get cones from message and call the cone ordering algorithm and return the results</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        msg (Cones): the message that we received</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        tuple[ndarray(2, N), ndarray(2, N)]: pairs of points on the track boundary</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">N</span> <span class="o">=</span> <span class="n">LocalOptSettings</span><span class="o">.</span><span class="n">N</span> <span class="c1"># get size</span>
+    
+    <span class="n">left</span><span class="p">,</span> <span class="n">right</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="nb">list</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">left_cones_x</span><span class="p">),</span> <span class="nb">list</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">left_cones_y</span><span class="p">)])</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">tolist</span><span class="p">(),</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="nb">list</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">right_cones_x</span><span class="p">),</span> <span class="nb">list</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">right_cones_y</span><span class="p">)])</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">tolist</span><span class="p">(),</span>
+    <span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Received state </span><span class="si">{</span><span class="n">state</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="c1"># fix the case if there is not enough points</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">left</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">5</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">right</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">5</span><span class="p">:</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="n">left</span><span class="p">)</span>
+        <span class="n">yellow_line</span> <span class="o">=</span> <span class="n">LineString</span><span class="p">(</span><span class="n">left</span><span class="p">)</span>
+        <span class="n">blue_line</span> <span class="o">=</span> <span class="n">LineString</span><span class="p">(</span><span class="n">right</span><span class="p">)</span>
+        <span class="n">yellow_more</span> <span class="o">=</span> <span class="n">generate_N_points</span><span class="p">(</span><span class="n">yellow_line</span><span class="p">,</span> <span class="mi">8</span><span class="p">)</span>
+        <span class="n">yellow_more</span> <span class="o">=</span> <span class="p">[(</span><span class="n">p</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">y</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">yellow_more</span><span class="p">]</span>
+        <span class="n">blue_more</span> <span class="o">=</span> <span class="n">generate_N_points</span><span class="p">(</span><span class="n">blue_line</span><span class="p">,</span> <span class="mi">8</span><span class="p">)</span>
+        <span class="n">blue_more</span> <span class="o">=</span> <span class="p">[(</span><span class="n">p</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">y</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">blue_more</span><span class="p">]</span>
+        <span class="n">left</span><span class="p">,</span> <span class="n">right</span> <span class="o">=</span> <span class="n">N_point_generator</span><span class="p">(</span><span class="n">yellow_more</span><span class="p">,</span> <span class="n">blue_more</span><span class="p">,</span> <span class="p">[</span><span class="n">state</span><span class="p">[:</span><span class="mi">2</span><span class="p">]],</span> <span class="n">N</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">left</span><span class="p">,</span> <span class="n">right</span> <span class="o">=</span> <span class="n">N_point_generator</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">,</span> <span class="p">[</span><span class="n">state</span><span class="p">[:</span><span class="mi">2</span><span class="p">]],</span> <span class="n">N</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">left</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">right</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="N_point_generator">
+<a class="viewcode-back" href="../../local_path.html#local_path.ConeOrdering.N_point_generator">[docs]</a>
+<span class="k">def</span> <span class="nf">N_point_generator</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">,</span> <span class="n">traveled</span><span class="p">,</span> <span class="n">N</span><span class="p">):</span>
+    <span class="c1"># have a list of all_cones for refence</span>
+    <span class="n">all_cones</span> <span class="o">=</span> <span class="n">left</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">all_cones</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">right</span><span class="o">.</span><span class="n">copy</span><span class="p">())</span>
+    <span class="c1"># figure out polygons</span>
+    <span class="c1"># yellow_polygon, blue_polygon = find_local_polygons(all_cones, traveled, left)</span>
+    <span class="n">yellow_polygon</span><span class="p">,</span> <span class="n">blue_polygon</span> <span class="o">=</span> <span class="n">find_local_polygons</span><span class="p">(</span><span class="n">all_cones</span><span class="p">,</span> <span class="n">traveled</span><span class="p">,</span> <span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">)</span>
+    <span class="c1"># figure out local paths</span>
+    <span class="n">local_yellow_path</span> <span class="o">=</span> <span class="n">remove_longest_edge_from_polygon</span><span class="p">(</span><span class="n">yellow_polygon</span><span class="p">)</span>
+    <span class="n">local_blue_path</span> <span class="o">=</span> <span class="n">remove_longest_edge_from_polygon</span><span class="p">(</span><span class="n">blue_polygon</span><span class="p">)</span>
+    <span class="c1"># N point local paths</span>
+    <span class="n">N_local_yellow_path</span> <span class="o">=</span> <span class="n">LineString</span><span class="p">(</span><span class="n">generate_N_points</span><span class="p">(</span><span class="n">local_yellow_path</span><span class="p">,</span> <span class="n">N</span><span class="p">))</span>
+    <span class="n">N_local_blue_path</span> <span class="o">=</span> <span class="n">LineString</span><span class="p">(</span><span class="n">generate_N_points</span><span class="p">(</span><span class="n">local_blue_path</span><span class="p">,</span> <span class="n">N</span><span class="p">))</span>
+    <span class="n">outer_boundary_vertices</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">N_local_yellow_path</span><span class="o">.</span><span class="n">coords</span><span class="p">)</span>
+    <span class="n">inner_boundary_vertices</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">N_local_blue_path</span><span class="o">.</span><span class="n">coords</span><span class="p">)</span>
+    <span class="n">all_vertices</span> <span class="o">=</span> <span class="n">outer_boundary_vertices</span> <span class="o">+</span> <span class="n">inner_boundary_vertices</span>
+    <span class="c1"># Voronoi diagram</span>
+    <span class="n">vor</span> <span class="o">=</span> <span class="n">Voronoi</span><span class="p">(</span><span class="n">all_vertices</span><span class="p">)</span>
+    <span class="c1"># figure out medial line</span>
+    <span class="n">green_edges</span> <span class="o">=</span> <span class="n">get_medial_axis</span><span class="p">(</span><span class="n">N_local_yellow_path</span><span class="p">,</span> <span class="n">N_local_blue_path</span><span class="p">,</span> <span class="n">vor</span><span class="p">)</span>
+    <span class="n">new_green_edges</span> <span class="o">=</span> <span class="n">filter_medial_line_further</span><span class="p">(</span><span class="n">green_edges</span><span class="p">)</span>
+    <span class="c1"># figure out closest points</span>
+    <span class="n">total_green_linestring</span> <span class="o">=</span> <span class="n">linemerge</span><span class="p">(</span><span class="n">new_green_edges</span><span class="p">)</span>
+    <span class="n">cpoml</span> <span class="o">=</span> <span class="n">closest_points_on_medial_line</span><span class="p">(</span><span class="n">outer_boundary_vertices</span><span class="p">,</span> <span class="n">inner_boundary_vertices</span><span class="p">)</span>
+    <span class="n">cpoml_2</span> <span class="o">=</span> <span class="n">closest_points_on_medial_line</span><span class="p">(</span><span class="n">cpoml</span><span class="p">,</span> <span class="n">N_local_blue_path</span><span class="p">)</span>
+    <span class="c1"># return stuff</span>
+    <span class="n">blue_boundary_vertices</span> <span class="o">=</span> <span class="p">[(</span><span class="n">point</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="n">point</span><span class="o">.</span><span class="n">y</span><span class="p">)</span> <span class="k">for</span> <span class="n">point</span> <span class="ow">in</span> <span class="n">cpoml_2</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">outer_boundary_vertices</span><span class="p">,</span> <span class="n">blue_boundary_vertices</span></div>
+
+
+<div class="viewcode-block" id="closest_points_on_medial_line">
+<a class="viewcode-back" href="../../local_path.html#local_path.ConeOrdering.closest_points_on_medial_line">[docs]</a>
+<span class="k">def</span> <span class="nf">closest_points_on_medial_line</span><span class="p">(</span><span class="n">points</span><span class="p">,</span> <span class="n">medial_line</span><span class="p">):</span>
+
+    <span class="n">closest_points</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="c1"># Iterate over each point on the outer boundary</span>
+    <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">points</span><span class="p">:</span>
+    
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">medial_line</span><span class="p">,</span> <span class="n">MultiLineString</span><span class="p">):</span>
+            <span class="n">closest_points_on_multiline</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">medial_line</span><span class="o">.</span><span class="n">geoms</span><span class="p">:</span>
+                <span class="n">closest_point_on_line</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">interpolate</span><span class="p">(</span><span class="n">line</span><span class="o">.</span><span class="n">project</span><span class="p">(</span><span class="n">Point</span><span class="p">(</span><span class="n">p</span><span class="p">)))</span>
+                <span class="n">closest_points_on_multiline</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">closest_point_on_line</span><span class="p">)</span>
+
+            <span class="n">closest_point</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">closest_points_on_multiline</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="p">(</span><span class="n">Point</span><span class="p">(</span><span class="n">p</span><span class="p">))</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="n">t</span><span class="p">))</span>
+            <span class="n">closest_points</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">closest_point</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">medial_linestring</span> <span class="o">=</span> <span class="n">LineString</span><span class="p">(</span><span class="n">medial_line</span><span class="p">)</span>
+            <span class="n">closest_point_on_line</span> <span class="o">=</span> <span class="n">medial_linestring</span><span class="o">.</span><span class="n">interpolate</span><span class="p">(</span><span class="n">medial_linestring</span><span class="o">.</span><span class="n">project</span><span class="p">(</span><span class="n">Point</span><span class="p">(</span><span class="n">p</span><span class="p">)))</span>
+            <span class="n">closest_points</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">closest_point_on_line</span><span class="p">)</span>
+    
+    <span class="k">return</span> <span class="n">closest_points</span></div>
+
+
+<div class="viewcode-block" id="linestring_to_edges">
+<a class="viewcode-back" href="../../local_path.html#local_path.ConeOrdering.linestring_to_edges">[docs]</a>
+<span class="k">def</span> <span class="nf">linestring_to_edges</span><span class="p">(</span><span class="n">linestring</span><span class="p">):</span>
+    <span class="n">edges</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">coords</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">linestring</span><span class="o">.</span><span class="n">coords</span><span class="p">)</span>
+    <span class="n">num_coords</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">coords</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_coords</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="n">edges</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">coords</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">coords</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">]))</span>
+    <span class="k">if</span> <span class="n">linestring</span><span class="o">.</span><span class="n">is_closed</span><span class="p">:</span>
+        <span class="n">edges</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">coords</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">coords</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+    <span class="k">return</span> <span class="n">edges</span></div>
+
+
+<div class="viewcode-block" id="filter_medial_line_further">
+<a class="viewcode-back" href="../../local_path.html#local_path.ConeOrdering.filter_medial_line_further">[docs]</a>
+<span class="k">def</span> <span class="nf">filter_medial_line_further</span><span class="p">(</span><span class="n">medial_edges</span><span class="p">):</span>
+    
+    <span class="n">medial_points</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">extract_points_from_linestrings</span><span class="p">(</span><span class="n">medial_edges</span><span class="p">)))</span>
+    
+    <span class="n">medial_dict</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">idx</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">for</span> <span class="n">point</span> <span class="ow">in</span> <span class="n">medial_points</span><span class="p">:</span>
+        <span class="n">medial_dict</span><span class="p">[</span><span class="n">point</span><span class="p">]</span> <span class="o">=</span> <span class="n">idx</span>
+        <span class="n">idx</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="n">middle_edges</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">lstring</span> <span class="ow">in</span> <span class="n">medial_edges</span><span class="p">:</span>
+        <span class="n">middle_edges</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">linestring_to_edges</span><span class="p">(</span><span class="n">lstring</span><span class="p">))</span>
+    
+    <span class="n">graph</span> <span class="o">=</span> <span class="n">Graph</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">medial_points</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">middle_edges</span><span class="p">:</span>
+        <span class="n">index_of_e0</span> <span class="o">=</span> <span class="n">medial_dict</span><span class="p">[</span><span class="n">e</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+        <span class="n">index_of_e1</span> <span class="o">=</span> <span class="n">medial_dict</span><span class="p">[</span><span class="n">e</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span>
+        <span class="n">graph</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="n">index_of_e0</span><span class="p">,</span> <span class="n">index_of_e1</span><span class="p">)</span>
+    <span class="n">vertices</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">medial_points</span><span class="p">))]</span>
+    <span class="n">degrees_of_vertices</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">degrees</span><span class="p">(</span><span class="n">vertices</span><span class="p">)</span>
+    
+    <span class="c1"># figure out stuff to delete</span>
+    <span class="n">stuff_to_delete</span> <span class="o">=</span> <span class="p">[]</span>
+    
+    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">degrees_of_vertices</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">degrees_of_vertices</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">stuff_to_delete</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    
+    <span class="n">final_edges</span> <span class="o">=</span> <span class="p">[]</span>
+    
+    <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">graph</span><span class="o">.</span><span class="n">get_edges</span><span class="p">():</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">e</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="n">stuff_to_delete</span> <span class="ow">or</span> <span class="n">e</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="ow">in</span> <span class="n">stuff_to_delete</span><span class="p">):</span>
+            <span class="n">first</span> <span class="o">=</span> <span class="n">medial_points</span><span class="p">[</span><span class="n">e</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+            <span class="n">second</span> <span class="o">=</span> <span class="n">medial_points</span><span class="p">[</span><span class="n">e</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span>
+            <span class="n">final_edges</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">first</span><span class="p">,</span> <span class="n">second</span><span class="p">))</span>
+        
+    <span class="k">return</span> <span class="n">final_edges</span></div>
+
+    
+
+
+<div class="viewcode-block" id="get_medial_axis">
+<a class="viewcode-back" href="../../local_path.html#local_path.ConeOrdering.get_medial_axis">[docs]</a>
+<span class="k">def</span> <span class="nf">get_medial_axis</span><span class="p">(</span><span class="n">yellow_line</span><span class="p">,</span> <span class="n">blue_line</span><span class="p">,</span> <span class="n">vor</span><span class="p">):</span>
+    
+    <span class="c1"># filter edges</span>
+    <span class="n">non_boundary_edges</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">edge</span> <span class="ow">in</span> <span class="n">vor</span><span class="o">.</span><span class="n">ridge_vertices</span><span class="p">:</span>
+
+        <span class="c1"># Both indices are valid</span>
+        <span class="k">if</span> <span class="n">edge</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">edge</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">edge_line</span> <span class="o">=</span> <span class="n">LineString</span><span class="p">([</span><span class="n">vor</span><span class="o">.</span><span class="n">vertices</span><span class="p">[</span><span class="n">edge</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span> <span class="n">vor</span><span class="o">.</span><span class="n">vertices</span><span class="p">[</span><span class="n">edge</span><span class="p">[</span><span class="mi">1</span><span class="p">]]])</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">edge_line</span><span class="o">.</span><span class="n">intersects</span><span class="p">(</span><span class="n">blue_line</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">edge_line</span><span class="o">.</span><span class="n">intersects</span><span class="p">(</span><span class="n">yellow_line</span><span class="p">):</span>
+                <span class="n">non_boundary_edges</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">edge_line</span><span class="p">)</span> 
+                
+    <span class="n">all_cones</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">yellow_line</span><span class="o">.</span><span class="n">coords</span><span class="p">)</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">all_cones</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">blue_line</span><span class="o">.</span><span class="n">coords</span><span class="p">)</span><span class="o">.</span><span class="n">copy</span><span class="p">())</span>
+    <span class="n">cone_polygon</span> <span class="o">=</span> <span class="n">LineString</span><span class="p">(</span><span class="n">all_cones</span><span class="p">)</span><span class="o">.</span><span class="n">convex_hull</span>
+
+
+    <span class="n">medial_edges</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">edge</span> <span class="ow">in</span> <span class="n">vor</span><span class="o">.</span><span class="n">ridge_vertices</span><span class="p">:</span>
+
+        <span class="c1"># Both indices are valid</span>
+        <span class="k">if</span> <span class="n">edge</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">edge</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">edge_line</span> <span class="o">=</span> <span class="n">LineString</span><span class="p">([</span><span class="n">vor</span><span class="o">.</span><span class="n">vertices</span><span class="p">[</span><span class="n">edge</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span> <span class="n">vor</span><span class="o">.</span><span class="n">vertices</span><span class="p">[</span><span class="n">edge</span><span class="p">[</span><span class="mi">1</span><span class="p">]]])</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">edge_line</span><span class="o">.</span><span class="n">intersects</span><span class="p">(</span><span class="n">blue_line</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">edge_line</span><span class="o">.</span><span class="n">intersects</span><span class="p">(</span><span class="n">yellow_line</span><span class="p">):</span>
+                <span class="n">endpoint1</span> <span class="o">=</span> <span class="n">Point</span><span class="p">(</span><span class="n">vor</span><span class="o">.</span><span class="n">vertices</span><span class="p">[</span><span class="n">edge</span><span class="p">[</span><span class="mi">0</span><span class="p">]])</span>
+                <span class="n">endpoint2</span> <span class="o">=</span> <span class="n">Point</span><span class="p">(</span><span class="n">vor</span><span class="o">.</span><span class="n">vertices</span><span class="p">[</span><span class="n">edge</span><span class="p">[</span><span class="mi">1</span><span class="p">]])</span>
+                <span class="k">if</span> <span class="n">cone_polygon</span><span class="o">.</span><span class="n">contains</span><span class="p">(</span><span class="n">endpoint1</span><span class="p">)</span> <span class="ow">and</span> <span class="n">cone_polygon</span><span class="o">.</span><span class="n">contains</span><span class="p">(</span><span class="n">endpoint2</span><span class="p">):</span>
+                    <span class="n">medial_edges</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">edge_line</span><span class="p">)</span>
+                    
+    <span class="c1"># filter some more medial edges depending on if they are truly inside the path</span>
+    <span class="n">buffer_amount</span> <span class="o">=</span> <span class="n">yellow_line</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="n">blue_line</span><span class="p">)</span>
+    <span class="n">polygon1</span> <span class="o">=</span> <span class="n">yellow_line</span><span class="o">.</span><span class="n">buffer</span><span class="p">(</span><span class="n">buffer_amount</span><span class="p">)</span>
+    <span class="n">polygon2</span> <span class="o">=</span> <span class="n">blue_line</span><span class="o">.</span><span class="n">buffer</span><span class="p">(</span><span class="n">buffer_amount</span><span class="p">)</span>
+    <span class="n">merged_polygon</span> <span class="o">=</span> <span class="n">polygon1</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="n">polygon2</span><span class="p">)</span>
+
+    <span class="n">medial_vertices</span> <span class="o">=</span> <span class="n">extract_points_from_linestrings</span><span class="p">(</span><span class="n">medial_edges</span><span class="p">)</span>
+    <span class="n">vertices_contained</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">point</span> <span class="ow">in</span> <span class="n">medial_vertices</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">merged_polygon</span><span class="o">.</span><span class="n">contains</span><span class="p">(</span><span class="n">Point</span><span class="p">(</span><span class="n">point</span><span class="p">)):</span>
+            <span class="n">vertices_contained</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">point</span><span class="p">)</span>
+    <span class="c1"># filter edges that match points contained between liens</span>
+    <span class="n">true_medial_edges</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">edge</span> <span class="ow">in</span> <span class="n">medial_edges</span><span class="p">:</span>
+        <span class="n">list_edge</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">edge</span><span class="o">.</span><span class="n">coords</span><span class="p">)</span>
+        <span class="n">first</span> <span class="o">=</span> <span class="n">list_edge</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">second</span> <span class="o">=</span> <span class="n">list_edge</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">first</span> <span class="ow">in</span> <span class="n">vertices_contained</span> <span class="ow">or</span> <span class="n">second</span> <span class="ow">in</span> <span class="n">vertices_contained</span><span class="p">:</span>
+            <span class="n">true_medial_edges</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">edge</span><span class="p">)</span>
+    
+    <span class="k">return</span> <span class="n">true_medial_edges</span></div>
+
+
+
+<div class="viewcode-block" id="distance_between_points">
+<a class="viewcode-back" href="../../local_path.html#local_path.ConeOrdering.distance_between_points">[docs]</a>
+<span class="k">def</span> <span class="nf">distance_between_points</span><span class="p">(</span><span class="n">point1</span><span class="p">,</span> <span class="n">point2</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">((</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">point2</span><span class="p">)</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">point1</span><span class="p">))</span> <span class="o">**</span> <span class="mi">2</span><span class="p">))</span></div>
+
+
+
+<div class="viewcode-block" id="find_local_polygons">
+<a class="viewcode-back" href="../../local_path.html#local_path.ConeOrdering.find_local_polygons">[docs]</a>
+<span class="k">def</span> <span class="nf">find_local_polygons</span><span class="p">(</span><span class="n">all_cones</span><span class="p">,</span> <span class="n">traveled_points</span><span class="p">,</span> <span class="n">yellow_points</span><span class="p">,</span> <span class="n">blue_points</span><span class="p">):</span>
+        
+    <span class="n">yellow_polygon</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">blue_polygon</span> <span class="o">=</span> <span class="kc">None</span>
+    
+    <span class="n">current_diff_range</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s1">&#39;inf&#39;</span><span class="p">)</span>
+    
+    <span class="k">for</span> <span class="n">percentile_threshold</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="mi">5</span><span class="p">):</span>
+        
+        <span class="n">near_cones</span> <span class="o">=</span> <span class="n">find_near_cones</span><span class="p">(</span><span class="n">all_cones</span><span class="p">,</span> <span class="n">traveled_points</span><span class="p">,</span> <span class="n">percentile_threshold</span><span class="p">)</span>
+        
+        <span class="n">filtered_yellow_points</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">filtered_blue_points</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">filtered_yellow_polygon</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">filtered_blue_polygon</span> <span class="o">=</span> <span class="kc">None</span>
+        
+        <span class="k">for</span> <span class="n">point</span> <span class="ow">in</span> <span class="n">near_cones</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">point</span> <span class="ow">in</span> <span class="n">yellow_points</span><span class="p">:</span>
+                <span class="n">filtered_yellow_points</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">point</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">filtered_blue_points</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">point</span><span class="p">)</span>
+                
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">filtered_yellow_points</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">4</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">filtered_blue_points</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">4</span><span class="p">:</span>
+            <span class="n">filtered_yellow_polygon</span><span class="p">,</span> <span class="n">filtered_blue_polygon</span> <span class="o">=</span> <span class="n">find_polygons_from_points</span><span class="p">(</span><span class="n">yellow_points</span><span class="p">,</span> <span class="n">blue_points</span><span class="p">)</span>    
+        
+<span class="c1">#         if yellow_polygon is None and filtered_yellow_polygon is not None and filtered_yellow_polygon.is_valid:</span>
+            
+        <span class="k">if</span> <span class="n">yellow_polygon</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">filtered_yellow_polygon</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            
+            <span class="n">all_traveled_contained</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">for</span> <span class="n">point</span> <span class="ow">in</span> <span class="n">traveled_points</span><span class="p">:</span>
+                <span class="n">shapely_point</span> <span class="o">=</span> <span class="n">Point</span><span class="p">(</span><span class="n">point</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">point</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">shapely_point</span><span class="o">.</span><span class="n">within</span><span class="p">(</span><span class="n">filtered_yellow_polygon</span><span class="p">):</span>
+                    <span class="n">all_traveled_contained</span> <span class="o">=</span> <span class="kc">False</span>
+                    <span class="k">break</span>
+                
+            <span class="k">if</span> <span class="n">all_traveled_contained</span><span class="p">:</span>
+                <span class="n">yellow_polygon</span> <span class="o">=</span> <span class="n">filtered_yellow_polygon</span>
+            
+        <span class="k">if</span> <span class="n">yellow_polygon</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">min_x</span><span class="p">,</span> <span class="n">min_y</span><span class="p">,</span> <span class="n">max_x</span><span class="p">,</span> <span class="n">max_y</span> <span class="o">=</span> <span class="n">yellow_polygon</span><span class="o">.</span><span class="n">bounds</span>
+            <span class="n">x_range</span> <span class="o">=</span> <span class="n">max_x</span> <span class="o">-</span> <span class="n">min_x</span>
+            <span class="n">y_range</span> <span class="o">=</span> <span class="n">max_y</span> <span class="o">-</span> <span class="n">min_y</span>
+            
+<span class="c1">#             if filtered_blue_polygon is not None and filtered_blue_polygon.is_valid:</span>
+            <span class="k">if</span> <span class="n">filtered_blue_polygon</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                
+                <span class="n">bmin_x</span><span class="p">,</span> <span class="n">bmin_y</span><span class="p">,</span> <span class="n">bmax_x</span><span class="p">,</span> <span class="n">bmax_y</span> <span class="o">=</span> <span class="n">filtered_blue_polygon</span><span class="o">.</span><span class="n">bounds</span>
+                <span class="n">blue_x_range</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">bmax_x</span> <span class="o">-</span> <span class="n">bmin_x</span><span class="p">)</span>
+                <span class="n">blue_y_range</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">bmax_y</span> <span class="o">-</span> <span class="n">bmin_y</span><span class="p">)</span>
+                
+                <span class="n">new_diff</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">x_range</span> <span class="o">-</span> <span class="n">blue_x_range</span><span class="p">)</span> <span class="o">+</span> <span class="nb">abs</span><span class="p">(</span><span class="n">y_range</span> <span class="o">-</span> <span class="n">blue_y_range</span><span class="p">)</span>
+                
+<span class="c1">#                 if new_diff &lt; current_diff_range and filtered_blue_polygon.is_valid:</span>
+                <span class="k">if</span> <span class="n">new_diff</span> <span class="o">&lt;</span> <span class="n">current_diff_range</span><span class="p">:</span>
+                    <span class="n">current_diff_range</span> <span class="o">=</span> <span class="n">new_diff</span>
+                    <span class="n">blue_polygon</span> <span class="o">=</span> <span class="n">filtered_blue_polygon</span>
+                
+            <span class="k">elif</span> <span class="n">filtered_blue_polygon</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="p">(</span><span class="ow">not</span> <span class="n">filtered_blue_polygon</span><span class="o">.</span><span class="n">is_valid</span><span class="p">):</span>
+                <span class="k">break</span>
+    
+    <span class="k">if</span> <span class="n">yellow_polygon</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">yellow_polygon</span> <span class="o">=</span> <span class="n">filtered_yellow_polygon</span>
+        
+    <span class="k">if</span> <span class="n">blue_polygon</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">blue_polygon</span> <span class="o">=</span> <span class="n">filtered_blue_polygon</span>
+            
+    <span class="k">return</span> <span class="n">yellow_polygon</span><span class="p">,</span> <span class="n">blue_polygon</span></div>
+
+            
+
+
+<div class="viewcode-block" id="find_near_cones">
+<a class="viewcode-back" href="../../local_path.html#local_path.ConeOrdering.find_near_cones">[docs]</a>
+<span class="k">def</span> <span class="nf">find_near_cones</span><span class="p">(</span><span class="n">cones</span><span class="p">,</span> <span class="n">traveled_points</span><span class="p">,</span> <span class="n">threshold_percentile</span><span class="o">=</span><span class="mi">90</span><span class="p">):</span>
+    <span class="c1"># Build KD-tree for traveled pointsy</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;traveled_points: &quot;</span><span class="p">,</span> <span class="n">traveled_points</span><span class="p">)</span>
+    <span class="n">traveled_tree</span> <span class="o">=</span> <span class="n">KDTree</span><span class="p">(</span><span class="n">traveled_points</span><span class="p">)</span>
+    
+    <span class="n">distances</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">cone</span> <span class="ow">in</span> <span class="n">cones</span><span class="p">:</span>
+        <span class="n">_</span><span class="p">,</span> <span class="n">idx</span> <span class="o">=</span> <span class="n">traveled_tree</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">cone</span><span class="p">)</span>
+        <span class="n">closest_traveled_point</span> <span class="o">=</span> <span class="n">traveled_points</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+        <span class="n">distances</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">distance_between_points</span><span class="p">(</span><span class="n">cone</span><span class="p">,</span> <span class="n">closest_traveled_point</span><span class="p">))</span>
+    
+    <span class="n">threshold_distance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">percentile</span><span class="p">(</span><span class="n">distances</span><span class="p">,</span> <span class="n">threshold_percentile</span><span class="p">)</span>
+    
+    <span class="n">near_cones</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">cone</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">cones</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">distances</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">threshold_distance</span><span class="p">:</span>
+            <span class="n">near_cones</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cone</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">near_cones</span></div>
+
+
+
+<div class="viewcode-block" id="remove_longest_edge_from_polygon">
+<a class="viewcode-back" href="../../local_path.html#local_path.ConeOrdering.remove_longest_edge_from_polygon">[docs]</a>
+<span class="k">def</span> <span class="nf">remove_longest_edge_from_polygon</span><span class="p">(</span><span class="n">polygon</span><span class="p">):</span>
+    <span class="n">exterior_ring</span> <span class="o">=</span> <span class="n">polygon</span><span class="o">.</span><span class="n">exterior</span>
+    <span class="n">edges</span> <span class="o">=</span> <span class="n">LineString</span><span class="p">(</span><span class="n">exterior_ring</span><span class="p">)</span><span class="o">.</span><span class="n">coords</span>
+    
+    <span class="n">new_points</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">longest_edge</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">longest_edge_length</span> <span class="o">=</span> <span class="mi">0</span>
+    
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">edges</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="n">edge_start</span> <span class="o">=</span> <span class="n">edges</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">edge_end</span> <span class="o">=</span> <span class="n">edges</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span>
+        <span class="n">edge_length</span> <span class="o">=</span> <span class="n">LineString</span><span class="p">([</span><span class="n">edge_start</span><span class="p">,</span> <span class="n">edge_end</span><span class="p">])</span><span class="o">.</span><span class="n">length</span>
+        
+        <span class="k">if</span> <span class="n">edge_length</span> <span class="o">&gt;</span> <span class="n">longest_edge_length</span><span class="p">:</span>
+            <span class="n">longest_edge_length</span> <span class="o">=</span> <span class="n">edge_length</span>
+            <span class="n">longest_edge</span> <span class="o">=</span> <span class="p">[</span><span class="n">edge_start</span><span class="p">,</span> <span class="n">edge_end</span><span class="p">]</span>
+        
+        <span class="n">new_points</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">edge_start</span><span class="p">)</span>
+
+    <span class="n">new_track</span> <span class="o">=</span> <span class="n">LineString</span><span class="p">(</span><span class="n">new_points</span><span class="p">)</span>
+    <span class="n">edge_to_remove</span> <span class="o">=</span> <span class="n">LineString</span><span class="p">(</span><span class="n">longest_edge</span><span class="p">)</span>
+    
+    <span class="n">removal_i</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+    
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">new_points</span><span class="p">)):</span>
+        <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">new_points</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">new_points</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="n">longest_edge</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">and</span> <span class="n">new_points</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">longest_edge</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+                <span class="n">removal_i</span> <span class="o">=</span> <span class="n">i</span>
+                <span class="k">break</span>
+        <span class="k">elif</span> <span class="n">new_points</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="n">longest_edge</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">and</span> <span class="n">new_points</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">longest_edge</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+            <span class="n">removal_i</span> <span class="o">=</span> <span class="n">i</span>
+            <span class="k">break</span>
+    
+    <span class="k">if</span> <span class="n">removal_i</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">new_points</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;STUFFFFFF HEREEEE </span><span class="si">{</span><span class="n">new_points</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">LineString</span><span class="p">(</span><span class="n">new_points</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">last_point</span> <span class="o">=</span> <span class="n">new_points</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">first_point</span> <span class="o">=</span> <span class="n">new_points</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="n">stuff</span> <span class="o">=</span> <span class="p">[</span><span class="n">new_points</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">:],</span> <span class="p">[</span><span class="n">last_point</span><span class="p">,</span> <span class="n">first_point</span><span class="p">],</span> <span class="n">new_points</span><span class="p">[:</span><span class="n">i</span><span class="p">]]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">new_points</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">:])</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">stuff</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">new_points</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">:])</span>
+        <span class="k">if</span> <span class="n">first_point</span> <span class="o">==</span> <span class="n">last_point</span><span class="p">:</span>
+            <span class="n">stuff</span><span class="o">.</span><span class="n">remove</span><span class="p">([</span><span class="n">last_point</span><span class="p">,</span> <span class="n">first_point</span><span class="p">])</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">new_points</span><span class="p">[:</span><span class="n">i</span><span class="p">])</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">stuff</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">new_points</span><span class="p">[:</span><span class="n">i</span><span class="p">])</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;STUFFFFFF </span><span class="si">{</span><span class="n">stuff</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">LineString</span><span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="n">stuff</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="p">[]))</span></div>
+
+
+<div class="viewcode-block" id="generate_N_points">
+<a class="viewcode-back" href="../../local_path.html#local_path.ConeOrdering.generate_N_points">[docs]</a>
+<span class="k">def</span> <span class="nf">generate_N_points</span><span class="p">(</span><span class="n">line</span><span class="p">,</span> <span class="n">N</span><span class="p">):</span>
+
+    <span class="n">total_length</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">length</span>
+
+    <span class="n">step</span> <span class="o">=</span> <span class="n">total_length</span> <span class="o">/</span> <span class="p">(</span><span class="n">N</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">equidistant_points</span> <span class="o">=</span> <span class="p">[</span><span class="n">line</span><span class="o">.</span><span class="n">interpolate</span><span class="p">(</span><span class="n">step</span> <span class="o">*</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">N</span><span class="p">)]</span>
+
+    <span class="k">return</span> <span class="n">equidistant_points</span></div>
+
+
+<div class="viewcode-block" id="extract_points_from_linestrings">
+<a class="viewcode-back" href="../../local_path.html#local_path.ConeOrdering.extract_points_from_linestrings">[docs]</a>
+<span class="k">def</span> <span class="nf">extract_points_from_linestrings</span><span class="p">(</span><span class="n">linestrings</span><span class="p">):</span>
+    <span class="n">points</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">linestring</span> <span class="ow">in</span> <span class="n">linestrings</span><span class="p">:</span>
+        <span class="n">coords</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">linestring</span><span class="o">.</span><span class="n">coords</span><span class="p">)</span>
+        <span class="n">points</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">coords</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">points</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Daniel Municio.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

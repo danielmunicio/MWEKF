@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>global_path.main &mdash; Pipeline 131 Mk. S documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+        <script src="../../_static/documentation_options.js?v=e97658a3"></script>
+        <script src="../../_static/doctools.js?v=9a2dae69"></script>
+        <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../index.html" class="icon icon-home"> Pipeline 131
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../graphslam_global.html">Graph-Based SLAM Algorithm</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../mpc.html">Model Predictive Control</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Pipeline 131</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+      <li>global_path.main</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for global_path.main</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">rclpy</span>
+<span class="kn">from</span> <span class="nn">rclpy.node</span> <span class="kn">import</span> <span class="n">Node</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">feb_msgs.msg</span> <span class="kn">import</span> <span class="n">State</span>
+<span class="kn">from</span> <span class="nn">feb_msgs.msg</span> <span class="kn">import</span> <span class="n">FebPath</span>
+<span class="kn">from</span> <span class="nn">feb_msgs.msg</span> <span class="kn">import</span> <span class="n">Map</span>
+<span class="kn">from</span> <span class="nn">std_msgs.msg</span> <span class="kn">import</span> <span class="n">Bool</span>
+<span class="c1">#from .global_opt_settings import GlobalOptSettings as settings</span>
+<span class="kn">from</span> <span class="nn">all_settings.all_settings</span> <span class="kn">import</span> <span class="n">GlobalOptSettings</span> <span class="k">as</span> <span class="n">settings</span>
+<span class="kn">from</span> <span class="nn">.global_opt_compiled</span> <span class="kn">import</span> <span class="n">CompiledGlobalOpt</span>
+<span class="kn">from</span> <span class="nn">.ConeOrdering</span> <span class="kn">import</span> <span class="n">ConeOrdering</span><span class="p">,</span> <span class="n">N_point_generator</span>
+<span class="kn">from</span> <span class="nn">eufs_msgs.msg</span> <span class="kn">import</span> <span class="n">ConeArrayWithCovariance</span>
+<span class="kn">from</span> <span class="nn">geometry_msgs.msg</span> <span class="kn">import</span> <span class="n">Point32</span>
+<span class="kn">from</span> <span class="nn">sensor_msgs.msg</span> <span class="kn">import</span> <span class="n">PointCloud</span>
+<span class="kn">from</span> <span class="nn">.pairpath</span> <span class="kn">import</span> <span class="n">PairPath</span>
+<span class="kn">import</span> <span class="nn">time</span>
+
+<div class="viewcode-block" id="GlobalPath">
+<a class="viewcode-back" href="../../global_path.html#global_path.main.GlobalPath">[docs]</a>
+<span class="k">class</span> <span class="nc">GlobalPath</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="s2">&quot;global_path&quot;</span><span class="p">)</span>
+
+        <span class="c1">#Publishers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pc_publisher</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_publisher</span><span class="p">(</span><span class="n">FebPath</span><span class="p">,</span> <span class="s1">&#39;/path/global&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cp_publisher</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_publisher</span><span class="p">(</span><span class="n">Bool</span><span class="p">,</span> <span class="s1">&#39;/path/finished&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">viz_publisher</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_publisher</span><span class="p">(</span><span class="n">PointCloud</span><span class="p">,</span> <span class="s1">&#39;/path/global/viz&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="c1">#Subscribers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pc_subscriber</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_subscription</span><span class="p">(</span><span class="n">Map</span><span class="p">,</span> <span class="s1">&#39;/slam/map/global&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">listener_cb</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="c1"># self.pc_subscriber = self.create_subscription(ConeArrayWithCovariance, &#39;/ground_truth/track&#39;, self.listener_cb, 1)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">g</span> <span class="o">=</span> <span class="n">CompiledGlobalOpt</span><span class="p">(</span><span class="o">**</span><span class="n">settings</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">g</span><span class="o">.</span><span class="n">construct_solver</span><span class="p">()</span>
+
+<div class="viewcode-block" id="GlobalPath.listener_cb">
+<a class="viewcode-back" href="../../global_path.html#global_path.main.GlobalPath.listener_cb">[docs]</a>
+    <span class="k">def</span> <span class="nf">listener_cb</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">:</span> <span class="n">ConeArrayWithCovariance</span><span class="p">):</span>
+        <span class="n">left</span> <span class="o">=</span> <span class="p">[(</span><span class="mf">6.11</span><span class="p">,</span> <span class="mf">2.8</span><span class="p">),</span> <span class="p">(</span><span class="mf">6.109119415283203</span><span class="p">,</span> <span class="mf">2.77589750289917</span><span class="p">),</span> <span class="p">(</span><span class="mf">8.934219360351562</span><span class="p">,</span> <span class="mf">3.0638973712921143</span><span class="p">),</span> <span class="p">(</span><span class="mf">12.868500709533691</span><span class="p">,</span> <span class="mf">3.012697458267212</span><span class="p">),</span> <span class="p">(</span><span class="mf">16.50389862060547</span><span class="p">,</span> <span class="mf">3.4246973991394043</span><span class="p">),</span> <span class="p">(</span><span class="mf">20.136499404907227</span><span class="p">,</span> <span class="mf">4.427197456359863</span><span class="p">),</span> <span class="p">(</span><span class="mf">22.62929916381836</span><span class="p">,</span> <span class="mf">5.538097381591797</span><span class="p">),</span> <span class="p">(</span><span class="mf">25.49173927307129</span><span class="p">,</span> <span class="mf">6.740597248077393</span><span class="p">),</span> <span class="p">(</span><span class="mf">28.138639450073242</span><span class="p">,</span> <span class="mf">6.202697277069092</span><span class="p">),</span> <span class="p">(</span><span class="mf">30.521839141845703</span><span class="p">,</span> <span class="mf">5.081397533416748</span><span class="p">),</span> <span class="p">(</span><span class="mf">32.50313949584961</span><span class="p">,</span> <span class="mf">3.3362975120544434</span><span class="p">),</span> <span class="p">(</span><span class="mf">33.89194107055664</span><span class="p">,</span> <span class="mf">1.401397466659546</span><span class="p">),</span> <span class="p">(</span><span class="mf">34.47583770751953</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.504062533378601</span><span class="p">),</span> <span class="p">(</span><span class="mf">33.998939514160156</span><span class="p">,</span> <span class="o">-</span><span class="mf">5.023182392120361</span><span class="p">),</span> <span class="p">(</span><span class="mf">32.99224090576172</span><span class="p">,</span> <span class="o">-</span><span class="mf">8.059272766113281</span><span class="p">),</span> <span class="p">(</span><span class="mf">32.09803771972656</span><span class="p">,</span> <span class="o">-</span><span class="mf">10.299802780151367</span><span class="p">),</span> <span class="p">(</span><span class="mf">30.182140350341797</span><span class="p">,</span> <span class="o">-</span><span class="mf">13.539742469787598</span><span class="p">),</span> <span class="p">(</span><span class="mf">27.282838821411133</span><span class="p">,</span> <span class="o">-</span><span class="mf">15.564172744750977</span><span class="p">),</span> <span class="p">(</span><span class="mf">24.113739013671875</span><span class="p">,</span> <span class="o">-</span><span class="mf">17.043882369995117</span><span class="p">),</span> <span class="p">(</span><span class="mf">21.25337028503418</span><span class="p">,</span> <span class="o">-</span><span class="mf">18.83869171142578</span><span class="p">),</span> <span class="p">(</span><span class="mf">18.06159019470215</span><span class="p">,</span> <span class="o">-</span><span class="mf">20.45490264892578</span><span class="p">),</span> <span class="p">(</span><span class="mf">14.420599937438965</span><span class="p">,</span> <span class="o">-</span><span class="mf">22.263202667236328</span><span class="p">),</span> <span class="p">(</span><span class="mf">10.502239227294922</span><span class="p">,</span> <span class="o">-</span><span class="mf">24.330303192138672</span><span class="p">),</span> <span class="p">(</span><span class="mf">7.251099586486816</span><span class="p">,</span> <span class="o">-</span><span class="mf">26.4215030670166</span><span class="p">),</span> <span class="p">(</span><span class="mf">3.651329517364502</span><span class="p">,</span> <span class="o">-</span><span class="mf">27.45490264892578</span><span class="p">),</span> <span class="p">(</span><span class="mf">0.7883395552635193</span><span class="p">,</span> <span class="o">-</span><span class="mf">26.945703506469727</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">1.4627604484558105</span><span class="p">,</span> <span class="o">-</span><span class="mf">25.224702835083008</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">3.2429604530334473</span><span class="p">,</span> <span class="o">-</span><span class="mf">23.575801849365234</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">5.143360614776611</span><span class="p">,</span> <span class="o">-</span><span class="mf">21.38580322265625</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">5.6176605224609375</span><span class="p">,</span> <span class="o">-</span><span class="mf">17.860652923583984</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">5.938460350036621</span><span class="p">,</span> <span class="o">-</span><span class="mf">15.4548921585083</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">5.556060314178467</span><span class="p">,</span> <span class="o">-</span><span class="mf">12.859972953796387</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">5.120860576629639</span><span class="p">,</span> <span class="o">-</span><span class="mf">10.299802780151367</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">4.784360408782959</span><span class="p">,</span> <span class="o">-</span><span class="mf">7.257342338562012</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">4.843460559844971</span><span class="p">,</span> <span class="o">-</span><span class="mf">4.028892517089844</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">3.7221603393554688</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.7304625511169434</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">2.1866605281829834</span><span class="p">,</span> <span class="mf">1.4138973951339722</span><span class="p">),</span> <span class="p">(</span><span class="mf">0.24443955719470978</span><span class="p">,</span> <span class="mf">2.190197467803955</span><span class="p">)]</span>
+        <span class="n">right</span> <span class="o">=</span> <span class="p">[(</span><span class="mf">6.089759349822998</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.8552625179290771</span><span class="p">),</span> <span class="p">(</span><span class="mf">6.089759349822998</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.8552625179290771</span><span class="p">),</span> <span class="p">(</span><span class="mf">8.982789993286133</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.796582579612732</span><span class="p">),</span> <span class="p">(</span><span class="mf">12.939980506896973</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.9238924980163574</span><span class="p">),</span> <span class="p">(</span><span class="mf">16.51483917236328</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.6030025482177734</span><span class="p">),</span> <span class="p">(</span><span class="mf">20.14760971069336</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.3732425570487976</span><span class="p">),</span> <span class="p">(</span><span class="mf">23.430938720703125</span><span class="p">,</span> <span class="mf">0.49919745326042175</span><span class="p">),</span> <span class="p">(</span><span class="mf">25.965240478515625</span><span class="p">,</span> <span class="mf">1.5015974044799805</span><span class="p">),</span> <span class="p">(</span><span class="mf">25.965240478515625</span><span class="p">,</span> <span class="mf">1.5015974044799805</span><span class="p">),</span> <span class="p">(</span><span class="mf">27.96493911743164</span><span class="p">,</span> <span class="mf">0.9834974408149719</span><span class="p">),</span> <span class="p">(</span><span class="mf">27.96493911743164</span><span class="p">,</span> <span class="mf">0.9834974408149719</span><span class="p">),</span> <span class="p">(</span><span class="mf">29.605138778686523</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.1794525384902954</span><span class="p">),</span> <span class="p">(</span><span class="mf">29.605138778686523</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.1794525384902954</span><span class="p">),</span> <span class="p">(</span><span class="mf">29.706039428710938</span><span class="p">,</span> <span class="o">-</span><span class="mf">4.192082405090332</span><span class="p">),</span> <span class="p">(</span><span class="mf">28.87574005126953</span><span class="p">,</span> <span class="o">-</span><span class="mf">6.820742607116699</span><span class="p">),</span> <span class="p">(</span><span class="mf">28.10573959350586</span><span class="p">,</span> <span class="o">-</span><span class="mf">8.797102928161621</span><span class="p">),</span> <span class="p">(</span><span class="mf">26.676239013671875</span><span class="p">,</span> <span class="o">-</span><span class="mf">10.299802780151367</span><span class="p">),</span> <span class="p">(</span><span class="mf">25.072938919067383</span><span class="p">,</span> <span class="o">-</span><span class="mf">11.731022834777832</span><span class="p">),</span> <span class="p">(</span><span class="mf">22.419269561767578</span><span class="p">,</span> <span class="o">-</span><span class="mf">13.14719295501709</span><span class="p">),</span> <span class="p">(</span><span class="mf">20.26255989074707</span><span class="p">,</span> <span class="o">-</span><span class="mf">14.240602493286133</span><span class="p">),</span> <span class="p">(</span><span class="mf">14.787479400634766</span><span class="p">,</span> <span class="o">-</span><span class="mf">16.96703338623047</span><span class="p">),</span> <span class="p">(</span><span class="mf">11.020049095153809</span><span class="p">,</span> <span class="o">-</span><span class="mf">18.86309242248535</span><span class="p">),</span> <span class="p">(</span><span class="mf">7.818509578704834</span><span class="p">,</span> <span class="o">-</span><span class="mf">20.855302810668945</span><span class="p">),</span> <span class="p">(</span><span class="mf">5.429309368133545</span><span class="p">,</span> <span class="o">-</span><span class="mf">22.412302017211914</span><span class="p">),</span> <span class="p">(</span><span class="mf">3.2358596324920654</span><span class="p">,</span> <span class="o">-</span><span class="mf">23.007902145385742</span><span class="p">),</span> <span class="p">(</span><span class="mf">3.2358596324920654</span><span class="p">,</span> <span class="o">-</span><span class="mf">23.007902145385742</span><span class="p">),</span> <span class="p">(</span><span class="mf">0.9659395813941956</span><span class="p">,</span> <span class="o">-</span><span class="mf">21.971603393554688</span><span class="p">),</span> <span class="p">(</span><span class="mf">0.9659395813941956</span><span class="p">,</span> <span class="o">-</span><span class="mf">21.971603393554688</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.9300604462623596</span><span class="p">,</span> <span class="o">-</span><span class="mf">19.282712936401367</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">1.157760500907898</span><span class="p">,</span> <span class="o">-</span><span class="mf">16.07309341430664</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">1.157760500907898</span><span class="p">,</span> <span class="o">-</span><span class="mf">16.07309341430664</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">1.0045604705810547</span><span class="p">,</span> <span class="o">-</span><span class="mf">12.92978286743164</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.6089604496955872</span><span class="p">,</span> <span class="o">-</span><span class="mf">10.299802780151367</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.3480604290962219</span><span class="p">,</span> <span class="o">-</span><span class="mf">7.242682456970215</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.34576043486595154</span><span class="p">,</span> <span class="o">-</span><span class="mf">4.511722564697266</span><span class="p">),</span> <span class="p">(</span><span class="mf">0.7813395857810974</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.6917724609375</span><span class="p">),</span> <span class="p">(</span><span class="mf">0.7813395857810974</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.6917724609375</span><span class="p">),</span> <span class="p">(</span><span class="mf">0.7813395857810974</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.6917724609375</span><span class="p">)]</span>
+        <span class="c1"># left = np.array([list(i) for i in left])</span>
+        <span class="c1"># right = np.array([list(i) for i in right])</span>
+        <span class="c1"># left = [[cone.point.x, cone.point.y] for cone in msg.blue_cones]</span>
+        <span class="c1"># right = [[cone.point.x, cone.point.y] for cone in msg.yellow_cones]</span>
+        <span class="c1"># left.sort(key=lambda x: (x[0]-5)**2 + x[1]**2)</span>
+        <span class="c1"># right.sort(key=lambda x: (x[0]-5)**2 + x[1]**2)</span>
+        <span class="c1"># p = PairPath(left, right, 100)</span>
+        <span class="c1"># left = np.vstack([p.l[-20:], p.l[:-20]])</span>
+        <span class="c1"># right = np.vstack([p.r[-20:], p.r[:-20]])</span>
+        <span class="c1"># ConeOrdering(msg)</span>
+        
+        <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">g</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">left</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">right</span><span class="p">))</span>
+        <span class="n">states</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">g</span><span class="o">.</span><span class="n">to_constant_tgrid</span><span class="p">(</span><span class="mf">0.02</span><span class="p">,</span> <span class="o">**</span><span class="n">res</span><span class="p">)</span>
+        
+        <span class="n">msg</span> <span class="o">=</span> <span class="n">FebPath</span><span class="p">()</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">x</span> <span class="o">=</span> <span class="n">states</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">y</span> <span class="o">=</span> <span class="n">states</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">psi</span> <span class="o">=</span> <span class="n">states</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">v</span> <span class="o">=</span> <span class="n">states</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">]</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">pc_publisher</span><span class="o">.</span><span class="n">publish</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+        <span class="n">msg</span> <span class="o">=</span> <span class="n">Bool</span><span class="p">()</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cp_publisher</span><span class="o">.</span><span class="n">publish</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+
+        <span class="n">pc_msg</span> <span class="o">=</span> <span class="n">PointCloud</span><span class="p">()</span>
+        <span class="n">pts</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">states</span><span class="p">:</span>
+            <span class="n">pts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Point32</span><span class="p">())</span>
+            <span class="n">pts</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">x</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">pts</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">y</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">pts</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">z</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="n">pc_msg</span><span class="o">.</span><span class="n">points</span> <span class="o">=</span> <span class="n">pts</span>
+        <span class="n">pc_msg</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">frame_id</span> <span class="o">=</span> <span class="s2">&quot;map&quot;</span>
+        <span class="n">pc_msg</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">stamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_clock</span><span class="p">()</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">to_msg</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">viz_publisher</span><span class="o">.</span><span class="n">publish</span><span class="p">(</span><span class="n">pc_msg</span><span class="p">)</span>
+        <span class="c1"># we don&#39;t need this anymore and the expression graph isn&#39;t exactly small, so let&#39;s free stuff</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">destroy_node</span><span class="p">()</span></div>
+</div>
+
+
+<div class="viewcode-block" id="main">
+<a class="viewcode-back" href="../../global_path.html#global_path.main.main">[docs]</a>
+<span class="k">def</span> <span class="nf">main</span><span class="p">(</span><span class="n">args</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">rclpy</span><span class="o">.</span><span class="n">init</span><span class="p">(</span><span class="n">args</span><span class="o">=</span><span class="n">args</span><span class="p">)</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;global init failed&quot;</span><span class="p">)</span>
+    <span class="n">global_path_node</span> <span class="o">=</span> <span class="n">GlobalPath</span><span class="p">()</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">rclpy</span><span class="o">.</span><span class="n">spin</span><span class="p">(</span><span class="n">global_path_node</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;global path node stopped&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;finn and jake&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="n">e</span>
+    <span class="n">rclpy</span><span class="o">.</span><span class="n">shutdown</span><span class="p">()</span></div>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="n">main</span><span class="p">()</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Daniel Municio.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

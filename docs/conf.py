@@ -32,7 +32,7 @@ templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
 # Imports that sphinx will not be able to find, that we should ignore
-autodoc_mock_imports = ["feb_msgs"]
+autodoc_mock_imports = ["feb_msgs", "global_path.MapPolygon", "global_path.global_opt"]
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output

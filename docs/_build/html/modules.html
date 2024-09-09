@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>local_path &mdash; Pipeline 131 Mk. S documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  
+        <script src="_static/documentation_options.js?v=e97658a3"></script>
+        <script src="_static/doctools.js?v=9a2dae69"></script>
+        <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="index.html" class="icon icon-home"> Pipeline 131
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="graphslam_global.html">Graph-Based SLAM Algorithm</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mpc.html">Model Predictive Control</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Pipeline 131</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
+      <li>local_path</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/modules.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="local-path">
+<h1>local_path<a class="headerlink" href="#local-path" title="Link to this heading"></a></h1>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="local_path.html">local_path package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="local_path.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="local_path.html#module-local_path.ConeOrdering">local_path.ConeOrdering module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.ConeOrdering.ConeOrdering"><code class="docutils literal notranslate"><span class="pre">ConeOrdering()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.ConeOrdering.N_point_generator"><code class="docutils literal notranslate"><span class="pre">N_point_generator()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.ConeOrdering.closest_points_on_medial_line"><code class="docutils literal notranslate"><span class="pre">closest_points_on_medial_line()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.ConeOrdering.distance_between_points"><code class="docutils literal notranslate"><span class="pre">distance_between_points()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.ConeOrdering.extract_points_from_linestrings"><code class="docutils literal notranslate"><span class="pre">extract_points_from_linestrings()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.ConeOrdering.filter_medial_line_further"><code class="docutils literal notranslate"><span class="pre">filter_medial_line_further()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.ConeOrdering.find_local_polygons"><code class="docutils literal notranslate"><span class="pre">find_local_polygons()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.ConeOrdering.find_near_cones"><code class="docutils literal notranslate"><span class="pre">find_near_cones()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.ConeOrdering.generate_N_points"><code class="docutils literal notranslate"><span class="pre">generate_N_points()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.ConeOrdering.get_medial_axis"><code class="docutils literal notranslate"><span class="pre">get_medial_axis()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.ConeOrdering.linestring_to_edges"><code class="docutils literal notranslate"><span class="pre">linestring_to_edges()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.ConeOrdering.remove_longest_edge_from_polygon"><code class="docutils literal notranslate"><span class="pre">remove_longest_edge_from_polygon()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="local_path.html#module-local_path.Graph">local_path.Graph module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.Graph.Graph"><code class="docutils literal notranslate"><span class="pre">Graph</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="local_path.html#local_path.Graph.Graph.add_edge"><code class="docutils literal notranslate"><span class="pre">Graph.add_edge()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="local_path.html#local_path.Graph.Graph.connected_components"><code class="docutils literal notranslate"><span class="pre">Graph.connected_components()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="local_path.html#local_path.Graph.Graph.degrees"><code class="docutils literal notranslate"><span class="pre">Graph.degrees()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="local_path.html#local_path.Graph.Graph.display"><code class="docutils literal notranslate"><span class="pre">Graph.display()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="local_path.html#local_path.Graph.Graph.forms_polygon"><code class="docutils literal notranslate"><span class="pre">Graph.forms_polygon()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="local_path.html#local_path.Graph.Graph.get_edges"><code class="docutils literal notranslate"><span class="pre">Graph.get_edges()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="local_path.html#local_path.Graph.Graph.has_cycle"><code class="docutils literal notranslate"><span class="pre">Graph.has_cycle()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="local_path.html#local_path.Graph.Graph.is_fully_connected"><code class="docutils literal notranslate"><span class="pre">Graph.is_fully_connected()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="local_path.html#local_path.Graph.Graph.remove_edge"><code class="docutils literal notranslate"><span class="pre">Graph.remove_edge()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.Graph.dfs_cycle"><code class="docutils literal notranslate"><span class="pre">dfs_cycle()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.Graph.find_longest_cycle"><code class="docutils literal notranslate"><span class="pre">find_longest_cycle()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="local_path.html#module-local_path.MapPolygon">local_path.MapPolygon module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.MapPolygon.boundary_graph"><code class="docutils literal notranslate"><span class="pre">boundary_graph()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.MapPolygon.categorize_edges"><code class="docutils literal notranslate"><span class="pre">categorize_edges()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.MapPolygon.construct_total_points"><code class="docutils literal notranslate"><span class="pre">construct_total_points()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.MapPolygon.count_triangle_occurrences"><code class="docutils literal notranslate"><span class="pre">count_triangle_occurrences()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.MapPolygon.create_polygon_from_edges"><code class="docutils literal notranslate"><span class="pre">create_polygon_from_edges()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.MapPolygon.delete_triangle"><code class="docutils literal notranslate"><span class="pre">delete_triangle()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.MapPolygon.distance_between_points"><code class="docutils literal notranslate"><span class="pre">distance_between_points()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.MapPolygon.edge_in_edge_list"><code class="docutils literal notranslate"><span class="pre">edge_in_edge_list()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.MapPolygon.filter_triangles_for_blues"><code class="docutils literal notranslate"><span class="pre">filter_triangles_for_blues()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.MapPolygon.find_blues_intersecting_yellows"><code class="docutils literal notranslate"><span class="pre">find_blues_intersecting_yellows()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.MapPolygon.find_connecting_yellows"><code class="docutils literal notranslate"><span class="pre">find_connecting_yellows()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.MapPolygon.find_edge_with_longest_distance"><code class="docutils literal notranslate"><span class="pre">find_edge_with_longest_distance()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.MapPolygon.find_final_blue_boundary"><code class="docutils literal notranslate"><span class="pre">find_final_blue_boundary()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.MapPolygon.find_polygons_from_points"><code class="docutils literal notranslate"><span class="pre">find_polygons_from_points()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.MapPolygon.find_purple_edges"><code class="docutils literal notranslate"><span class="pre">find_purple_edges()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.MapPolygon.find_total_shape"><code class="docutils literal notranslate"><span class="pre">find_total_shape()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.MapPolygon.get_edges_from_triangles"><code class="docutils literal notranslate"><span class="pre">get_edges_from_triangles()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.MapPolygon.get_tri_edges"><code class="docutils literal notranslate"><span class="pre">get_tri_edges()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.MapPolygon.get_triangles"><code class="docutils literal notranslate"><span class="pre">get_triangles()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.MapPolygon.keys_with_value_of_one"><code class="docutils literal notranslate"><span class="pre">keys_with_value_of_one()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.MapPolygon.lines_intersect"><code class="docutils literal notranslate"><span class="pre">lines_intersect()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.MapPolygon.midpoint"><code class="docutils literal notranslate"><span class="pre">midpoint()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.MapPolygon.new_edges_from_greens"><code class="docutils literal notranslate"><span class="pre">new_edges_from_greens()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.MapPolygon.polar_angle_from_origin"><code class="docutils literal notranslate"><span class="pre">polar_angle_from_origin()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.MapPolygon.remove_duplicates"><code class="docutils literal notranslate"><span class="pre">remove_duplicates()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.MapPolygon.same_direction"><code class="docutils literal notranslate"><span class="pre">same_direction()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.MapPolygon.sort_edges_by_start_point"><code class="docutils literal notranslate"><span class="pre">sort_edges_by_start_point()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.MapPolygon.triangulation_graph"><code class="docutils literal notranslate"><span class="pre">triangulation_graph()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.MapPolygon.trim_figure"><code class="docutils literal notranslate"><span class="pre">trim_figure()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.MapPolygon.vertices_in_edges"><code class="docutils literal notranslate"><span class="pre">vertices_in_edges()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="local_path.html#module-local_path.Settings">local_path.Settings module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.Settings.Settings"><code class="docutils literal notranslate"><span class="pre">Settings</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="local_path.html#local_path.Settings.Settings.keys"><code class="docutils literal notranslate"><span class="pre">Settings.keys()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="local_path.html#module-local_path.compile_solver">local_path.compile_solver module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.compile_solver.build_solver"><code class="docutils literal notranslate"><span class="pre">build_solver()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="local_path.html#module-local_path.dynamics">local_path.dynamics module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.dynamics.continuous_dynamics_fixed_x_order"><code class="docutils literal notranslate"><span class="pre">continuous_dynamics_fixed_x_order()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.dynamics.discrete_custom_integrator"><code class="docutils literal notranslate"><span class="pre">discrete_custom_integrator()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="local_path.html#module-local_path.local_opt_compiled">local_path.local_opt_compiled module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.local_opt_compiled.CompiledLocalOpt"><code class="docutils literal notranslate"><span class="pre">CompiledLocalOpt</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="local_path.html#local_path.local_opt_compiled.CompiledLocalOpt.DEFAULT_SOPTS"><code class="docutils literal notranslate"><span class="pre">CompiledLocalOpt.DEFAULT_SOPTS</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="local_path.html#local_path.local_opt_compiled.CompiledLocalOpt.angle"><code class="docutils literal notranslate"><span class="pre">CompiledLocalOpt.angle()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="local_path.html#local_path.local_opt_compiled.CompiledLocalOpt.construct_solver"><code class="docutils literal notranslate"><span class="pre">CompiledLocalOpt.construct_solver()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="local_path.html#local_path.local_opt_compiled.CompiledLocalOpt.load_solver"><code class="docutils literal notranslate"><span class="pre">CompiledLocalOpt.load_solver()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="local_path.html#local_path.local_opt_compiled.CompiledLocalOpt.solve"><code class="docutils literal notranslate"><span class="pre">CompiledLocalOpt.solve()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="local_path.html#local_path.local_opt_compiled.CompiledLocalOpt.to_constant_tgrid"><code class="docutils literal notranslate"><span class="pre">CompiledLocalOpt.to_constant_tgrid()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="local_path.html#module-local_path.local_opt_settings">local_path.local_opt_settings module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="local_path.html#module-local_path.local_path">local_path.local_path module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.local_path.main"><code class="docutils literal notranslate"><span class="pre">main()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="local_path.html#local-path-local-path-simple-test-module">local_path.local_path_simple_test module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="local_path.html#module-local_path.main">local_path.main module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.main.LocalPath"><code class="docutils literal notranslate"><span class="pre">LocalPath</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="local_path.html#local_path.main.LocalPath.finished_cb"><code class="docutils literal notranslate"><span class="pre">LocalPath.finished_cb()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="local_path.html#local_path.main.LocalPath.global_listener_cb"><code class="docutils literal notranslate"><span class="pre">LocalPath.global_listener_cb()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="local_path.html#local_path.main.LocalPath.listener_cb"><code class="docutils literal notranslate"><span class="pre">LocalPath.listener_cb()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="local_path.html#local_path.main.LocalPath.state_callback"><code class="docutils literal notranslate"><span class="pre">LocalPath.state_callback()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="local_path.html#local_path.main.main"><code class="docutils literal notranslate"><span class="pre">main()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="local_path.html#module-local_path">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Daniel Municio.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

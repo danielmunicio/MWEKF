@@ -73,8 +73,8 @@ class MPCSettings(metaclass=Settings):
 
 class GraphSLAMFastSettings(metaclass=Settings):
     x0: np.ndarray = np.array([0.0, 0.0])
-    maxrows: int = int(1e5)
-    maxcols: int = int(1e5)
+    initial_rows: int = int(1e4)
+    initial_cols: int = int(1e4)
     max_landmark_distance: float = 1.5
     dx_weight: float = 1.0
     z_weight: float = 5.0

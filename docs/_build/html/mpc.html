@@ -7,6 +7,7 @@
   <title>mpc package &mdash; Pipeline 131 Mk. S documentation</title>
       <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="_static/custom.css" type="text/css" />
   
         <script src="_static/documentation_options.js?v=e97658a3"></script>
         <script src="_static/doctools.js?v=9a2dae69"></script>
@@ -14,6 +15,7 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="ROS Message Types" href="messages.html" />
     <link rel="prev" title="GraphSLAM!" href="graphslam_global.html" /> 
 </head>
 
@@ -51,23 +53,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="#module-mpc.mpc_controller">mpc.mpc_controller module</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#mpc.mpc_controller.KinMPCPathFollower"><code class="docutils literal notranslate"><span class="pre">KinMPCPathFollower</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#mpc.mpc_controller.KinMPCPathFollower.acc_callback"><code class="docutils literal notranslate"><span class="pre">KinMPCPathFollower.acc_callback()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mpc.mpc_controller.KinMPCPathFollower.fix_angle"><code class="docutils literal notranslate"><span class="pre">KinMPCPathFollower.fix_angle</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mpc.mpc_controller.KinMPCPathFollower.global_path_callback"><code class="docutils literal notranslate"><span class="pre">KinMPCPathFollower.global_path_callback()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mpc.mpc_controller.KinMPCPathFollower.local_path_callback"><code class="docutils literal notranslate"><span class="pre">KinMPCPathFollower.local_path_callback()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mpc.mpc_controller.KinMPCPathFollower.pointcloud_pub"><code class="docutils literal notranslate"><span class="pre">KinMPCPathFollower.pointcloud_pub</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mpc.mpc_controller.KinMPCPathFollower.solve"><code class="docutils literal notranslate"><span class="pre">KinMPCPathFollower.solve()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mpc.mpc_controller.KinMPCPathFollower.state_callback"><code class="docutils literal notranslate"><span class="pre">KinMPCPathFollower.state_callback()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mpc.mpc_controller.KinMPCPathFollower.steer_callback"><code class="docutils literal notranslate"><span class="pre">KinMPCPathFollower.steer_callback()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mpc.mpc_controller.KinMPCPathFollower.update"><code class="docutils literal notranslate"><span class="pre">KinMPCPathFollower.update()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mpc.mpc_controller.KinMPCPathFollower.v_ref"><code class="docutils literal notranslate"><span class="pre">KinMPCPathFollower.v_ref</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="#mpc.mpc_controller.main"><code class="docutils literal notranslate"><span class="pre">main()</span></code></a></li>
-</ul>
-</li>
+<li class="toctree-l2"><a class="reference internal" href="#mpc-mpc-controller-module">mpc.mpc_controller module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-mpc.mpc_settings">mpc.mpc_settings module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-mpc.track_constraints">mpc.track_constraints module</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#mpc.track_constraints.get_full_g"><code class="docutils literal notranslate"><span class="pre">get_full_g()</span></code></a></li>
@@ -93,6 +79,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#module-mpc">Module contents</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="messages.html">ROS Messages</a></li>
 </ul>
 
         </div>
@@ -167,104 +154,8 @@ sol_dict[“u_control”][1] = steering input to apply</p>
 </dd></dl>
 
 </section>
-<section id="module-mpc.mpc_controller">
-<span id="mpc-mpc-controller-module"></span><h2>mpc.mpc_controller module<a class="headerlink" href="#module-mpc.mpc_controller" title="Link to this heading"></a></h2>
-<dl class="py class">
-<dt class="sig sig-object py" id="mpc.mpc_controller.KinMPCPathFollower">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mpc.mpc_controller.</span></span><span class="sig-name descname"><span class="pre">KinMPCPathFollower</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">N</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">DT</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">L_F</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.5213</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">L_R</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.4987</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">V_MIN</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">V_MAX</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">25.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A_MIN</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-3.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A_MAX</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">DF_MIN</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">DF_MAX</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A_DOT_MIN</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-1.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A_DOT_MAX</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">DF_DOT_MIN</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">DF_DOT_MAX</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Q</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[1.0,</span> <span class="pre">1.0,</span> <span class="pre">10.0,</span> <span class="pre">0.1]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">R</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[10.0,</span> <span class="pre">100.0]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">F</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[0.0,</span> <span class="pre">0.0,</span> <span class="pre">0.0,</span> <span class="pre">10.0]</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/mpc_controller.html#KinMPCPathFollower"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.mpc_controller.KinMPCPathFollower" title="Link to this definition"></a></dt>
-<dd><p>Bases: <a class="reference internal" href="#mpc.controller.Controller" title="mpc.controller.Controller"><code class="xref py py-class docutils literal notranslate"><span class="pre">Controller</span></code></a>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Node</span></code></p>
-<dl class="py method">
-<dt class="sig sig-object py" id="mpc.mpc_controller.KinMPCPathFollower.acc_callback">
-<span class="sig-name descname"><span class="pre">acc_callback</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">msg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Float64</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/mpc_controller.html#KinMPCPathFollower.acc_callback"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.mpc_controller.KinMPCPathFollower.acc_callback" title="Link to this definition"></a></dt>
-<dd><p>Set curr_acc to value recieved from</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="mpc.mpc_controller.KinMPCPathFollower.fix_angle">
-<span class="sig-name descname"><span class="pre">fix_angle</span></span><a class="headerlink" href="#mpc.mpc_controller.KinMPCPathFollower.fix_angle" title="Link to this definition"></a></dt>
-<dd><p>Constraints, Cost, Initial Solve</p>
-<dl class="field-list simple">
-<dt class="field-odd">Type<span class="colon">:</span></dt>
-<dd class="field-odd"><ol class="arabic simple" start="3">
-<li><p>Problem Setup</p></li>
-</ol>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="mpc.mpc_controller.KinMPCPathFollower.global_path_callback">
-<span class="sig-name descname"><span class="pre">global_path_callback</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">msg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">feb_msgs.msg.FebPath</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/mpc_controller.html#KinMPCPathFollower.global_path_callback"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.mpc_controller.KinMPCPathFollower.global_path_callback" title="Link to this definition"></a></dt>
-<dd><p>Input: msg.PathState -&gt; List of State (from State.msg) vectors
-Returns: List of numpy state vectors (len 4: x, y, velocity, heading)
-Description: Takes in a local or global path depending on what
-lap we’re in and converts to np.array of state vectors</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="mpc.mpc_controller.KinMPCPathFollower.local_path_callback">
-<span class="sig-name descname"><span class="pre">local_path_callback</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">msg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">feb_msgs.msg.FebPath</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/mpc_controller.html#KinMPCPathFollower.local_path_callback"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.mpc_controller.KinMPCPathFollower.local_path_callback" title="Link to this definition"></a></dt>
-<dd><p>Input: msg.PathState -&gt; List of State (from State.msg) vectors
-Returns: List of numpy state vectors (len 4: x, y, velocity, heading)
-Description: Takes in a local or global path depending on what
-lap we’re in and converts to np.array of state vectors</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="mpc.mpc_controller.KinMPCPathFollower.pointcloud_pub">
-<span class="sig-name descname"><span class="pre">pointcloud_pub</span></span><a class="headerlink" href="#mpc.mpc_controller.KinMPCPathFollower.pointcloud_pub" title="Link to this definition"></a></dt>
-<dd><ol class="arabic simple">
-<li><p>Parameters</p></li>
-</ol>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="mpc.mpc_controller.KinMPCPathFollower.solve">
-<span class="sig-name descname"><span class="pre">solve</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/mpc_controller.html#KinMPCPathFollower.solve"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.mpc_controller.KinMPCPathFollower.solve" title="Link to this definition"></a></dt>
-<dd><p>Returns: sol_dict (solution variables and other data related to solve) -&gt; see below for specific info
-Description: self.opti.solve() uses casadi to find solution to mpc problem and publishes control to apply</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="mpc.mpc_controller.KinMPCPathFollower.state_callback">
-<span class="sig-name descname"><span class="pre">state_callback</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">carstate</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">feb_msgs.msg.State</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/mpc_controller.html#KinMPCPathFollower.state_callback"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.mpc_controller.KinMPCPathFollower.state_callback" title="Link to this definition"></a></dt>
-<dd><p>Input: Float64[4]
-Description: Converts State msg to numpy vector,</p>
-<blockquote>
-<div><p>updates variables initalized in __init__ (e.g. self.z_ref, self.z_curr, etc.) with get_update_dict and self.update,
-and solves mpc problem -&gt; stores result in self.prev_soln</p>
-</div></blockquote>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="mpc.mpc_controller.KinMPCPathFollower.steer_callback">
-<span class="sig-name descname"><span class="pre">steer_callback</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">msg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">WheelSpeeds</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/mpc_controller.html#KinMPCPathFollower.steer_callback"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.mpc_controller.KinMPCPathFollower.steer_callback" title="Link to this definition"></a></dt>
-<dd><p>Return Steering Angle from steering angle sensor on car</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="mpc.mpc_controller.KinMPCPathFollower.update">
-<span class="sig-name descname"><span class="pre">update</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">update_dict</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/mpc_controller.html#KinMPCPathFollower.update"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.mpc_controller.KinMPCPathFollower.update" title="Link to this definition"></a></dt>
-<dd><p>Input:
-- update_dict: all mpc variables to be updated
-Description: calls _update_initial_condition, _update_reference, and _update_previous_input to actually update</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="mpc.mpc_controller.KinMPCPathFollower.v_ref">
-<span class="sig-name descname"><span class="pre">v_ref</span></span><a class="headerlink" href="#mpc.mpc_controller.KinMPCPathFollower.v_ref" title="Link to this definition"></a></dt>
-<dd><ol class="arabic simple" start="2">
-<li><p>Decision Variables</p></li>
-</ol>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="mpc.mpc_controller.main">
-<span class="sig-prename descclassname"><span class="pre">mpc.mpc_controller.</span></span><span class="sig-name descname"><span class="pre">main</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mpc/mpc_controller.html#main"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mpc.mpc_controller.main" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
+<section id="mpc-mpc-controller-module">
+<h2>mpc.mpc_controller module<a class="headerlink" href="#mpc-mpc-controller-module" title="Link to this heading"></a></h2>
 </section>
 <section id="module-mpc.mpc_settings">
 <span id="mpc-mpc-settings-module"></span><h2>mpc.mpc_settings module<a class="headerlink" href="#module-mpc.mpc_settings" title="Link to this heading"></a></h2>
@@ -368,6 +259,7 @@ input u = [F,phi]</p>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="graphslam_global.html" class="btn btn-neutral float-left" title="GraphSLAM!" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="messages.html" class="btn btn-neutral float-right" title="ROS Message Types" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

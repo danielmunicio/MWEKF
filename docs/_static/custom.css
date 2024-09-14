@@ -1,0 +1,32 @@
+.green-box {
+  border: 1px solid #4CAF50; /* Light green border */
+  background-color: #e8f5e9; /* Light green background */
+  padding: 10px;
+  margin: 10px 0;
+}
+
+.dark-green-box {
+  border: 1px solid #2e7d32; /* Darker green border */
+  background-color: #c8e6c9; /* Darker green background */
+  padding: 10px;
+  margin: 10px 0;
+}
+
+.blue-box {
+  border: 1px solid #2196F3; /* Light blue border */
+  background-color: #E3F2FD; /* Light blue background */
+  padding: 10px;
+  margin: 10px 0;
+}
+
+.small-dark-blue-box {
+  display: inline-block;
+  border: 1px solid #1565C0; /* Darker blue border */
+  background-color: #BBDEFB; /* Darker blue background */
+  padding: 1px 3px; /* Reduced padding */
+  margin-left: 5px;
+  line-height: 1; /* Adjusts height to be tighter */
+  font-size: 90%; /* Optional: slightly smaller text */
+  vertical-align: middle;
+}
+

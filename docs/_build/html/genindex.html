@@ -6,6 +6,7 @@
   <title>Index &mdash; Pipeline 131 Mk. S documentation</title>
       <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="_static/custom.css" type="text/css" />
   
         <script src="_static/documentation_options.js?v=e97658a3"></script>
         <script src="_static/doctools.js?v=9a2dae69"></script>
@@ -33,6 +34,7 @@
               <ul>
 <li class="toctree-l1"><a class="reference internal" href="graphslam_global.html">Graph-Based SLAM Algorithm</a></li>
 <li class="toctree-l1"><a class="reference internal" href="mpc.html">Model Predictive Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="messages.html">ROS Messages</a></li>
 </ul>
 
         </div>
@@ -76,20 +78,16 @@
  | <a href="#M"><strong>M</strong></a>
  | <a href="#N"><strong>N</strong></a>
  | <a href="#P"><strong>P</strong></a>
- | <a href="#Q"><strong>Q</strong></a>
  | <a href="#R"><strong>R</strong></a>
  | <a href="#S"><strong>S</strong></a>
  | <a href="#T"><strong>T</strong></a>
  | <a href="#U"><strong>U</strong></a>
  | <a href="#V"><strong>V</strong></a>
- | <a href="#W"><strong>W</strong></a>
  
 </div>
 <h2 id="A">A</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="mpc.html#mpc.mpc_controller.KinMPCPathFollower.acc_callback">acc_callback() (mpc.mpc_controller.KinMPCPathFollower method)</a>
-</li>
       <li><a href="global_path.html#global_path.Graph.Graph.add_edge">add_edge() (global_path.Graph.Graph method)</a>
 
       <ul>
@@ -126,8 +124,6 @@
 <h2 id="C">C</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="graphslam_global.html#graphslam_global.graphslam_global_fast.GraphSLAM_Global.cartesian_to_polar">cartesian_to_polar() (graphslam_global.graphslam_global_fast.GraphSLAM_Global method)</a>
-</li>
       <li><a href="local_path.html#local_path.MapPolygon.categorize_edges">categorize_edges() (in module local_path.MapPolygon)</a>
 </li>
       <li><a href="mpc.html#mpc.utils.closest_point">closest_point() (in module mpc.utils)</a>
@@ -138,15 +134,9 @@
         <li><a href="local_path.html#local_path.ConeOrdering.closest_points_on_medial_line">(in module local_path.ConeOrdering)</a>
 </li>
       </ul></li>
-      <li><a href="graphslam_global.html#graphslam_global.graphslam_global_fast.GraphSLAM_Global.compareAngle">compareAngle() (graphslam_global.graphslam_global_fast.GraphSLAM_Global method)</a>
-</li>
       <li><a href="global_path.html#global_path.global_opt_compiled.CompiledGlobalOpt">CompiledGlobalOpt (class in global_path.global_opt_compiled)</a>
 </li>
       <li><a href="local_path.html#local_path.local_opt_compiled.CompiledLocalOpt">CompiledLocalOpt (class in local_path.local_opt_compiled)</a>
-</li>
-      <li><a href="graphslam_global.html#graphslam_global.graphslam_global_fast.GraphSLAM_Global.compute_delta_velocity">compute_delta_velocity() (graphslam_global.graphslam_global_fast.GraphSLAM_Global method)</a>
-</li>
-      <li><a href="graphslam_global.html#graphslam_global.graphslam_global_fast.GraphSLAM_Global.compute_timediff">compute_timediff() (graphslam_global.graphslam_global_fast.GraphSLAM_Global method)</a>
 </li>
       <li><a href="global_path.html#global_path.ConeOrdering.ConeOrdering">ConeOrdering() (in module global_path.ConeOrdering)</a>
 
@@ -154,16 +144,14 @@
         <li><a href="local_path.html#local_path.ConeOrdering.ConeOrdering">(in module local_path.ConeOrdering)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="graphslam_global.html#graphslam_global.graphslam_global_fast.GraphSLAM_Global.cones_callback">cones_callback() (graphslam_global.graphslam_global_fast.GraphSLAM_Global method)</a>
-</li>
       <li><a href="global_path.html#global_path.Graph.Graph.connected_components">connected_components() (global_path.Graph.Graph method)</a>
 
       <ul>
         <li><a href="local_path.html#local_path.Graph.Graph.connected_components">(local_path.Graph.Graph method)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="global_path.html#global_path.global_opt_compiled.CompiledGlobalOpt.construct_solver">construct_solver() (global_path.global_opt_compiled.CompiledGlobalOpt method)</a>
 
       <ul>
@@ -194,6 +182,8 @@
 <h2 id="D">D</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="graphslam_global.html#graphslam_global.GraphSLAMFast.GraphSLAMFast.data_association">data_association() (graphslam_global.GraphSLAMFast.GraphSLAMFast method)</a>
+</li>
       <li><a href="global_path.html#global_path.global_opt_compiled.CompiledGlobalOpt.DEFAULT_SOPTS">DEFAULT_SOPTS (global_path.global_opt_compiled.CompiledGlobalOpt attribute)</a>
 
       <ul>
@@ -278,10 +268,10 @@
 </li>
       <li><a href="mpc.html#mpc.triangles_track_constraints.find_g_fast">find_g_fast() (in module mpc.triangles_track_constraints)</a>
 </li>
-      <li><a href="local_path.html#local_path.ConeOrdering.find_local_polygons">find_local_polygons() (in module local_path.ConeOrdering)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="local_path.html#local_path.ConeOrdering.find_local_polygons">find_local_polygons() (in module local_path.ConeOrdering)</a>
+</li>
       <li><a href="global_path.html#global_path.Graph.find_longest_cycle">find_longest_cycle() (in module global_path.Graph)</a>
 
       <ul>
@@ -295,12 +285,6 @@
       <li><a href="local_path.html#local_path.MapPolygon.find_purple_edges">find_purple_edges() (in module local_path.MapPolygon)</a>
 </li>
       <li><a href="local_path.html#local_path.MapPolygon.find_total_shape">find_total_shape() (in module local_path.MapPolygon)</a>
-</li>
-      <li><a href="graphslam_global.html#graphslam_global.graphslam_global_fast.GraphSLAM_Global.finish_callback">finish_callback() (graphslam_global.graphslam_global_fast.GraphSLAM_Global method)</a>
-</li>
-      <li><a href="local_path.html#local_path.main.LocalPath.finished_cb">finished_cb() (local_path.main.LocalPath method)</a>
-</li>
-      <li><a href="mpc.html#mpc.mpc_controller.KinMPCPathFollower.fix_angle">fix_angle (mpc.mpc_controller.KinMPCPathFollower attribute)</a>
 </li>
       <li><a href="global_path.html#global_path.Graph.Graph.forms_polygon">forms_polygon() (global_path.Graph.Graph method)</a>
 
@@ -320,6 +304,8 @@
         <li><a href="local_path.html#local_path.ConeOrdering.generate_N_points">(in module local_path.ConeOrdering)</a>
 </li>
       </ul></li>
+      <li><a href="graphslam_global.html#graphslam_global.GraphSLAMFast.GraphSLAMFast.get_cones">get_cones() (graphslam_global.GraphSLAMFast.GraphSLAMFast method)</a>
+</li>
       <li><a href="global_path.html#global_path.Graph.Graph.get_edges">get_edges() (global_path.Graph.Graph method)</a>
 
       <ul>
@@ -346,13 +332,13 @@
 </li>
       <li><a href="global_path.html#global_path.ConeOrdering.get_medial_line">get_medial_line() (in module global_path.ConeOrdering)</a>
 </li>
+      <li><a href="graphslam_global.html#graphslam_global.GraphSLAMFast.GraphSLAMFast.get_positions">get_positions() (graphslam_global.GraphSLAMFast.GraphSLAMFast method)</a>
+</li>
       <li><a href="local_path.html#local_path.MapPolygon.get_tri_edges">get_tri_edges() (in module local_path.MapPolygon)</a>
 </li>
       <li><a href="local_path.html#local_path.MapPolygon.get_triangles">get_triangles() (in module local_path.MapPolygon)</a>
 </li>
       <li><a href="mpc.html#mpc.utils.get_update_dict">get_update_dict() (in module mpc.utils)</a>
-</li>
-      <li><a href="local_path.html#local_path.main.LocalPath.global_listener_cb">global_listener_cb() (local_path.main.LocalPath method)</a>
 </li>
       <li>
     global_path
@@ -368,6 +354,8 @@
         <li><a href="global_path.html#module-global_path.build_script">module</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     global_path.cone_ordering_utils
 
@@ -382,8 +370,6 @@
         <li><a href="global_path.html#module-global_path.ConeOrdering">module</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     global_path.dynamics
 
@@ -420,13 +406,6 @@
 </li>
       </ul></li>
       <li>
-    global_path.main
-
-      <ul>
-        <li><a href="global_path.html#module-global_path.main">module</a>
-</li>
-      </ul></li>
-      <li>
     global_path.pairpath
 
       <ul>
@@ -440,23 +419,10 @@
         <li><a href="global_path.html#module-global_path.Settings">module</a>
 </li>
       </ul></li>
-      <li><a href="mpc.html#mpc.mpc_controller.KinMPCPathFollower.global_path_callback">global_path_callback() (mpc.mpc_controller.KinMPCPathFollower method)</a>
-</li>
-      <li><a href="global_path.html#global_path.main.GlobalPath">GlobalPath (class in global_path.main)</a>
-</li>
       <li><a href="global_path.html#global_path.Graph.Graph">Graph (class in global_path.Graph)</a>
 
       <ul>
         <li><a href="local_path.html#local_path.Graph.Graph">(class in local_path.Graph)</a>
-</li>
-      </ul></li>
-      <li><a href="graphslam_global.html#graphslam_global.graphslam_global_fast.GraphSLAM_Global">GraphSLAM_Global (class in graphslam_global.graphslam_global_fast)</a>
-</li>
-      <li>
-    graphslam_global.graphslam_global_fast
-
-      <ul>
-        <li><a href="graphslam_global.html#module-graphslam_global.graphslam_global_fast">module</a>
 </li>
       </ul></li>
       <li>
@@ -486,10 +452,6 @@
 <h2 id="I">I</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="graphslam_global.html#graphslam_global.graphslam_global_fast.GraphSLAM_Global.imu_callback">imu_callback() (graphslam_global.graphslam_global_fast.GraphSLAM_Global method)</a>
-</li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="global_path.html#global_path.Graph.Graph.is_fully_connected">is_fully_connected() (global_path.Graph.Graph method)</a>
 
       <ul>
@@ -514,8 +476,6 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="local_path.html#local_path.MapPolygon.keys_with_value_of_one">keys_with_value_of_one() (in module local_path.MapPolygon)</a>
 </li>
-      <li><a href="mpc.html#mpc.mpc_controller.KinMPCPathFollower">KinMPCPathFollower (class in mpc.mpc_controller)</a>
-</li>
   </ul></td>
 </tr></table>
 
@@ -530,12 +490,6 @@
 
       <ul>
         <li><a href="local_path.html#local_path.ConeOrdering.linestring_to_edges">(in module local_path.ConeOrdering)</a>
-</li>
-      </ul></li>
-      <li><a href="global_path.html#global_path.main.GlobalPath.listener_cb">listener_cb() (global_path.main.GlobalPath method)</a>
-
-      <ul>
-        <li><a href="local_path.html#local_path.main.LocalPath.listener_cb">(local_path.main.LocalPath method)</a>
 </li>
       </ul></li>
       <li><a href="global_path.html#global_path.global_opt_compiled.CompiledGlobalOpt.load_solver">load_solver() (global_path.global_opt_compiled.CompiledGlobalOpt method)</a>
@@ -572,6 +526,8 @@
         <li><a href="local_path.html#module-local_path.dynamics">module</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     local_path.Graph
 
@@ -579,8 +535,6 @@
         <li><a href="local_path.html#module-local_path.Graph">module</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     local_path.local_opt_compiled
 
@@ -603,13 +557,6 @@
 </li>
       </ul></li>
       <li>
-    local_path.main
-
-      <ul>
-        <li><a href="local_path.html#module-local_path.main">module</a>
-</li>
-      </ul></li>
-      <li>
     local_path.MapPolygon
 
       <ul>
@@ -623,12 +570,6 @@
         <li><a href="local_path.html#module-local_path.Settings">module</a>
 </li>
       </ul></li>
-      <li><a href="mpc.html#mpc.mpc_controller.KinMPCPathFollower.local_path_callback">local_path_callback() (mpc.mpc_controller.KinMPCPathFollower method)</a>
-</li>
-      <li><a href="graphslam_global.html#graphslam_global.graphslam_global_fast.GraphSLAM_Global.localCones">localCones() (graphslam_global.graphslam_global_fast.GraphSLAM_Global method)</a>
-</li>
-      <li><a href="local_path.html#local_path.main.LocalPath">LocalPath (class in local_path.main)</a>
-</li>
       <li><a href="mpc.html#mpc.track_constraints.loopify">loopify() (in module mpc.track_constraints)</a>
 </li>
   </ul></td>
@@ -637,18 +578,8 @@
 <h2 id="M">M</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="global_path.html#global_path.main.main">main() (in module global_path.main)</a>
-
-      <ul>
-        <li><a href="graphslam_global.html#graphslam_global.graphslam_global_fast.main">(in module graphslam_global.graphslam_global_fast)</a>
+      <li><a href="local_path.html#local_path.local_path.main">main() (in module local_path.local_path)</a>
 </li>
-        <li><a href="local_path.html#local_path.local_path.main">(in module local_path.local_path)</a>
-</li>
-        <li><a href="local_path.html#local_path.main.main">(in module local_path.main)</a>
-</li>
-        <li><a href="mpc.html#mpc.mpc_controller.main">(in module mpc.mpc_controller)</a>
-</li>
-      </ul></li>
       <li><a href="local_path.html#local_path.MapPolygon.midpoint">midpoint() (in module local_path.MapPolygon)</a>
 </li>
       <li>
@@ -673,13 +604,9 @@
 </li>
         <li><a href="global_path.html#module-global_path.Graph">global_path.Graph</a>
 </li>
-        <li><a href="global_path.html#module-global_path.main">global_path.main</a>
-</li>
         <li><a href="global_path.html#module-global_path.pairpath">global_path.pairpath</a>
 </li>
         <li><a href="global_path.html#module-global_path.Settings">global_path.Settings</a>
-</li>
-        <li><a href="graphslam_global.html#module-graphslam_global.graphslam_global_fast">graphslam_global.graphslam_global_fast</a>
 </li>
         <li><a href="graphslam_global.html#module-graphslam_global.GraphSLAMFast">graphslam_global.GraphSLAMFast</a>
 </li>
@@ -699,8 +626,6 @@
 </li>
         <li><a href="local_path.html#module-local_path.local_path">local_path.local_path</a>
 </li>
-        <li><a href="local_path.html#module-local_path.main">local_path.main</a>
-</li>
         <li><a href="local_path.html#module-local_path.MapPolygon">local_path.MapPolygon</a>
 </li>
         <li><a href="local_path.html#module-local_path.Settings">local_path.Settings</a>
@@ -708,8 +633,6 @@
         <li><a href="mpc.html#module-mpc">mpc</a>
 </li>
         <li><a href="mpc.html#module-mpc.controller">mpc.controller</a>
-</li>
-        <li><a href="mpc.html#module-mpc.mpc_controller">mpc.mpc_controller</a>
 </li>
         <li><a href="mpc.html#module-mpc.mpc_settings">mpc.mpc_settings</a>
 </li>
@@ -736,13 +659,6 @@
 
       <ul>
         <li><a href="mpc.html#module-mpc.controller">module</a>
-</li>
-      </ul></li>
-      <li>
-    mpc.mpc_controller
-
-      <ul>
-        <li><a href="mpc.html#module-mpc.mpc_controller">module</a>
 </li>
       </ul></li>
       <li>
@@ -804,21 +720,11 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="global_path.html#global_path.pairpath.PairPath">PairPath (class in global_path.pairpath)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="global_path.html#global_path.pairpath.PairPath.plot">plot() (global_path.pairpath.PairPath method)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="mpc.html#mpc.mpc_controller.KinMPCPathFollower.pointcloud_pub">pointcloud_pub (mpc.mpc_controller.KinMPCPathFollower attribute)</a>
-</li>
       <li><a href="local_path.html#local_path.MapPolygon.polar_angle_from_origin">polar_angle_from_origin() (in module local_path.MapPolygon)</a>
-</li>
-  </ul></td>
-</tr></table>
-
-<h2 id="Q">Q</h2>
-<table style="width: 100%" class="indextable genindextable"><tr>
-  <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="graphslam_global.html#graphslam_global.graphslam_global_fast.GraphSLAM_Global.quat_to_euler">quat_to_euler() (graphslam_global.graphslam_global_fast.GraphSLAM_Global method)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -856,6 +762,8 @@
         <li><a href="mpc.html#mpc.Settings.Settings">(class in mpc.Settings)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="global_path.html#global_path.global_opt_compiled.CompiledGlobalOpt.solve">solve() (global_path.global_opt_compiled.CompiledGlobalOpt method)</a>
 
       <ul>
@@ -863,26 +771,10 @@
 </li>
         <li><a href="mpc.html#mpc.controller.Controller.solve">(mpc.controller.Controller method)</a>
 </li>
-        <li><a href="mpc.html#mpc.mpc_controller.KinMPCPathFollower.solve">(mpc.mpc_controller.KinMPCPathFollower method)</a>
-</li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="graphslam_global.html#graphslam_global.GraphSLAMFast.GraphSLAMFast.solve_graph">solve_graph() (graphslam_global.GraphSLAMFast.GraphSLAMFast method)</a>
 </li>
-      <li><a href="graphslam_global.html#graphslam_global.graphslam_global_fast.GraphSLAM_Global.solveGraphSlamLock">solveGraphSlamLock() (graphslam_global.graphslam_global_fast.GraphSLAM_Global method)</a>
-</li>
       <li><a href="local_path.html#local_path.MapPolygon.sort_edges_by_start_point">sort_edges_by_start_point() (in module local_path.MapPolygon)</a>
-</li>
-      <li><a href="local_path.html#local_path.main.LocalPath.state_callback">state_callback() (local_path.main.LocalPath method)</a>
-
-      <ul>
-        <li><a href="mpc.html#mpc.mpc_controller.KinMPCPathFollower.state_callback">(mpc.mpc_controller.KinMPCPathFollower method)</a>
-</li>
-      </ul></li>
-      <li><a href="graphslam_global.html#graphslam_global.graphslam_global_fast.GraphSLAM_Global.state_sub">state_sub() (graphslam_global.graphslam_global_fast.GraphSLAM_Global method)</a>
-</li>
-      <li><a href="mpc.html#mpc.mpc_controller.KinMPCPathFollower.steer_callback">steer_callback() (mpc.mpc_controller.KinMPCPathFollower method)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -909,18 +801,10 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="mpc.html#mpc.controller.Controller.update">update() (mpc.controller.Controller method)</a>
-
-      <ul>
-        <li><a href="mpc.html#mpc.mpc_controller.KinMPCPathFollower.update">(mpc.mpc_controller.KinMPCPathFollower method)</a>
 </li>
-      </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="graphslam_global.html#graphslam_global.GraphSLAMFast.GraphSLAMFast.update_graph">update_graph() (graphslam_global.GraphSLAMFast.GraphSLAMFast method)</a>
-</li>
-      <li><a href="graphslam_global.html#graphslam_global.graphslam_global_fast.GraphSLAM_Global.update_recent_cones">update_recent_cones() (graphslam_global.graphslam_global_fast.GraphSLAM_Global method)</a>
-</li>
-      <li><a href="graphslam_global.html#graphslam_global.graphslam_global_fast.GraphSLAM_Global.update_state">update_state() (graphslam_global.graphslam_global_fast.GraphSLAM_Global method)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -928,19 +812,7 @@
 <h2 id="V">V</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="mpc.html#mpc.mpc_controller.KinMPCPathFollower.v_ref">v_ref (mpc.mpc_controller.KinMPCPathFollower attribute)</a>
-</li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="local_path.html#local_path.MapPolygon.vertices_in_edges">vertices_in_edges() (in module local_path.MapPolygon)</a>
-</li>
-  </ul></td>
-</tr></table>
-
-<h2 id="W">W</h2>
-<table style="width: 100%" class="indextable genindextable"><tr>
-  <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="graphslam_global.html#graphslam_global.graphslam_global_fast.GraphSLAM_Global.wheelspeed_sub">wheelspeed_sub() (graphslam_global.graphslam_global_fast.GraphSLAM_Global method)</a>
 </li>
   </ul></td>
 </tr></table>

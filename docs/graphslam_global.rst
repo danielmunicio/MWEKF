@@ -2,44 +2,44 @@ GraphSLAM!
 =========================
 Welcome to our GraphSLAM package! For those not familiar, `SLAM <https://youtu.be/saVZtgPyyJQ?si=ut-W3i7aFHYHAFhw>`_ stands for Simultaneous Localization and Mapping. This means, we're both figuring out our current position, while also making a global map of our surroundings (in this case, cones). To do this, we have to subscribe to a few different topics: 
 
-
 Subscribers
--------------
+-----------
 
-``/imu``
-    :Type: ``sensor_msgs/Imu``
-    :Description: Recieves IMU messages about acceleration and orientation
-    :Callback Function: ``imu_callback``
+Topic: **/imu**
 
-``/fusion/cones``
-    :Type: ``eufs_msgs/ConeArrayWithCovariance``
-    :Description: Recieves all the cones spottable by perception 
-    :Callback Function: ``cones_callback``
-``/ground_truth/state``
-    :Type: ``eufs_msgs/CarState``
-    :Description: Gives car position information. Used to convert cones into polar
-    :Callback Function: ``state_sub``
+- **Type**: :ref:`sensor_msgs/Imu <sensor_msgs-IMU>`
+- **Description**: Receives IMU messages about acceleration and orientation  
+- **Callback Function**: ``imu_callback``  
 
-Once again, we return out the Cars position, and a map of the cones:
+Topic: **/fusion/cones**
+
+- **Type**: :ref:`eufs_msgs/ConeArrayWithCovariance <eufs_msgs/ConeArrayWithCovariance>`
+- **Description**: Receives all the cones spottable by perception  
+- **Callback Function**: ``cones_callback``  
+
+Topic: **/ground_truth/state**
+
+- **Type**: :ref:`eufs_msgs/CarState <eufs_msgs/CarState>`
+- **Description**: Gives car position information. Used to convert cones into polar  
+- **Callback Function**: ``state_sub``  
 
 Publishers
-------------
+----------
 
-``/slam/state``
-    :Type: ``feb_msgs/State``
-    :Description: Publishes the cars current state as percieved by SLAM
+Topic: **/slam/state**
 
-``/slam/map/local``
-    :Type: ``feb_msgs/Map``
-    :Description: Publishes the current local map
+- **Type**: :ref:`feb_msgs/State <feb_msgs-state-label>`
+- **Description**: Publishes the car's current state as perceived by SLAM  
 
-``/slam/map/global``
-    :Type: ``feb_msgs/Map``
-    :Description: Publishes the Global map of cones
+Topic: **/slam/map/local**
 
+- **Type**: :ref:`feb_msgs/Map <feb_msgs-map-label>`
+- **Description**: Publishes the current local map  
 
-Note: We also added a few extra publishers for PointCloud messages,
-so we could compare the percieved position of SLAM to the actual position in the simulator in real-time.
+Topic: **/slam/map/global**
+
+- **Type**: :ref:`feb_msgs/Map <feb_msgs-map-label>`
+- **Description**: Publishes the Global map of cones
 
 Information Collection and Initial Guess
 --------------------------------------------------

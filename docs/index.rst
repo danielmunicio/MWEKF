@@ -21,6 +21,7 @@ Since we don't run perception, our pipeline on the simulator is more condensed, 
 
    Graph-Based SLAM Algorithm <graphslam_global>
    Model Predictive Control <mpc>
+   ROS Messages <messages>
 
 One last important thing to note, is we use a Structured Concurrency program called ROS (Robot Operating System). More specifically, we use `ROS2 Humble <insert_ros_link>`_
 

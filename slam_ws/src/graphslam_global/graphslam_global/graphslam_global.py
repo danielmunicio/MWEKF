@@ -1,5 +1,5 @@
 import numpy as np
-from .GraphSLAMFast import GraphSLAMFast
+from .GraphSLAMSolve import GraphSLAMFast
 from all_settings.all_settings import GraphSLAMFastSettings as settings
 from time import perf_counter
 import math
@@ -535,4 +535,3 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
-    

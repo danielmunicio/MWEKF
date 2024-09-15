@@ -1,8 +1,9 @@
 import numpy as np
-from .GraphSLAMSolve import GraphSLAMFast
+from .GraphSLAMFast import GraphSLAMFast
 from all_settings.all_settings import GraphSLAMFastSettings as settings
 from time import perf_counter
 import math
+import time
 # from numpy.random import random, randn
 
 import rclpy
@@ -113,7 +114,8 @@ class GraphSLAM_Global(Node):
         )
         # SLAM Initialization
 
-        # Initializes a new instance of graphslam
+        # Initializes a new instance of graphslam from the graphslam
+        # Data Association Threshold is to be tweaked
         self.slam = GraphSLAMFast(**settings)
         
         # used to calculate the state of the vehicle
@@ -129,11 +131,12 @@ class GraphSLAM_Global(Node):
         self.currentstate.lap_count = 0
         self.state_seq = 0.0
         self.cone_seq = 0.0
+        self.distance_traveled_danny = 0.0
         self.global_map = Map()
         self.local_map = Map()
         self.LPKRDSM = 4 # LaP oK RaDiuS (Meters)
         self.is_clear_of_lap_count_radius = False
-
+        self.time = time.time()
         # radius for which to include local cones ---#UPDATE, perhaps from mpc message
         self.local_radius = 100000 
         
@@ -147,12 +150,22 @@ class GraphSLAM_Global(Node):
         self.usefastslam = False
         self.last_slam_update = np.array([np.Inf, np.Inf])
 
-    def state_sub(self, msg: CarState) -> None:
+    def state_sub(self, msg: CarState):
         """ This is a callback function for the SIMULATORS ground truth carstate. 
             Currently being used to get the cars position so we can calculate the cones R, theta properly.
         """
+        #with open("sim_data.txt", "a") as f:
+            # print("---------------------------------------", file =f)
+            # print("GROUND TRUTH CAR STATE: ", file =f)
+            # print("x position: ", msg.pose.pose.position.x, file=f)
+            # print("y position: ", msg.pose.pose.position.y, file=f)
+            # print("heading: ", self.quat_to_euler(msg.pose.pose.orientation)[-1], file=f)
+            # print("----------------------------------------", file=f)
+        # self.currentstate.x = msg.pose.pose.position.x
+        # self.currentstate.y = msg.pose.pose.position.y
         self.currentstate_simulator.x = msg.pose.pose.position.x
         self.currentstate_simulator.y = msg.pose.pose.position.y
+        # self.currentstate.velocity = np.sqrt(msg.twist.twist.linear.x**2 + msg.twist.twist.linear.y**2)
         return
 
     def wheelspeed_sub(self, msg: WheelSpeedsStamped):
@@ -172,6 +185,8 @@ class GraphSLAM_Global(Node):
     Output: timediff: float
     """
     def compute_timediff(self, header: Header) -> float:
+        print("Seconds: ", header.stamp.sec)
+        print("NanoSeconds: ", header.stamp.nanosec)
         newtime = header.stamp.sec + 1e-9 * header.stamp.nanosec
         timediff = newtime - self.statetimestamp
         self.statetimestamp = newtime
@@ -188,7 +203,7 @@ class GraphSLAM_Global(Node):
     Output: roll, pitch, yaw
     #NOTE: roll and pitch are irrelevant as of now, we only care about heading angle (pitch)
     """
-    def quat_to_euler(self, quat: Quaternion) -> tuple[float, float, float]:
+    def quat_to_euler(self, quat):#: Quaternion) -> tuple[float, float, float]:
         x = quat.x
         y = quat.y
         z = quat.z
@@ -217,7 +232,8 @@ class GraphSLAM_Global(Node):
         longitudinal_acc = acc.x
         # lateral_acc = acc.y # May be needed in the future if  
         #                       straightline model is not accurate enough
-
+        print("Acceleration: ", longitudinal_acc)
+        print("dt: ", dt)
         linear_velocity = longitudinal_acc * dt
         return linear_velocity
 
@@ -261,6 +277,9 @@ class GraphSLAM_Global(Node):
     - float64[9] angular_velocity_covariance
     - geometry_msgs/Vector3 linear_acceleration
     - float64[9] linear_acceleration_covariance
+
+    Note: Depending on whether or not we are using wheel speeds for velocity,
+    we should delete the integration of the linear acceleration. 
     """
 
     def imu_callback(self, imu: Imu) -> None:
@@ -275,9 +294,9 @@ class GraphSLAM_Global(Node):
         roll, pitch, yaw = self.quat_to_euler(imu.orientation)
 
         # generate current velocity
-        # delta_velocity = self.compute_delta_velocity(imu.linear_acceleration, dt)
-        # velocity = self.currentstate.velocity + delta_velocity
-        # self.currentstate.velocity = velocity
+        delta_velocity = self.compute_delta_velocity(imu.linear_acceleration, dt)
+        velocity = self.currentstate.velocity + delta_velocity
+        self.currentstate.velocity = velocity
 
         # for now, we assume velocity is in the direction of heading
         # generate dx [change in x, change in y] to add new pose to graph
@@ -308,7 +327,7 @@ class GraphSLAM_Global(Node):
  
         pose_msg.header.frame_id = "map"
         pose_msg.header.stamp = self.get_clock().now().to_msg()
- 
+        print("Velocity!", self.currentstate.velocity)
         self.pose_pub.publish(pose_msg)
 
         ## Show Estimated Pose END 
@@ -316,7 +335,20 @@ class GraphSLAM_Global(Node):
         self.state_pub.publish(self.currentstate)
 
         delta_pos = dt * self.currentstate.velocity
+        self.distance_traveled_danny += delta_pos
+        with open("SLAM_Solve.txt", "a") as f:
+            print("----------------------------------------------------------", file=f)
+            print(f"FROM SLAM: ", file = f)
+            print(f"x guess: {self.currentstate.x} \n y guess: {self.currentstate.y}", file=f)
+            print(f"ACTUAL xpos: {self.currentstate_simulator.x} \n y guess: {self.currentstate_simulator.y}", file=f)
+            print(f"ACTUAL VELOCITY: {self.currentstate.velocity}", file = f)
+            print(f"dt: {dt}", file = f)
+            print(f"Distance Traveled: {delta_pos}", file = f)
+            print(f"Total Distance: {self.distance_traveled_danny}", file = f)
+            print("-----------------------------------------------------------", file=f)
+            print(file=f)
 
+        # print(f"TIME TAKEN FOR IMU CALLBACK: {times}")
 
     def cartesian_to_polar(self, car_state, cone):
         p_x = cone[0] - car_state[0]
@@ -337,6 +369,40 @@ class GraphSLAM_Global(Node):
     
     """
     def cones_callback(self, cones: ConeArrayWithCovariance) -> None: # abt todo: we have had cones as a placeholder message structure yet to be defined (cones.r, cones.theta, cones.color) for now
+        bloobs = np.array([[i.point.x for i in cones.blue_cones],
+                           [i.point.y for i in cones.blue_cones]])
+        yellow = np.array([[i.point.x for i in cones.yellow_cones],
+                           [i.point.y for i in cones.yellow_cones]])
+        
+        with open("bloobsnyellers.txt", "a") as f:
+            print(bloobs, file=f)
+            print(yellow, file=f)
+            print("\n"*2, file=f)
+
+        carstate_array = [self.currentstate.x, self.currentstate.y, self.currentstate.velocity, self.currentstate.heading]
+        rot = lambda theta: np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
+        pos = np.array(carstate_array[:2])[:, np.newaxis]
+        bloobs = rot(-self.currentstate.heading)@bloobs + pos
+        yellow = rot(-self.currentstate.heading)@yellow + pos
+
+        self.local_map.left_cones_x = list(bloobs[0])
+        self.local_map.left_cones_y = list(bloobs[1])
+        self.local_map.right_cones_x = list(yellow[0])
+        self.local_map.right_cones_y = list(yellow[1])
+        # self.local_map_pub.publish(self.local_map)
+
+        # with open("sim_data.txt", "a") as f:
+        #     print("From SLAM cones map:", self.local_map, file=f)
+        #     print(file=f)
+
+    
+        # x_s = [cone.point.x for cone in cones.blue_cones] + [cone.point.x for cone in cones.yellow_cones]
+        # y_s = [cone.point.y for cone in cones.blue_cones] + [cone.point.y for cone in cones.yellow_cones]
+
+        # plt.scatter(x_s, y_s)
+        # plt.show()
+
+        # Dummy function for now, need to update graph and solve graph on each timestep
         if self.finished:
             return
         
@@ -353,23 +419,37 @@ class GraphSLAM_Global(Node):
             cone_matrix[0].append(r)
             cone_matrix[1].append(theta)
             cone_matrix[2].append(1)
+        # for cone in cones.big_orange_cones:
+        #     r, theta = self.cartesian_to_polar([0.0, 0.0], (cone.point.x, cone.point.y))
+        #     cone_matrix[0].append(r)
+        #     cone_matrix[1].append(theta)
+        #     cone_matrix[2].append(0)
 
         cone_matrix = np.array(cone_matrix).T
+        # print("CONESHAPE", cone_matrix.shape)
         cone_dx = cone_matrix[:,0] * np.cos(cone_matrix[:,1]+self.currentstate.heading) # r * cos(theta) element wise
         cone_dy = cone_matrix[:,0] * np.sin(cone_matrix[:,1]+self.currentstate.heading) # r * sin(theta) element_wise
         cartesian_cones = np.vstack((cone_dx, cone_dy, cone_matrix[:,2])).T # n x 3 array of n cones and dx, dy, color   -- input for update_graph
 
 
+        # cone_matrix = np.hstack([np.vstack([bloobs.T, yellow.T]), np.array([[0]*len(bloobs[0]) + [1]*len(yellow[0])]).T])
         # process all new cone messages separately while one thread is solving slam        
         
         #lock
         #self.slam.update_backlog_perception(cone_matrix)
         #if (self.solving):
         #    return
-        if np.linalg.norm(self.last_slam_update-np.array([self.currentstate.x, self.currentstate.y])) > 1.0:
+        #if np.linalg.norm(self.last_slam_update-np.array([self.currentstate.x, self.currentstate.y])) > 2:
+            #self.slam.update_graph(np.array([self.currentstate.x, self.currentstate.y])-self.last_slam_update if self.last_slam_update[0]<999999999.0 else np.array([0.0, 0.0]), cartesian_cones[:, :2], cartesian_cones[:, 2].flatten()) # old pre-ros threading
+            #print(cartesian_cones.T.shape)
+            #self.last_slam_update = np.array([self.currentstate.x, self.currentstate.y])
+
+        if (self.time - time.time() > 10000):
             self.slam.update_graph(np.array([self.currentstate.x, self.currentstate.y])-self.last_slam_update if self.last_slam_update[0]<999999999.0 else np.array([0.0, 0.0]), cartesian_cones[:, :2], cartesian_cones[:, 2].flatten()) # old pre-ros threading
             print(cartesian_cones.T.shape)
             self.last_slam_update = np.array([self.currentstate.x, self.currentstate.y])
+            self.time = time.time()
+            print("UPDATING STATE")
         else:
             return
         #self.slam.update_graph_color(perception_backlog_imu, perception_backlog_cones)
@@ -420,12 +500,50 @@ class GraphSLAM_Global(Node):
         cones_msg.header.stamp = self.get_clock().now().to_msg()
         self.cones_vis_pub.publish(cones_msg)
 
+
+        #left_cones = lm_guess[lm_guess[:,2] == 0][:,:2] # orange
+
+        # print('left_cones: ')
+        # print(left_cones)
+        # print('___________________________')
+        # print('right_cones: ')
+        # print(right_cones)
+        # print('_____________________')
+
+        # #update map message with new map data 
+        # self.global_map.left_cones_x = list(left_cones[:,0])
+        # self.global_map.left_cones_y = list(left_cones[:,1]) 
+        # self.global_map.right_cones_x = list(right_cones[:,0]) 
+        # self.global_map.right_cones_y = list(right_cones[:,1]) 
+
+        # #update message header
+        # self.cone_seq += 1
+        # #self.global_map.header.seq = self.seq
+        # self.global_map.header.stamp = self.get_clock().now().to_msg()
+        # self.global_map.header.frame_id = "rslidar"
+
+        # self.global_map_pub.publish(self.global_map)
+        # print('len of left and right cones:')
+        # print(len(left_cones))
+        # print(len(right_cones))
+
         local_left, local_right = self.localCones(self.local_radius*0 + 20, left_cones, right_cones)
-
+        print("here8")
         if (len(np.array(local_left)) == 0 or len(np.array(local_right)) == 0):
+            print("here9")
             return
+        print("here10")
+        # local_left, local_right = left_cones, right_cones
 
+        # print('len of local left and local right cones:')
+        # print(len(local_left))
+        # print(len(local_right))
+        # print('local left: ')
+        # print(local_left)
+        # print('local right: ')
+        # print(local_right)
         #update map message with new map data 
+
         self.local_map.left_cones_x = np.array(local_left)[:,0].tolist()
         self.local_map.left_cones_y = np.array(local_left)[:,1].tolist()
         self.local_map.right_cones_x = np.array(local_right)[:,0].tolist()
@@ -436,7 +554,9 @@ class GraphSLAM_Global(Node):
         self.local_map.header.stamp = self.get_clock().now().to_msg()
         self.local_map.header.frame_id = "map"
 
+        print("here11")
         self.local_map_pub.publish(self.local_map)
+        print("here12")
     
     def compareAngle(self, a, b, threshold): # a<b
         mn = min(b-a, 2*np.pi - b + a) # (ex. in degrees): a = 15 and b = 330 are 45 degrees apart (not 315)
@@ -466,6 +586,13 @@ class GraphSLAM_Global(Node):
         # Cones within radius
         close_left = left[((left - curpos) ** 2).sum(axis=1) < radius * radius]
         close_right = right[((right - curpos) ** 2).sum(axis=1) < radius * radius]
+                
+        # print('close_left cones: ')
+        # print(close_left)
+        # print('------------------')
+        # print('close_right cones:')
+        # print(close_right)
+        # print('------------------')
 
         # Concatenate close_left and close_right
         close = np.concatenate((close_left, close_right), axis=0)
@@ -535,3 +662,4 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
+    

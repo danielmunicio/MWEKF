@@ -1,12 +1,9 @@
 import numpy as np
-from numpy.linalg import *
-# import matplotlib.pyplot as plt
-# import csv
-# import track_generator_leonid.track_main as trackmain
-# import track_generator_leonid.settings as settings
-from .graphslam_colorsolve import GraphSLAM
+from .GraphSLAMFast import GraphSLAMFast
+from all_settings.all_settings import GraphSLAMFastSettings as settings
 from time import perf_counter
 import math
+import time
 # from numpy.random import random, randn
 
 import rclpy
@@ -24,7 +21,6 @@ import matplotlib.pyplot as plt
 
 from feb_msgs.msg import State, FebPath, Map
 from eufs_msgs.msg import ConeArrayWithCovariance, ConeWithCovariance
-from casadi import DM
 
 class GraphSLAM_Global(Node):
     def __init__(self):
@@ -120,7 +116,7 @@ class GraphSLAM_Global(Node):
 
         # Initializes a new instance of graphslam from the graphslam
         # Data Association Threshold is to be tweaked
-        self.slam = GraphSLAM(solver_type='qp', landmarkTolerance=2, Q=lambda n: 0.1*DM.eye(n), R=lambda n: 0.5*DM.eye(n), C=lambda n: 0.0*DM.eye(n))
+        self.slam = GraphSLAMFast(**settings)
         
         # used to calculate the state of the vehicle
         self.currentstate_simulator = State()
@@ -140,7 +136,7 @@ class GraphSLAM_Global(Node):
         self.local_map = Map()
         self.LPKRDSM = 4 # LaP oK RaDiuS (Meters)
         self.is_clear_of_lap_count_radius = False
-
+        self.time = time.time()
         # radius for which to include local cones ---#UPDATE, perhaps from mpc message
         self.local_radius = 100000 
         
@@ -189,6 +185,8 @@ class GraphSLAM_Global(Node):
     Output: timediff: float
     """
     def compute_timediff(self, header: Header) -> float:
+        print("Seconds: ", header.stamp.sec)
+        print("NanoSeconds: ", header.stamp.nanosec)
         newtime = header.stamp.sec + 1e-9 * header.stamp.nanosec
         timediff = newtime - self.statetimestamp
         self.statetimestamp = newtime
@@ -205,7 +203,7 @@ class GraphSLAM_Global(Node):
     Output: roll, pitch, yaw
     #NOTE: roll and pitch are irrelevant as of now, we only care about heading angle (pitch)
     """
-    def quat_to_euler(self, quat: Quaternion) -> tuple[float, float, float]:
+    def quat_to_euler(self, quat):#: Quaternion) -> tuple[float, float, float]:
         x = quat.x
         y = quat.y
         z = quat.z
@@ -234,7 +232,8 @@ class GraphSLAM_Global(Node):
         longitudinal_acc = acc.x
         # lateral_acc = acc.y # May be needed in the future if  
         #                       straightline model is not accurate enough
-
+        print("Acceleration: ", longitudinal_acc)
+        print("dt: ", dt)
         linear_velocity = longitudinal_acc * dt
         return linear_velocity
 
@@ -278,6 +277,9 @@ class GraphSLAM_Global(Node):
     - float64[9] angular_velocity_covariance
     - geometry_msgs/Vector3 linear_acceleration
     - float64[9] linear_acceleration_covariance
+
+    Note: Depending on whether or not we are using wheel speeds for velocity,
+    we should delete the integration of the linear acceleration. 
     """
 
     def imu_callback(self, imu: Imu) -> None:
@@ -292,9 +294,9 @@ class GraphSLAM_Global(Node):
         roll, pitch, yaw = self.quat_to_euler(imu.orientation)
 
         # generate current velocity
-        # delta_velocity = self.compute_delta_velocity(imu.linear_acceleration, dt)
-        # velocity = self.currentstate.velocity + delta_velocity
-        # self.currentstate.velocity = velocity
+        delta_velocity = self.compute_delta_velocity(imu.linear_acceleration, dt)
+        velocity = self.currentstate.velocity + delta_velocity
+        self.currentstate.velocity = velocity
 
         # for now, we assume velocity is in the direction of heading
         # generate dx [change in x, change in y] to add new pose to graph
@@ -325,7 +327,7 @@ class GraphSLAM_Global(Node):
  
         pose_msg.header.frame_id = "map"
         pose_msg.header.stamp = self.get_clock().now().to_msg()
- 
+        print("Velocity!", self.currentstate.velocity)
         self.pose_pub.publish(pose_msg)
 
         ## Show Estimated Pose END 
@@ -417,11 +419,11 @@ class GraphSLAM_Global(Node):
             cone_matrix[0].append(r)
             cone_matrix[1].append(theta)
             cone_matrix[2].append(1)
-        for cone in cones.big_orange_cones:
-            r, theta = self.cartesian_to_polar([0.0, 0.0], (cone.point.x, cone.point.y))
-            cone_matrix[0].append(r)
-            cone_matrix[1].append(theta)
-            cone_matrix[2].append(0)
+        # for cone in cones.big_orange_cones:
+        #     r, theta = self.cartesian_to_polar([0.0, 0.0], (cone.point.x, cone.point.y))
+        #     cone_matrix[0].append(r)
+        #     cone_matrix[1].append(theta)
+        #     cone_matrix[2].append(0)
 
         cone_matrix = np.array(cone_matrix).T
         # print("CONESHAPE", cone_matrix.shape)
@@ -437,9 +439,17 @@ class GraphSLAM_Global(Node):
         #self.slam.update_backlog_perception(cone_matrix)
         #if (self.solving):
         #    return
-        if np.linalg.norm(self.last_slam_update-np.array([self.currentstate.x, self.currentstate.y])) > 1.0:
+        #if np.linalg.norm(self.last_slam_update-np.array([self.currentstate.x, self.currentstate.y])) > 2:
+            #self.slam.update_graph(np.array([self.currentstate.x, self.currentstate.y])-self.last_slam_update if self.last_slam_update[0]<999999999.0 else np.array([0.0, 0.0]), cartesian_cones[:, :2], cartesian_cones[:, 2].flatten()) # old pre-ros threading
+            #print(cartesian_cones.T.shape)
+            #self.last_slam_update = np.array([self.currentstate.x, self.currentstate.y])
+
+        if (self.time - time.time() > 10000):
+            self.slam.update_graph(np.array([self.currentstate.x, self.currentstate.y])-self.last_slam_update if self.last_slam_update[0]<999999999.0 else np.array([0.0, 0.0]), cartesian_cones[:, :2], cartesian_cones[:, 2].flatten()) # old pre-ros threading
+            print(cartesian_cones.T.shape)
             self.last_slam_update = np.array([self.currentstate.x, self.currentstate.y])
-            self.slam.update_graph_color(cartesian_cones, np.array([self.currentstate.x, self.currentstate.y])) # old pre-ros threading
+            self.time = time.time()
+            print("UPDATING STATE")
         else:
             return
         #self.slam.update_graph_color(perception_backlog_imu, perception_backlog_cones)
@@ -450,8 +460,7 @@ class GraphSLAM_Global(Node):
         
         # x_guess, lm_guess = self.slam.solve_graph()
         self.slam.solve_graph()
-        x_guess, lm_guess = self.slam.xhat, self.slam.lmhat
-        
+        x_guess, lm_guess = self.slam.xhat, np.hstack((self.slam.lhat, self.slam.color[:, np.newaxis]))
 
         position_guess = PointCloud()
         positions = []
@@ -477,7 +486,7 @@ class GraphSLAM_Global(Node):
         blue_array = np.array([2 for i in range(len(lm_guess[:,2]))])
         left_cones = lm_guess[np.round(lm_guess[:,2]) == 2][:,:2] # blue
         right_cones = lm_guess[np.round(lm_guess[:,2]) == 1][:,:2] # yellow
-
+        print(self.slam.color.shape, self.slam.lhat.shape, left_cones.shape, right_cones.shape, lm_guess, cartesian_cones)
         total_cones = np.vstack((left_cones,right_cones))
         cones_msg = PointCloud()
         cones_to_send = []

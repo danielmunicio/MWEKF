@@ -108,6 +108,7 @@ def keys_with_value_of_one(dictionary: Dict[Tuple[int, int], int]) -> List[Tuple
     """
     return [key for key, value in dictionary.items() if value == 1]
 
+
 def get_edges_from_triangles(triangles: List[List[int, int, int]]) -> List[Tuple[int, int]]:
     """This function takes in a list of triangles and returns all the edges that are part of the triangles.
 

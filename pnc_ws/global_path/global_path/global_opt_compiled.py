@@ -7,10 +7,13 @@ import os
 import casadi as ca
 # hsl checking fuckery
 # only works on mac/linux. if you havee windows, I'm willing to bet you have bigger problems.
-hsl_avail = (
-    np.any(['hsl' in j for j in sum([os.listdir(i) for i in os.environ['LD_LIBRARY_PATH'].split(":") if len(i)>1], start=[])])
- or np.any(['hsl' in j for j in sum([os.listdir(i) for i in os.environ['DYLD_LIBRARY_PATH'].split(":") if len(i)>1], start=[])])
-)
+hsl_avail = False
+paths = ":".join([(linuxpath if (linuxpath:=os.environ.get('LD_LIBRARY_PATH')) is not None else ""),
+                  (macospath if (macospath:=os.environ.get('DYLD_LIBRARY_PATH')) is not None else "")])
+for folder in paths.split(":"):
+    if len(folder)>1 and np.any(['libhsl' in j for j in os.listdir(folder)]):
+        hsl_avail = True
+        break
 
 assert hsl_avail, "You must have HSL linear solvers installed on your system, but they were not found (or you have windows). If you're on windows, comment out this line."
 
@@ -81,7 +84,7 @@ class CompiledGlobalOpt:
         self.fix_angle = Function('fix_angle', [x], [horzcat(x[0, :], x[1, :], sin(x[2, :]/2), x[3, :])])
         # generate 2x2 rotation matrices
         psi = MX.sym('psi')
-        self.rot = Function('rot', [psi], [reshape(horzcat(cos(psi), sin(psi), -sin(psi), cos(psi)), 2, 2)])
+        self.rot = Function('rot', [psi], [horzcat(vertcat(cos(psi), sin(psi)), vertcat(-sin(psi), cos(psi)))])
 
         ###########################################*
         ####* Symbolic Variable Initialization ####*
@@ -211,7 +214,7 @@ class CompiledGlobalOpt:
         # TODO: allow the cone locations to be different from the track side points
 
         #* construct a function which is close enough to a rectangle
-        self.safe = Function('safespace', [x:=MX.sym('x', 2)], [(DM([1/self.bbox['w'], 1/self.bbox['l']])**6).T@x**6])
+        self.safe = Function('safespace', [x:=MX.sym('x', 2)], [(DM([2/self.bbox['l'], 2/self.bbox['w']])**6).T@x**6])
 
         self.cones = vertcat(self.bound_pairs[:, :2], self.bound_pairs[:, 2:4]).T
         left = self.bound_pairs[:, :2].T
@@ -227,10 +230,11 @@ class CompiledGlobalOpt:
             else:
                 considered = horzcat(left[:, i-self.nc:i+self.nc],
                                      right[:, i-self.nc:i+self.nc])
-
+                
+            car_centroid_center_of_mass_offset = vertcat(self.car_params['l_f']-self.car_params['l_r'], 0)
             self._add_constraint(
                 f'cones{i}',
-                g=self.safe(self.rot(-self.psi[i])@((considered-self.z[i, :2].T) + vertcat(self.car_params['l_f']-self.car_params['l_r'], 0))).T, 
+                g=self.safe(self.rot(-self.psi[i])@((considered-self.z[i, :2].T) + car_centroid_center_of_mass_offset)).T, 
                 lbg=DM([1]*self.nc*4),
                 ubg=DM([inf]*self.nc*4)
             )
@@ -352,7 +356,7 @@ class CompiledGlobalOpt:
             DM([0.5]*self.N), # dt
             DM([0.0]*self.N*4)# track slack vars
         ))
-        self.solver.print_options()
+        # self.solver.print_options()
         self.soln = self.solver(
             x0=self.x0,
             lbg=self.lbg,

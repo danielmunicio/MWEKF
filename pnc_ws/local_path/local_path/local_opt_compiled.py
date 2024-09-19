@@ -1,14 +1,17 @@
-#%%
 from casadi import *
 import numpy as np
 from time import perf_counter
-from dynamics import discrete_custom_integrator
+from .dynamics import discrete_custom_integrator
+import os
 # hsl checking fuckery
 # only works on mac/linux. if you havee windows, I'm willing to bet you have bigger problems.
-hsl_avail = (
-    np.any(['hsl' in j for j in sum([os.listdir(i) for i in os.environ['LD_LIBRARY_PATH'].split(":") if len(i)>1], start=[])])
- or np.any(['hsl' in j for j in sum([os.listdir(i) for i in os.environ['DYLD_LIBRARY_PATH'].split(":") if len(i)>1], start=[])])
-)
+hsl_avail = False
+paths = ":".join([(linuxpath if (linuxpath:=os.environ.get('LD_LIBRARY_PATH')) is not None else ""),
+                  (macospath if (macospath:=os.environ.get('DYLD_LIBRARY_PATH')) is not None else "")])
+for folder in paths.split(":"):
+    if len(folder)>1 and np.any(['libhsl' in j for j in os.listdir(folder)]):
+        hsl_avail = True
+        break
 
 assert hsl_avail, "You must have HSL linear solvers installed on your system, but they were not found (or you have windows). If you're on windows, comment out this line."
 
@@ -77,7 +80,8 @@ class CompiledLocalOpt:
         ####* utility functions ####
         # easy way to account for angle wrapping
         x = MX.sym('x', 4)
-        self.fix_angle = Function('fix_angle', [x], [horzcat(x[0, :], x[1, :], sin(2*x[2, :]), x[3, :])])
+        # self.fix_angle = Function('fix_angle', [x], [horzcat(x[0, :], x[1, :], sin(2*x[2, :]), x[3, :])])
+        self.fix_angle = Function('fix_angle', [x], [horzcat(x[0, :], x[1, :], sin(x[2, :]/2), x[3, :])])
         # generate 2x2 rotation matrices
         psi = MX.sym('psi')
         self.rot = Function('rot', [psi], [reshape(horzcat(cos(psi), sin(psi), -sin(psi), cos(psi)), 2, 2)])
@@ -128,10 +132,11 @@ class CompiledLocalOpt:
 
         #* Dynamics constraints: # Math: F(z_i, u_i, \Delta t_i) == z_{i+1}
         for i in range(0, self.N-1):
+            # print(self.z[i, :]);
             self._add_constraint(
                 f'dynamics{i}',
                 g = vec(self.fix_angle(
-                    self.dynamics(self.z[i, :], self.u[i, :], self.dt[i, :]).T-self.z[i+1, :]) + self.sl_dyn[i, :]),
+                    self.dynamics(self.z[i, :], self.u[i, :], self.dt[i, :]).T-self.z[i+1, :])),# + self.sl_dyn[i, :]),
                 lbg = DM([0.0]*4),
                 ubg = DM([0.0]*4)
             )
@@ -164,19 +169,19 @@ class CompiledLocalOpt:
             'dt',
             g = vec(self.dt),
             lbg = DM([0.0]*self.N),
-            ubg = DM([0.5]*self.N)
+            ubg = DM([1.0]*self.N)
         )
         self._add_constraint(
             'df_dot',
-            g = vec(self.dt * (self.u[:, 1] - vertcat(self.u[-1:, 1], self.u[:-1, 1]))),
-            lbg = DM([-self.DF_DOT_MAX]*self.N),
-            ubg = DM([self.DF_DOT_MAX]*self.N)
+            g = vec(self.dt[:-1] * (self.u[:-1, 1] - self.u[-1:, 1])),
+            lbg = DM([-self.DF_DOT_MAX]*(self.N-1)),
+            ubg = DM([self.DF_DOT_MAX]*(self.N-1))
         )
         self._add_constraint(
             't',
             g = vec(self.t),
-            lbg = DM([0.0]*self.N),
-            ubg = DM([1.0]*self.N)
+            lbg = DM([0.4]*self.N),
+            ubg = DM([0.6]*self.N)
         )
         # Keeps initial heading and velocity unchangeable
         self._add_constraint(
@@ -185,20 +190,20 @@ class CompiledLocalOpt:
             lbg = DM(0),
             ubg = DM(0)
         )
-        self._add_constraint(
-            'curr_heading',
-            g = self.curr_state[2] - self.psi[0],
-            lbg = DM(0),
-            ubg = DM(0)
-        )
+        # self._add_constraint(
+        #     'curr_heading',
+        #     g = self.curr_state[2] - self.psi[0],
+        #     lbg = DM(-pi/6),
+        #     ubg = DM(pi/6)
+        # )
         # Makes it so that the time to run is at minimum 2 (soft constraint, scalar included)
         self.scalar = MX.sym("scalar")
-        self._add_constraint(
-            'min_time',
-            g = sum1(self.dt) + self.scalar,
-            lbg = DM(2),
-            ubg = DM(float('inf'))
-        )
+        # self._add_constraint(
+        #     'min_time',
+        #     g = sum1(self.dt) + self.scalar,
+        #     lbg = DM(0.5),
+        #     ubg = DM(float('inf'))
+        # )
         # centripetal acceleration: # Math: \frac{v^2}{r}=\frac{v^2}{\frac{v}{\dot{\theta}}}=\frac{v^2\dot{\theta}}{v}=v\dot{\theta}
         ac = (self.v**2 / self.car_params['l_r']) * sin(arctan(self.car_params['l_r']/(self.car_params['l_f'] + self.car_params['l_r']) * tan(self.u[:, 1])))
         self._add_constraint(
@@ -238,7 +243,7 @@ class CompiledLocalOpt:
         #* COST FUNCITON: # Math: \sum_{i=1}^N\left[ \Delta t_i + 10^5\cdot\sum(\text{sl}_\text{dyn})^2\right]
         #* slack vars aren't really neccessary for dynamics but I'm too lazy to remove them. Really they should be on the cone constraints but it's ok.
         # adding the scalar portion will penalize having to use the scalar (i.e. giving too short a path)
-        self.f = sum1(self.dt) + 1e5*sumsqr(self.sl_dyn) + 1e5*(self.scalar)
+        self.f = sum1(self.dt) + 1e12*sumsqr(self.sl_dyn)**2 + 1e2*(self.scalar)**2
 
         #* construct the NLP dictionary to be passed into casadi.
         # make sure you add the self.scalar to x so the nlp can modify it!
@@ -274,14 +279,16 @@ class CompiledLocalOpt:
             gcc_opt_flag (str, optional): optimization flags to pass to GCC. can be -O1, -O2, -O3, or -Ofast depending on how long you're willing to wait. Defaults to '-Ofast'.
         """
         self.solver = nlpsol('solver', self.nlp_solver, self.nlp, self.sopts)
-        if generate_c: self.solver.generate_dependencies('local_opt.c')
+        if generate_c: 
+            self.solver.generate_dependencies('local_opt.c')
+            os.system(f"mv local_opt.c {os.path.dirname(__file__)}/local_opt.c")
         if compile_c:  
-            os.system(f'gcc -fPIC {gcc_opt_flag} -shared local_opt.c -o local_opt.so')
+            os.system(f'gcc -fPIC {gcc_opt_flag} -shared {os.path.dirname(__file__)}/local_opt.c -o {os.path.dirname(__file__)}/local_opt.so')
             # os.system(f'mv local_opt.so MPC/bin/local_opt.so') #TODO: fix this path if necessary
         if use_c:
             new_opts = self.sopts
             new_opts['expand']=False
-            self.solver = nlpsol('solver', self.nlp_solver, 'local_opt.so', new_opts)
+            self.solver = nlpsol('solver', self.nlp_solver, f'{os.path.dirname(__file__)}/local_opt.so', new_opts)
     def load_solver(self):
         """alternative to construct_solver if you're just loading a saved solver.
         """
@@ -314,11 +321,19 @@ class CompiledLocalOpt:
             extra = cur-t[idx]
             controls.append(u[idx])
             states.append(np.array(self.dynamics(z[idx], u[idx], extra)).flatten())
+            if len(states)>1 and abs(states[-1][2] - states[-2][2])>1.5*pi:
+                states[-1][2] = states[-1][-2] + (states[-1][2]-states[-2][2])%(2*pi)
+
             cur += dt
+        # now pad it until it's 12 timsteps, for safety
+        while len(states)<150:
+            controls.append(u[-2])
+            states.append(np.array(self.dynamics(states[-1].tolist(), u[-2], dt)).flatten())
+
         return np.array(states), np.array(controls)
 
         
-    def solve(self, left, right, curr_state):
+    def solve(self, left, right, curr_state, err_ok=True):
         """crunch the numbers.
 
         Args:
@@ -329,35 +344,53 @@ class CompiledLocalOpt:
         Returns:
             dict: result of solve. keys 'z' (states), 'u' (controls), 't' (timestamps)
         """
+        print(repr(left))
+        print(repr(right))
+        print(repr(curr_state))
         center = (left+right)/2
-        diffs = np.diff(center, prepend=center[-1:], axis=0)
-        diffs = np.concatenate([diffs, [[1, 0]]], axis=0)
-        d_angles = [self.angle(diffs[i-1], diffs[i]) for i in range(1, len(diffs))]
-        angles = np.cumsum(d_angles)
+        diffs = np.diff(center, axis=0)
+        diffs = np.concatenate([[[1, 0]], diffs], axis=0)
+        angles = [self.angle(diffs[0], diffs[i]) for i in range(1, len(diffs))]
+        angles.append(angles[-1])
+        angles = np.array(angles)
+        # angles = np.cumsum(d_angles)
 
-        left = center
-        right = center
+        # left = center
+        # right = center
 
         print(f"angles shape: {angles.shape}")
         self.x0 = vec(vertcat(
             DM([0.5]*self.N), # t
             DM(angles),       # psi
-            DM([1.0]*self.N), # v
+            DM([curr_state[3]]*self.N), # v
             DM([0.0]*self.N), # a
             DM([0.0]*self.N),
-            DM([0.5]*self.N), # dt
+            DM([0.1]*self.N), # dt
             DM([0.0]*self.N*4),
             DM([0.0])         # scalar
         ))
         # print(self.x0, self.x0.shape())
-        self.solver.print_options()
+        # print("leo is mean!!!!!")
+        # print(DM(curr_state).shape, horzcat(DM(left), DM(right)).shape)
+        # print(dict(
+        #     x0=self.x0,
+        #     lbg=self.lbg,
+        #     ubg=self.ubg,
+        #     p=vertcat(DM(curr_state).T, horzcat(DM(left), DM(right))),
+        # ))
         self.soln = self.solver(
             x0=self.x0,
             lbg=self.lbg,
             ubg=self.ubg,
-            p=vertcat(DM(curr_state), horzcat(DM(left), DM(right))),
+            p=vertcat(DM(curr_state).T, horzcat(DM(left), DM(right))),
         )
+        # print("SOLVE FINISHED")
+        if err_ok and not self.solver.stats()['success']:
+            raise RuntimeError("Solver failed to converge")
+        
         self.soln['x'] = np.array(reshape(self.soln['x'][:-1], (self.N, 10)))
+        # print("LOCAL OPT OUTPUT")
+        # print(self.soln)
         self.soln['xy'] = (left.T*(1-self.soln['x'][:, 0])+right.T*self.soln['x'][:, 0]).T
         # print(self.soln['x'][:, 5])
         res=dict()
@@ -368,7 +401,8 @@ class CompiledLocalOpt:
         # print('silly:',res['z'].shape)
         res['u'] = self.soln['x'][:, 3:5]
         res['t'] = np.concatenate([[0.], np.cumsum(self.soln['x'][:, 5])[:-1]])
-            
+        
+
         ## if the solved solution doesn't fill all 2 seconds
         ### NAIVE (pad "straight" controls until 2 seconds are filled)
         # if res['t'][-1] < 2.0:

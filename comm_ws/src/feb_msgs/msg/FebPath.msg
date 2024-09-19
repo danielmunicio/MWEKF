@@ -1,6 +1,5 @@
 std_msgs/Header header
-std_msgs/Float64[] x
-std_msgs/Float64[] y
-std_msgs/Float64[] v
-std_msgs/Float64[] psi
-
+float64[] x
+float64[] y
+float64[] v
+float64[] psi

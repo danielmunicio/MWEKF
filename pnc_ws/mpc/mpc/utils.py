@@ -35,6 +35,8 @@ def discrete_dynamics(tstep, l_r=0.5, l_f=0.5, m=1.0):
 
 def closest_point(pt, kmpc, states):
     idx = np.argmin(np.linalg.norm(states[:, :2] - pt, axis=1))
+    idxs = (np.arange(idx, idx+10*kmpc.N, 10)%len(states)).tolist()
+    return states[idxs]
     if idx + kmpc.N > states.shape[0]:
         return np.vstack([states[idx:], states[:kmpc.N - (states.shape[0] - idx)]])
     return states[idx : idx + kmpc.N, :]

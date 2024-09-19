@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'graphslam-global'
+package_name = 'graphslam_global'
 
 setup(
     name=package_name,
@@ -20,7 +20,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'graphslam_global = graphslam_global.graphslam_global:main'
+            'graphslam_global = graphslam_global.graphslam_global:main',
+            'graphslam_global_fast = graphslam_global.graphslam_global_fast:main'
         ],
     },
 )

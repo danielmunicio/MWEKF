@@ -22,3 +22,4 @@ class Settings(Mapping):
         args = ', '.join([f'{k}={v}' for k, v in cls])
         return f'{cls.__name__}({args})'
     def __str__(cls): return repr(cls)
+    

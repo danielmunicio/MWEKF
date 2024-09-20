@@ -249,8 +249,6 @@ class GraphSLAM_Global(Node):
         longitudinal_acc = acc.x
         # lateral_acc = acc.y # May be needed in the future if  
         #                       straightline model is not accurate enough
-        print("Acceleration: ", longitudinal_acc)
-        print("dt: ", dt)
         linear_velocity = longitudinal_acc * dt
         return linear_velocity
 
@@ -353,17 +351,6 @@ class GraphSLAM_Global(Node):
 
         delta_pos = dt * self.currentstate.velocity
         self.distance_traveled_danny += delta_pos
-        with open("SLAM_Solve.txt", "a") as f:
-            print("----------------------------------------------------------", file=f)
-            print(f"FROM SLAM: ", file = f)
-            print(f"x guess: {self.currentstate.x} \n y guess: {self.currentstate.y}", file=f)
-            print(f"ACTUAL xpos: {self.currentstate_simulator.x} \n y guess: {self.currentstate_simulator.y}", file=f)
-            print(f"ACTUAL VELOCITY: {self.currentstate.velocity}", file = f)
-            print(f"dt: {dt}", file = f)
-            print(f"Distance Traveled: {delta_pos}", file = f)
-            print(f"Total Distance: {self.distance_traveled_danny}", file = f)
-            print("-----------------------------------------------------------", file=f)
-            print(file=f)
 
         # print(f"TIME TAKEN FOR IMU CALLBACK: {times}")
 
@@ -391,10 +378,6 @@ class GraphSLAM_Global(Node):
         yellow = np.array([[i.point.x for i in cones.yellow_cones],
                            [i.point.y for i in cones.yellow_cones]])
         
-        with open("bloobsnyellers.txt", "a") as f:
-            print(bloobs, file=f)
-            print(yellow, file=f)
-            print("\n"*2, file=f)
 
         carstate_array = [self.currentstate.x, self.currentstate.y, self.currentstate.velocity, self.currentstate.heading]
         rot = lambda theta: np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
@@ -623,8 +606,6 @@ class GraphSLAM_Global(Node):
         delta_vecs = close - curpos
         delta_vecs = (np.array([[np.cos(-heading), -np.sin(-heading)],
                                  [np.sin(-heading), np.cos(-heading)]])@(delta_vecs.T)).T
-        with open("delta_and_heading", "a") as f:
-            print("DELTA_VECS", delta_vecs, "HEADING", heading, file=f)
         # Calculate delta angles
         # delta_ang = np.arctan2(delta_vecs[:, 1], delta_vecs[:, 0])
         # delta_ang = (delta_ang + 2*np.pi) % (2*np.pi)  # Ensure delta_ang is between 0 and 2*pi

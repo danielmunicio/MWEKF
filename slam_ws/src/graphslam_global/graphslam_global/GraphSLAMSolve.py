@@ -23,14 +23,16 @@ class GraphSLAMFast:
         self.z_weight = z_weight
         self.A = sp.sparse.lil_array((self.maxrows, self.maxcols), dtype=np.float64)
         self.b = np.zeros((self.maxcols), np.float64)
+
+        #Ax-b = 0
+
         self.A[0, 0] = 1
         self.A[1, 1] = 1
-        self.b[0] = x0[0]
-        self.b[1] = x0[1]
+        self.b[0] = x0[0] # x
+        self.b[1] = x0[1] # y
 
         self.nvars = 2
         self.neqns = 2
-
         self.x = [0]
         self.l = []
 
@@ -42,6 +44,7 @@ class GraphSLAMFast:
         self.color = np.zeros(0, dtype=np.uint8)
         self.xhat[0, :] = x0
         self.dclip = dclip
+
 
     def _transform(self, x: np.ndarray, center: np.ndarray, z: np.ndarray) -> np.ndarray:
         return (np.array([[np.cos(x[2]), -np.sin(x[2])],
@@ -90,6 +93,28 @@ class GraphSLAMFast:
         return self._transform(res.x, center, z)
 
 
+    def data_assocation_lap_2(self, z: np.ndarray, color: np.ndarray) -> np.ndarray:
+        """ localizes car using input cone r, theta, color after first lap - only creates variables for x & uses final lap 1 landmark position data for reference
+        
+        Args:
+
+        """np.ndarray
+        pass
+
+    #define line btwn orange cones method
+
+
+    def lap_completion(self) -> boolean:
+        """ checks whether the car's latest position estimate crosses line between orange cone position estimate // falls within polygon defined by orange cones
+        
+        Args: N/A - uses slam position data
+
+        Updates:
+            lap_counter: number of times car has passed orange cones
+
+        Returns: N/A
+        """
+        pass
 
 
     
@@ -103,6 +128,9 @@ class GraphSLAMFast:
         """
         color = color.astype(np.uint8)
         # resize = (self.neqns, self.nvars)
+
+
+        # Grow A and b matrix to account for # measurements and # variables >100 = initial_rows = initial_cols or updates beyond that
         cols = self.nvars + 2 + len(z)*2 > self.maxcols
         rows = self.neqns + 2 + len(z)*2 > self.maxrows
         if rows or cols:
@@ -118,15 +146,25 @@ class GraphSLAMFast:
             
         # first add two equations and two variables
         # for the next position and the dx
+
         self.x.append(self.nvars)
         self.d.append(self.neqns)
         self.nvars += 2
         self.neqns += 2
 
-        self.A[self.d[-1], self.x[-1]] = self.dx_weight
-        self.A[self.d[-1]+1, self.x[-1]+1] = self.dx_weight
-        self.A[self.d[-1], self.x[-2]] = -self.dx_weight
-        self.A[self.d[-1]+1, self.x[-2]+1] = -self.dx_weight
+        #localization update equations for new car position 
+
+        #d[-1], d[-1]+1 are last two rows in A, representing x & y equations for the latest measurement
+        #x[-1], x[-1] +1 are the last two columns in A, representing x& y variables for car at the 
+        # last timestep, but why aren't the variables for car position just the first two in A
+
+        self.A[self.d[-1], self.x[-1]] = 1 * self.dx_weight   
+        self.A[self.d[-1]+1, self.x[-1]+1] = 1 * self.dx_weight
+        self.A[self.d[-1], self.x[-2]] = -1 * self.dx_weight
+        self.A[self.d[-1]+1, self.x[-2]+1] = -1 * self.dx_weight
+
+        #
+
         self.b[self.d[-1]] = dx[0]*self.dx_weight
         self.b[self.d[-1]+1] = dx[1]*self.dx_weight
 
@@ -171,12 +209,12 @@ class GraphSLAMFast:
                 # now we write the equation l-x=z
                 self.z.append(self.neqns)
                 self.neqns += 2
-                self.A[self.z[-1], l[l_idxs[i]]] = self.z_weight
-                self.A[self.z[-1]+1, l[l_idxs[i]]+1] = self.z_weight
-                self.A[self.z[-1], self.x[-1]] = -self.z_weight
-                self.A[self.z[-1]+1, self.x[-1]+1] = -self.z_weight
-                self.b[self.z[-1]] = z[color==c][i, 0]*self.z_weight
-                self.b[self.z[-1]+1] = z[color==c][i, 1]*self.z_weight
+                self.A[self.z[-1], l[l_idxs[i]]]     = 1 * self.z_weight
+                self.A[self.z[-1]+1, l[l_idxs[i]]+1] = 1* self.z_weight
+                self.A[self.z[-1], self.x[-1]]       = -1 * self.z_weight
+                self.A[self.z[-1]+1, self.x[-1]+1]   = -1 * self.z_weight
+                self.b[self.z[-1]]                   = z[color==c][i, 0]*self.z_weight
+                self.b[self.z[-1]+1]                 = z[color==c][i, 1]*self.z_weight
     
     def solve_graph(self) -> None:
         """solve graph. does not return results.

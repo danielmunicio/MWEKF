@@ -22,6 +22,21 @@ import matplotlib.pyplot as plt
 from feb_msgs.msg import State, FebPath, Map
 from eufs_msgs.msg import ConeArrayWithCovariance, ConeWithCovariance
 
+
+#TODO
+"""
+- clean up code
+- data association in following laps
+    - add every meter, also try by time
+- tunable parameters in allsetings/all_settings.py, ros params go here
+- lap counter
+- drc
+    - api for future changes to lap counter/ data association
+        - look at ishans for format in auto ee
+        - creat function names and what they'll
+- add 2d gaussian about landmarks for data assoc
+"""
+
 class GraphSLAM_Global(Node):
     def __init__(self):
 
@@ -45,6 +60,22 @@ class GraphSLAM_Global(Node):
             '/fusion/cones', 
             self.cones_callback,
             1
+        )
+
+        self.wheelspeeds = self.create_subscription(
+            WheelSpeedsStamped,
+            '/ground_truth/wheel_speeds',
+            self.wheelspeed_sub,
+            1
+        )
+
+        
+
+        self.state_subby = self.create_subscription(
+            CarState,
+            '/ground_truth/state',
+            self.state_sub,
+            1,
         )
 
         # Once path is finished, turn this node callbacks funcs off
@@ -75,22 +106,6 @@ class GraphSLAM_Global(Node):
             Map, 
             '/slam/map/local',
             1
-        )
-
-        self.wheelspeeds = self.create_subscription(
-            WheelSpeedsStamped,
-            '/ground_truth/wheel_speeds',
-            self.wheelspeed_sub,
-            1
-        )
-
-        
-
-        self.state_subby = self.create_subscription(
-            CarState,
-            '/ground_truth/state',
-            self.state_sub,
-            1,
         )
 
 
@@ -134,11 +149,13 @@ class GraphSLAM_Global(Node):
         self.distance_traveled_danny = 0.0
         self.global_map = Map()
         self.local_map = Map()
+        self.lap_counter = 1
         self.LPKRDSM = 4 # LaP oK RaDiuS (Meters)
         self.is_clear_of_lap_count_radius = False
         self.time = time.time()
+        self.
         # radius for which to include local cones ---#UPDATE, perhaps from mpc message
-        self.local_radius = 100000 
+        self.local_radius = settings.local_radius
         
         # how far into periphery of robot heading on each side to include local cones (robot has tunnel vision if this is small) (radians)
         self.local_vision_delta = np.pi/2 
@@ -444,8 +461,12 @@ class GraphSLAM_Global(Node):
             #print(cartesian_cones.T.shape)
             #self.last_slam_update = np.array([self.currentstate.x, self.currentstate.y])
 
-        if (self.time - time.time() > 10000):
-            self.slam.update_graph(np.array([self.currentstate.x, self.currentstate.y])-self.last_slam_update if self.last_slam_update[0]<999999999.0 else np.array([0.0, 0.0]), cartesian_cones[:, :2], cartesian_cones[:, 2].flatten()) # old pre-ros threading
+        if (self.time - time.time() > 10000): #NOTE self.time - time.time() should be negative
+
+            # last_slam_update initialized to infinity, so set current state x,y to 0 in the case. otherwise, update graph with relative position from last update graph
+            self.slam.update_graph(np.array([self.currentstate.x, self.currentstate.y])-self.last_slam_update if self.last_slam_update[0]<999999999.0 else np.array([0.0, 0.0]), 
+                                   cartesian_cones[:, :2], 
+                                   cartesian_cones[:, 2].flatten()) # old pre-ros threading
             print(cartesian_cones.T.shape)
             self.last_slam_update = np.array([self.currentstate.x, self.currentstate.y])
             self.time = time.time()
@@ -459,7 +480,7 @@ class GraphSLAM_Global(Node):
         #x_guess, lm_guess = self.solveGraphSlamLock()
         
         # x_guess, lm_guess = self.slam.solve_graph()
-        self.slam.solve_graph()
+        
         x_guess, lm_guess = self.slam.xhat, np.hstack((self.slam.lhat, self.slam.color[:, np.newaxis]))
 
         position_guess = PointCloud()
@@ -608,24 +629,18 @@ class GraphSLAM_Global(Node):
         # delta_ang = np.arctan2(delta_vecs[:, 1], delta_vecs[:, 0])
         # delta_ang = (delta_ang + 2*np.pi) % (2*np.pi)  # Ensure delta_ang is between 0 and 2*pi
         mask = delta_vecs[:, 0]>0
-        print("here1")
+
         to_plot = close[mask]
-        print("here2")
         cones_msg = PointCloud()
-        print("here3")
         cones_to_send = []
-        print("here4")
         for cone in to_plot: 
-            print("here5")
             cones_to_send.append(Point32())
             cones_to_send[-1].x = cone[0]
             cones_to_send[-1].y = cone[1]
             cones_to_send[-1].z = 0.0
-        print("here6")
         cones_msg.points = cones_to_send
         cones_msg.header.frame_id = "map"
         cones_msg.header.stamp = self.get_clock().now().to_msg()
-        print("here7")
         # self.cones_vis_pub.publish(cones_msg)
         print("local cones done!!")
 
@@ -641,17 +656,6 @@ class GraphSLAM_Global(Node):
 
         return ret_localcones_left, ret_localcones_right
 
-
-    def solveGraphSlamLock(self):
-        self.solving = True 
-        x_guess, lm_guess = self.slam.solve_graph()
-        self.solving = False
-        return x_guess, lm_guess
-
-    def update_recent_cones(self, imu_state, cone_input):
-        
-        self.perception_backlog_cones += [cone_input]
-        self.perception_backlog_imu += [[imu_state[0], imu_state[1]]]
 
 # For running node
 def main(args=None):

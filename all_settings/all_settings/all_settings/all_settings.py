@@ -75,6 +75,8 @@ class GraphSLAMFastSettings(metaclass=Settings):
     x0: np.ndarray = np.array([0.0, 0.0])
     initial_rows: int = int(1e4)
     initial_cols: int = int(1e4)
+    local_radius: int = int(1e5)
+    
     max_landmark_distance: float = 1.5
     dx_weight: float = 1.0
     z_weight: float = 5.0

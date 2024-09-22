@@ -15,6 +15,7 @@ def ConeOrdering(msg: Map, state: list[float]):
         tuple[ndarray(2, N), ndarray(2, N)]: pairs of points on the track boundary
     """
     N = LocalOptSettings.N # get size
+    N = 300
     
     left, right = (
         np.array([list(msg.left_cones_x), list(msg.left_cones_y)]).T.tolist(),

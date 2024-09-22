@@ -67,10 +67,6 @@ def get_medial_line(yellow_multiline: MultiLineString, blue_multiline:MultiLineS
     N - the number of pairs to generate
     """
 
-    # find convex hulls to help us filter later on
-    yellow_convex_hull = MultiPoint(new_yellow_points).convex_hull
-    blue_convex_hull = MultiPoint(new_blue_points).convex_hull
-
     # filter the middle voronoi edges
     middle_edges = []
     for edge in vor.ridge_vertices:
@@ -87,17 +83,7 @@ def get_medial_line(yellow_multiline: MultiLineString, blue_multiline:MultiLineS
     middle_graph = graph_from_edges(middle_edges)
     longest_path = find_longest_simple_path(middle_graph)
 
-    longest_path_edges = []
-    for i in range(len(longest_path) - 1):
-        current_point = Point(longest_path[i])
-        if yellow_convex_hull.contains(current_point) or blue_convex_hull.contains(current_point):
-            string = [longest_path[i], longest_path[i+1]]
-            longest_path_edges.append(string)
-            
-    # if the figure forms a polygon, add a final cycl edge
-    cycle_edge = LineString([longest_path[-1], longest_path[0]])
-    if not (cycle_edge.intersects(yellow_multiline) or cycle_edge.intersects(blue_multiline)):
-        longest_path_edges.append([longest_path[-1], longest_path[0]])
+    longest_path_edges = edges_in_a_path(longest_path)
     
     return longest_path_edges
 

@@ -197,6 +197,20 @@ def vertices_in_edges(edges: List[Tuple[int, int]]) -> Set[int]:
     """
     return set([num for tup in edges for num in tup])
 
+
+def filter_boundaries(colored_edges, green_boundaries):
+    """
+    This function takes a list of colored edges and returns a new list which is also present in the second
+    argument, green boundaries.
+    """
+    filtered_edges = []
+    for ce in colored_edges:
+        a, b = ce
+        if (a, b) in green_boundaries or (b, a) in green_boundaries:
+            filtered_edges.append(ce)
+    return filtered_edges
+
+
 def make_cc_graphs(edges: List[Tuple[int, int]]) -> Tuple[List[nx.Graph], List[Tuple[int, int]]]:
     """This function takes in a list of edges and breaks down the figure into 
         several connected components and a list of connecting edges which connect those components.
@@ -328,47 +342,28 @@ def edges_to_connect_ccs_in_ccg(ccg: nx.Graph, original_edges: List[Tuple[int, i
         connecting_subcomponents.extend(connect_two_subgraphs(sg1, sg2))
     
     return connecting_subcomponents
-        
-def track_shape(edges: List[Tuple[int, int]], total_tri: Delaunay, all_points: List[Tuple[int, int]], green_boundaries: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
+
+def track_shape(edges: List[Tuple[int, int]], green_boundaries: List[Tuple[int, int]], tri: Delaunay, total_points:List[Tuple[int, int]], all_points: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
     """This function takes in a set of edges making up a triangulation, the triangulation itself, all the cones, 
     and a set of edges between the left and right cones in order to find the edges that make the shape of the track.
 
     Keyword arguments:
     edges -- the set of edges that are part of the  Delaunay triangulation
-    total_tri -- the Delaunay triangulation from all the cones
-    all_points -- the list of all the yellow and blue points
     green_boundaries -- the list of edges between the yellow and blue cones (that are part of the triangulations)
+    tri -- the Delaunay triangulation from all the cones
+    total_points -- a numpy array of all the yellow and blue points
+    all_points -- the list of all the yellow and blue points
     """
-    cc_graphs, connecting_edges = make_cc_graphs(edges)
+
+    boundaries = filter_boundaries(edges, green_boundaries)
+    boundaries = remove_duplicates(boundaries)
+
+    connections = find_connecting_edges(edges, tri, total_points, all_points)
     
-    cc_longest_cycles, new_connecting_edges = find_cc_longest_cycles(cc_graphs, total_tri)
-    connecting_edges.extend(new_connecting_edges)
-    
-    for cclc in cc_longest_cycles:
-        cclcg = graph_from_edges(cclc)
-        ultra_new_connections = edges_to_connect_ccs_in_ccg(cclcg, edges, all_points)
-        connecting_edges.extend(ultra_new_connections)
-    
-    filtered_graph = combine_ccg_cycles(cc_longest_cycles, connecting_edges)
-    all_nodes = set(filtered_graph.nodes())
-    filtered_edges = filtered_graph.edges(all_nodes)
-    
-    stuff_to_remove = []
-    for edge in filtered_edges:
-        if edge not in green_boundaries:
-            stuff_to_remove.append(edge)
-            
-    for connect_edge in connecting_edges:
-        if connect_edge in stuff_to_remove:
-            stuff_to_remove.remove(connect_edge)
-        else:
-            reversed_connect_edge = (connect_edge[1], connect_edge[0])
-            if reversed_connect_edge in stuff_to_remove:
-                stuff_to_remove.remove(reversed_connect_edge)
-    
-    filtered_list = [x for x in filtered_edges if x not in stuff_to_remove]
-    
-    return filtered_list
+    boundaries.extend(connections)
+    path = remove_duplicates(boundaries)
+    return path
+        
 
 def find_racetrack(yellow_points: List[Tuple[int, int]], blue_points: List[Tuple[int, int]]) -> Tuple[List[Tuple[int, int]], List[Tuple[int, int]]]:
     """This function takes in a list of yellow and blue points and finds the edges that make up the final racetrack layout.
@@ -382,15 +377,15 @@ def find_racetrack(yellow_points: List[Tuple[int, int]], blue_points: List[Tuple
     tri = Delaunay(total_points)
     
     # categorize edges
-    yellow_edges, blue_edges, green_edges = categorize_edges(tri, yellow_points) 
+    yellow_edges, blue_edges, green_edges = categorize_edges(tri, yellow_points)
     
-    # create representation of green triangles
+    # find green boundaries
     green_triangles = filter_green_triangles(tri, yellow_points, blue_points, all_points)
     green_boundaries = find_boundary_edges(green_triangles)
     
     # use information to find yellow and blue path edges
-    yellow_path = track_shape(yellow_edges, tri, all_points, green_boundaries)
-    blue_path = track_shape(blue_edges, tri, all_points, green_boundaries)
+    yellow_path = track_shape(yellow_edges, green_boundaries, tri, total_points, all_points)
+    blue_path = track_shape(blue_edges, green_boundaries, tri, total_points, all_points)
     
     yellow_path = remove_duplicates(yellow_path)
     blue_path = remove_duplicates(blue_path)
@@ -399,6 +394,7 @@ def find_racetrack(yellow_points: List[Tuple[int, int]], blue_points: List[Tuple
     blue_path = add_coordinates_back_into_edges(blue_path, all_points)
     
     return yellow_path, blue_path
+
 
 def racetrack_to_multiline(yellow_path: List[Tuple[int, int]], blue_path: List[Tuple[int, int]]) -> Tuple[MultiLineString, MultiLineString]:
     """This function takes in a list of yellow edges and a list of blue edges and uses Shapely to convert it to a MultiLineString representation of the track boundaries.
@@ -517,3 +513,18 @@ def edges_in_a_path(path: List[int]) -> List[Tuple[int, int]]:
     for i in range(len(path) - 1):
         edges_in_longest_path.append([path[i], path[i+1]])
     return edges_in_longest_path
+
+def find_connecting_edges(edges: List[Tuple[int, int]], total_tri: Delaunay, total_points: List[Tuple[int, int]], all_points: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
+    """
+    Find a set of edges that connect different connected components present in a graph.
+    """
+    cc_graphs, connecting_edges = make_cc_graphs(edges)   
+    cc_longest_cycles, new_connecting_edges = find_cc_longest_cycles(cc_graphs, total_tri, total_points)
+    connecting_edges.extend(new_connecting_edges)
+    
+    for cclc in cc_longest_cycles:
+        cclcg = graph_from_edges(cclc)
+        ultra_new_connections = edges_to_connect_ccs_in_ccg(cclcg, edges, all_points)
+        connecting_edges.extend(ultra_new_connections)
+    
+    return connecting_edges

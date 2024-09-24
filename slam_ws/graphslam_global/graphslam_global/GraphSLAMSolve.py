@@ -19,12 +19,18 @@ class GraphSLAMFast:
         self.max_landmark_distance = max_landmark_distance
         self.maxrows=initial_rows
         self.maxcols=initial_cols
-        self.dx_weight = dx_weight
-        self.z_weight = z_weight
+        self.dx_weight = dx_weight # how much to weigh localization
+        self.z_weight = z_weight # how much to weigh mapping
+        
+        # Constraints for optimization problem, x here represents our optimal state vector representing the most likely values for all time steps & landmark positions
+        #Ax-b = 0
+        
         self.A = sp.sparse.lil_array((self.maxrows, self.maxcols), dtype=np.float64)
         self.b = np.zeros((self.maxcols), np.float64)
 
-        #Ax-b = 0
+        #matrix initialized w these values
+        #time step 0's x is x0[0]
+        #time step 0's y is x0[1]
 
         self.A[0, 0] = 1
         self.A[1, 1] = 1
@@ -33,14 +39,15 @@ class GraphSLAMFast:
 
         self.nvars = 2
         self.neqns = 2
+
         self.x = [0]
         self.l = []
 
         self.z  = []
         self.d = [0]
 
-        self.xhat = np.zeros((1, 2))
-        self.lhat = np.zeros((0, 2))
+        self.xhat = np.zeros((1, 2)) #running estimate of where car was at each time step
+        self.lhat = np.zeros((0, 2)) #running estimate of where each landmark is
         self.color = np.zeros(0, dtype=np.uint8)
         self.xhat[0, :] = x0
         self.dclip = dclip
@@ -94,7 +101,7 @@ class GraphSLAMFast:
 
 
     def data_assocation_lap_2(self, z: np.ndarray, color: np.ndarray) -> np.ndarray:
-        """ localizes car using input cone r, theta, color after first lap - only creates variables for x & uses final lap 1 landmark position data for reference
+        """ use ICP for loop closure with every new set of cones in lap 2+
         
         Args:
 
@@ -105,7 +112,7 @@ class GraphSLAMFast:
 
 
     def lap_completion(self) -> boolean:
-        """ checks whether the car's latest position estimate crosses line between orange cone position estimate // falls within polygon defined by orange cones
+        """ checks whether the car's latest position estimate crosses line between orange cone position estimate 
         
         Args: N/A - uses slam position data
 

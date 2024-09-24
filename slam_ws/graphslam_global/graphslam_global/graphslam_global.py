@@ -1,5 +1,5 @@
 import numpy as np
-from .GraphSLAMFast import GraphSLAMFast
+from .GraphSLAMSolve import GraphSLAMFast
 from all_settings.all_settings import GraphSLAMFastSettings as settings
 from time import perf_counter
 import math
@@ -15,8 +15,6 @@ from eufs_msgs.msg import CarState
 from geometry_msgs.msg import Quaternion, Vector3, PoseStamped, Pose, Point, Point32
 from sensor_msgs.msg import PointCloud
 
-
-import matplotlib.pyplot as plt 
 
 
 from feb_msgs.msg import State, FebPath, Map
@@ -77,14 +75,6 @@ class GraphSLAM_Global(Node):
             self.state_sub,
             1,
         )
-
-        # Once path is finished, turn this node callbacks funcs off
-        # self.finish_sub = self.create_subscription(
-        #     Bool,
-        #     '/path/finished',
-        #     self.finish_callback,
-        #     1
-        # )
 
         # PUBLISHERS
         
@@ -153,7 +143,6 @@ class GraphSLAM_Global(Node):
         self.LPKRDSM = 4 # LaP oK RaDiuS (Meters)
         self.is_clear_of_lap_count_radius = False
         self.time = time.time()
-        self.
         # radius for which to include local cones ---#UPDATE, perhaps from mpc message
         self.local_radius = settings.local_radius
         
@@ -171,15 +160,6 @@ class GraphSLAM_Global(Node):
         """ This is a callback function for the SIMULATORS ground truth carstate. 
             Currently being used to get the cars position so we can calculate the cones R, theta properly.
         """
-        #with open("sim_data.txt", "a") as f:
-            # print("---------------------------------------", file =f)
-            # print("GROUND TRUTH CAR STATE: ", file =f)
-            # print("x position: ", msg.pose.pose.position.x, file=f)
-            # print("y position: ", msg.pose.pose.position.y, file=f)
-            # print("heading: ", self.quat_to_euler(msg.pose.pose.orientation)[-1], file=f)
-            # print("----------------------------------------", file=f)
-        # self.currentstate.x = msg.pose.pose.position.x
-        # self.currentstate.y = msg.pose.pose.position.y
         self.currentstate_simulator.x = msg.pose.pose.position.x
         self.currentstate_simulator.y = msg.pose.pose.position.y
         # self.currentstate.velocity = np.sqrt(msg.twist.twist.linear.x**2 + msg.twist.twist.linear.y**2)
@@ -187,11 +167,6 @@ class GraphSLAM_Global(Node):
 
     def wheelspeed_sub(self, msg: WheelSpeedsStamped):
         self.currentstate.velocity = ((msg.speeds.lb_speed + msg.speeds.rb_speed)/2)*np.pi*0.505/60
-        
-
-    def finish_callback(self, msg: Bool) -> None:
-        if self.usefastslam:
-            self.finished = bool(msg.data)
 
     """
     Function that takes in message header and computes difference in time from last state msg
@@ -202,8 +177,6 @@ class GraphSLAM_Global(Node):
     Output: timediff: float
     """
     def compute_timediff(self, header: Header) -> float:
-        print("Seconds: ", header.stamp.sec)
-        print("NanoSeconds: ", header.stamp.nanosec)
         newtime = header.stamp.sec + 1e-9 * header.stamp.nanosec
         timediff = newtime - self.statetimestamp
         self.statetimestamp = newtime
@@ -278,7 +251,6 @@ class GraphSLAM_Global(Node):
         self.currentstate.velocity = velocity
         self.currentstate.heading = yaw
         self.state_seq += 1
-        #self.currentstate.header.seq = self.state_seq
         self.currentstate.header.stamp = self.get_clock().now().to_msg()
         self.currentstate.header.frame_id = "map"
 

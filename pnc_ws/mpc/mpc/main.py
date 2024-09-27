@@ -1,27 +1,26 @@
+# MPC ROS Node
+
+# General Imports
+import numpy as np
+from .utils import get_update_dict
+from all_settings.all_settings import MPCSettings as settings
+from .mpc_controller import KinMPCPathFollower
+
+# ROS Imports
 import rclpy
 from rclpy.node import Node
-from all_settings.all_settings import MPCSettings as settings
-import numpy as np
-import casadi
+from std_msgs.msg import Float64
 
 from sensor_msgs.msg import PointCloud
 from geometry_msgs.msg import Point32
 from feb_msgs.msg import State, FebPath
 from ackermann_msgs.msg import AckermannDriveStamped
 from eufs_msgs.msg import WheelSpeeds
-from std_msgs.msg import Float64
 
-from .triangles_track_constraints import get_g_triangulation
 
 class MPC(Node):
     def __init__(self):
         super().__init__('mpc_node')
-
-        self.global_path = None
-        self.local_path = None
-        self.curr_steer = 0
-        self.curr_acc = 0
-        self.path = self.global_path if self.global_path is not None else self.local_path
 
         # Subscribers
         self.curr_steer_sub = self.create_subscription(Float64, '/ground_truth/wheel_speeds', self.steer_callback, 1)
@@ -35,8 +34,11 @@ class MPC(Node):
         self.steer_pub = self.create_publisher(Float64, '/control/steer', 1)
         self.control_pub = self.create_publisher(AckermannDriveStamped, 'cmd', 1)
         self.pointcloud_pub = self.create_publisher(PointCloud, '/mpc/viz', 1)
+        
+        print('past ros definitions')
 
-    ### START - ROS Callback Functions ###
+        self.mpc = KinMPCPathFollower(**settings)
+        print("inited mpc")
         
     def steer_callback(self, msg: WheelSpeeds):
         '''
@@ -71,9 +73,6 @@ class MPC(Node):
         right = [(6.08, -1.85), (6.089759349822998, -1.8552625179290771), (8.982789993286133, -1.796582579612732), (12.939980506896973, -1.9238924980163574), (16.51483917236328, -1.6030025482177734), (20.14760971069336, -0.3732425570487976), (23.430938720703125, 0.49919745326042175), (25.965240478515625, 1.5015974044799805), (27.96493911743164, 0.9834974408149719), (29.605138778686523, -1.1794525384902954), (29.706039428710938, -4.192082405090332), (28.87574005126953, -6.820742607116699), (28.10573959350586, -8.797102928161621), (26.676239013671875, -10.299802780151367), (25.072938919067383, -11.731022834777832), (22.419269561767578, -13.14719295501709), (20.26255989074707, -14.240602493286133), (17.651329040527344, -15.4548921585083), (14.787479400634766, -16.96703338623047), (11.020049095153809, -18.86309242248535), (7.818509578704834, -20.855302810668945), (5.429309368133545, -22.412302017211914), (3.2358596324920654, -23.007902145385742), (0.9659395813941956, -21.971603393554688), (-0.9300604462623596, -19.282712936401367), (-1.157760500907898, -16.07309341430664), (-1.0045604705810547, -12.92978286743164), (-0.6089604496955872, -10.299802780151367), (-0.3480604290962219, -7.242682456970215), (-0.34576043486595154, -4.511722564697266), (0.7813395857810974, -2.6917724609375)]
         left = np.array([list(i) for i in left])
         right = np.array([list(i) for i in right])
-        tr_con_fun = get_g_triangulation(left, right, [13, -10], n_pts=40, n_meshes=1, sink=0.02)
-        constraint = tr_con_fun(casadi.horzcat(self.x_dv[1:], self.y_dv[1:]).T)
-        # self.opti.subject_to(constraint-self.sl_tr_dv.T < 0 )
     
     def local_path_callback(self, msg: FebPath):
         '''
@@ -84,9 +83,9 @@ class MPC(Node):
         '''
         x = np.array(msg.x)
         y = np.array(msg.y)
-        v = np.array(msg.v)
         psi = np.array(msg.psi)
-        path = np.column_stack((x, y, v, psi))
+        v = np.array(msg.v)
+        path = np.column_stack((x, y, psi, v))
         self.local_path = path
         self.path = self.global_path if self.global_path is not None else self.local_path
 
@@ -97,34 +96,30 @@ class MPC(Node):
             updates variables initalized in __init__ (e.g. self.z_ref, self.z_curr, etc.) with get_update_dict and self.update,
             and solves mpc problem -> stores result in self.prev_soln
         '''
-        # returns the current state as an np array with these values in this order: x, y, velocity, heading
-        curr_state = [0.0, 0., 0., 0.0]
+        # returns the current state as an np array with these values in this order: x,y,velocity,heading
+        #curr_state = msg.carstate
+        curr_state = [0., 0., 0., 0.]
         curr_state[0] = carstate.x # x value
         curr_state[1] = carstate.y # y value
-
-        ### MPC Assumes the veloccity and heading are flipped
-        curr_state[2] = carstate.heading # velocity
-        curr_state[3] = carstate.velocity # heading
+        curr_state[2] = carstate.heading
+        curr_state[3] = carstate.velocity
         
         if self.path is not None: 
-            prev_controls = np.array([self.curr_steer, self.curr_acc])
+            prev_controls = np.array([self.curr_steer, self.curr_acc][::-1])
             new_values = get_update_dict(pose=np.array(curr_state), prev_u=prev_controls, kmpc=self, states=self.path, prev_soln=self.prev_soln)
 
 
             self.update(new_values)
             self.prev_soln = self.solve()
-            
-            # DEBUG:
+
             # print('drive message:', self.prev_soln['u_control'][0])
             # print('steering message:', self.prev_soln['u_control'][1])
-
             # Publishing controls
             msg = AckermannDriveStamped()
             msg.header.stamp = self.get_clock().now().to_msg()
             msg.drive.acceleration = self.prev_soln['u_control'][0]  
             msg.drive.steering_angle = self.prev_soln['u_control'][1]
 
-            # DEBUG:
             # with open("sim_data.txt", "a") as f:
             #     print("------------------------------------------------", file=f)
             #     print("FROM MPC:", file=f)
@@ -141,12 +136,17 @@ class MPC(Node):
 
             self.throttle_pub.publish(throttle_msg)
             self.steer_pub.publish(steer_msg)
-            
-            # Visualizing MPC Planned Trajectory
+            self.prev_soln['u_mpc']
             pc_msg = PointCloud()
             pts = []
-
+            
             for x in np.array(self.prev_soln['z_mpc']):
+                pts.append(Point32())
+                pts[-1].x = x[0]
+                pts[-1].y = x[1]
+                pts[-1].z = 0.0
+
+            for x in np.vstack([new_values['x_ref'], new_values['y_ref']]).T:
                 pts.append(Point32())
                 pts[-1].x = x[0]
                 pts[-1].y = x[1]
@@ -157,20 +157,10 @@ class MPC(Node):
             self.pointcloud_pub.publish(pc_msg)
 
 def main(args=None):
-    try:
-        rclpy.init(args=args)
-    except:
-        print("init failed")
-        
-    mpc_node = MPC(**settings)
-    try:
-        rclpy.spin(mpc_node)
-    except:
-        print("mpc node down")
-
+    rclpy.init(args=args)
+    mpc_node = MPC()
+    rclpy.spin(mpc_node)
     rclpy.shutdown()
 
-### END - RUNNING MPC NODE ###
-    
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

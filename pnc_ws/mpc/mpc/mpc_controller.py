@@ -1,25 +1,13 @@
 # XY Nonlinear Kinematic MPC Module.
 
-# General Imports
+# Imports
 import time
-import casadi
+import casadi as ca
 import numpy as np
 from .utils import discrete_dynamics
-from .utils import get_update_dict
-from all_settings.all_settings import MPCSettings as settings
-from ackermann_msgs.msg import AckermannDriveStamped
-from eufs_msgs.msg import WheelSpeeds
 
-# ROS Imports
-import rclpy
-from rclpy.node import Node
-from std_msgs.msg import Float64
 
-from sensor_msgs.msg import PointCloud
-from geometry_msgs.msg import Point32
-from feb_msgs.msg import State, FebPath
-
-class KinMPCPathFollower(Node):
+class KinMPCPathFollower():
     def __init__(self, 
                  N          = 10,     # timesteps in MPC Horizon
                  DT         = 0.2,    # discretization time between timesteps (s)
@@ -51,14 +39,14 @@ class KinMPCPathFollower(Node):
             if key == 'self':
                 pass
             elif key in 'QRF': 
-                setattr(self, key, casadi.diag(locals()[key]))
+                setattr(self, key, ca.diag(locals()[key]))
             else:
                 setattr(self, key, locals()[key])
 
         self.TRACK_SLACK_WEIGHT = 5e5
         self.use_rk_dynamics = False
         self.solver = 'ipopt'
-        self.opti = casadi.Opti()
+        self.opti = ca.Opti()
 
         self.global_path = None
         self.local_path = None
@@ -120,7 +108,7 @@ class KinMPCPathFollower(Node):
 
         # Keep track of previous solution for updates
         self.prev_soln = None
-        self.fix_angle = casadi.Function('fix_angle', [x:=casadi.MX.sym("x", 4)], [casadi.horzcat(x[0, :], x[1, :], casadi.sin(x[2, :]/2), x[3, :])])
+        self.fix_angle = ca.Function('fix_angle', [x:=ca.MX.sym("x", 4)], [ca.horzcat(x[0, :], x[1, :], ca.sin(x[2, :]/2), x[3, :])])
 
         '''
         (3) Problem Setup: Constraints, Cost, Initial Solve
@@ -240,10 +228,10 @@ class KinMPCPathFollower(Node):
                 self.opti.subject_to( self.z_dv[i+1] == F(x0=self.z_dv[i], u=self.u_dv[i])['xf'])
         else:
             for i in range(self.N):
-                beta = casadi.atan( self.L_R / (self.L_F + self.L_R) * casadi.tan(self.df_dv[i]) )
-                self.opti.subject_to( self.x_dv[i+1]   == self.x_dv[i]   + self.DT * (self.v_dv[i] * casadi.cos(self.psi_dv[i] + beta)) )
-                self.opti.subject_to( self.y_dv[i+1]   == self.y_dv[i]   + self.DT * (self.v_dv[i] * casadi.sin(self.psi_dv[i] + beta)) )
-                self.opti.subject_to( self.psi_dv[i+1] == self.psi_dv[i] + self.DT * (self.v_dv[i] / self.L_R * casadi.sin(beta)) )
+                beta = ca.atan( self.L_R / (self.L_F + self.L_R) * ca.tan(self.df_dv[i]) )
+                self.opti.subject_to( self.x_dv[i+1]   == self.x_dv[i]   + self.DT * (self.v_dv[i] * ca.cos(self.psi_dv[i] + beta)) )
+                self.opti.subject_to( self.y_dv[i+1]   == self.y_dv[i]   + self.DT * (self.v_dv[i] * ca.sin(self.psi_dv[i] + beta)) )
+                self.opti.subject_to( self.psi_dv[i+1] == self.psi_dv[i] + self.DT * (self.v_dv[i] / self.L_R * ca.sin(beta)) )
                 self.opti.subject_to( self.v_dv[i+1]   == self.v_dv[i]   + self.DT * (self.acc_dv[i]) )
 
         # Input Bound Constraints
@@ -274,7 +262,7 @@ class KinMPCPathFollower(Node):
 
         # Track Constraints
         if 'TRACK_CON_FUN' not in self.__dict__: return
-        constraint = self.TRACK_CON_FUN(casadi.horzcat(self.x_dv[1:], self.y_dv[1:]).T)
+        constraint = self.TRACK_CON_FUN(ca.horzcat(self.x_dv[1:], self.y_dv[1:]).T)
 
         self.opti.subject_to(constraint-self.sl_tr_dv.T < 0 )
 
@@ -287,22 +275,22 @@ class KinMPCPathFollower(Node):
         -> 3. Use of controls
         '''
         def _quad_form(z, Q):
-            return casadi.mtimes(z, casadi.mtimes(Q, z.T))
-        # casadi.MX.sym('m').inv()
+            return ca.mtimes(z, ca.mtimes(Q, z.T))
+        # ca.MX.sym('m').inv()
         cost = 0
-        dx = casadi.vertsplit(casadi.diff(self.z_ref, 1, 1)[:, :2])
+        dx = ca.vertsplit(ca.diff(self.z_ref, 1, 1)[:, :2])
         dx.append(dx[-1])
         # print(dx)
         # print(self.z_ref.shape)
         # print(self.N, len(dx))
         for i in range(self.N):
-            segment = dx[i]/casadi.norm_2(dx[i])
+            segment = dx[i]/ca.norm_2(dx[i])
             # print(segment)
             a, c, b, d = segment[0], segment[1], -segment[1], segment[0]
             # segment[0]  -segment[-1]
             # segment[1]   segment[0]
             det = a*d-b*c
-            mat = casadi.reshape(casadi.horzcat(d, -b, 0, 0, 
+            mat = ca.reshape(ca.horzcat(d, -b, 0, 0, 
                                                -c,  a, 0, 0, 
                                                 0,  0, det, 0, 
                                                 0,  0, 0, det), (4, 4)).T/det
@@ -321,9 +309,9 @@ class KinMPCPathFollower(Node):
             cost += _quad_form(self.u_dv[i+1, :] - self.u_dv[i,:], self.R)  # input derivative cost
         
         # slack costs for soft constraints
-        cost += (casadi.sum1(self.sl_df_dv)
-               + casadi.sum1(self.sl_acc_dv)
-               + casadi.sum1(self.sl_tr_dv)*self.TRACK_SLACK_WEIGHT)
+        cost += (ca.sum1(self.sl_df_dv)
+               + ca.sum1(self.sl_acc_dv)
+               + ca.sum1(self.sl_tr_dv)*self.TRACK_SLACK_WEIGHT)
 
         self.opti.minimize( cost )
 

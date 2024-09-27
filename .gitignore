@@ -34,3 +34,5 @@ eufs_msgs/
 eufs_sim/
 
 *.txt
+
+delta_and_heading

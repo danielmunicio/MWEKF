@@ -13,7 +13,6 @@ if [ `arch` == "aarch64" ]
 then
 	echo "M1 or M2 Mac detected! Switching installation script."
 	echo "WORHP will NOT be installed on your system, and CasADi will be aquired from pip."
-        echo "Triangle not installed - build fails on M1/M2 macs. Not sure why. Triangle source build coming soon but not yet implemented."
 	curl -OfsSL "https://reid.xz.ax/feb/casadi_installer_m1_m2_mac.sh"
 	. casadi_installer_m1_m2_mac.sh;
 	return
@@ -55,7 +54,7 @@ git clone https://github.com/coin-or-tools/ThirdParty-HSL.git
 cd ThirdParty-HSL
 # get hsl solvers
 tmpzip="$(mktemp)"
-curl -o "$tmpzip" -f -L "https://www.ocf.berkeley.edu/~reiddye/coinhsl-2022.11.09.zip" || { echo "error: failed to download hsl zip archive"; rm -f "$tmpzip"; exit 1; }
+curl -o "$tmpzip" -f -L "https://reid.xz.ax/feb/coinhsl-2022.11.09.zip" || { echo "error: failed to download hsl zip archive"; rm -f "$tmpzip"; exit 1; }
 unzip "$tmpzip"
 mv coinhsl-2022.11.09 coinhsl
 
@@ -66,7 +65,7 @@ mkdir $HOME/hsl-install
 make -j$(nproc)
 sudo make install
 # add link since casadi uses wrong name to find solvers
-sudo ln -s "$HOME/hsl-install/lib/libcoinhsl.so" "$HOME/hsl-install/lib/coinhsl.so"
+sudo ln -s "$HOME/hsl-install/lib/libcoinhsl.so" "$HOME/hsl-install/lib/libhsl.so"
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:"$HOME/hsl-install/lib"
 add_command_to_bashrc 'export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:"$HOME/hsl-install/lib"'
 export OMP_NUM_THREADS=$(nproc)
@@ -92,13 +91,13 @@ add_command_to_bashrc cowponder
 ### WORHP ###
 # get deb file and install
 tmpdeb="$(mktemp)"
-curl -o "$tmpdeb" -f -L "https://www.ocf.berkeley.edu/~reiddye/worhp_1.15-0~ubuntu2204.deb" || { echo "error: failed to download WORHP deb"; rm -f "$tmpdeb"; exit 1; }
+curl -o "$tmpdeb" -f -L "https://reid.xz.ax/feb/worhp_1.15-0~ubuntu2204.deb" || { echo "error: failed to download WORHP deb"; rm -f "$tmpdeb"; exit 1; }
 sudo dpkg -i "$tmpdeb"
 sudo apt --fix-broken install --yes
 rm -f "$tmpdeb"
 
 # get license and link it properly
-sudo curl -o "/usr/include/worhp/worhp.lic" -f -L "https://www.ocf.berkeley.edu/~reiddye/worhp.lic" || { echo "error: failed to download worhp license"; sudo rm -f "/usr/include/worhp/worhp.lic"; exit 1; }
+sudo curl -o "/usr/include/worhp/worhp.lic" -f -L "https://reid.xz.ax/feb/worhp.lic" || { echo "error: failed to download worhp license"; sudo rm -f "/usr/include/worhp/worhp.lic"; exit 1; }
 sudo ln -s "/usr/include/worhp/worhp.lic" "/usr/worhp.lic"
 sudo ln -s "/usr/include/worhp/worhp.lic" "/usr/lib/worhp.lic"
 
@@ -141,8 +140,13 @@ sudo apt install -y swig --install-recommends
 
 # get source
 git clone https://github.com/casadi/casadi.git -b main casadi
-rm -f casadi/casadi/interfaces/ooqp/ooqp_interface.cpp
-curl -o "casadi/casadi/interfaces/ooqp/ooqp_interface.cpp" -f -L "https://www.ocf.berkeley.edu/~reiddye/ooqp_interface.cpp"
+
+# My pull request got merged so I don't think this is relevant anymore
+# https://github.com/casadi/casadi/commit/3d820e62cb588e76498c92bf6feff6876b4e7ca0
+# but if it is important in the future I'll leave it here commented out
+# rm -f casadi/casadi/interfaces/ooqp/ooqp_interface.cpp
+# curl -o "casadi/casadi/interfaces/ooqp/ooqp_interface.cpp" -f -L "https://reid.xz.ax/feb/ooqp_interface.cpp"
+
 cd casadi; mkdir build; cd build; 
 
 # make everything!!
@@ -211,4 +215,5 @@ if python -c "import casadi as ca; x=ca.MX.sym('x'); assert int(ca.nlpsol('tests
 	echo "[[test passed]] WORHP functional!"
 else
 	echo "[[test failed]] WORHP borked!"
+	echo "This could be because my funny license shenanigans didn't work. If you really need worhp access, ask to be added to the license or apply for your own lisence."
 fi

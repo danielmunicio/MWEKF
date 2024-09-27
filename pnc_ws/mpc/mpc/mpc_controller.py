@@ -4,7 +4,6 @@
 import time
 import casadi
 import numpy as np
-from .controller import Controller
 from .utils import discrete_dynamics
 from .utils import get_update_dict
 from all_settings.all_settings import MPCSettings as settings
@@ -15,13 +14,12 @@ from eufs_msgs.msg import WheelSpeeds
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float64
-from .triangles_track_constraints import get_g_triangulation
 
 from sensor_msgs.msg import PointCloud
 from geometry_msgs.msg import Point32
 from feb_msgs.msg import State, FebPath
 
-class KinMPCPathFollower(Controller, Node):
+class KinMPCPathFollower(Node):
     def __init__(self, 
                  N          = 10,     # timesteps in MPC Horizon
                  DT         = 0.2,    # discretization time between timesteps (s)
@@ -139,7 +137,8 @@ class KinMPCPathFollower(Controller, Node):
 
         # Keep track of previous solution for updates
         self.prev_soln = None
-        
+        self.fix_angle = casadi.Function('fix_angle', [x:=casadi.MX.sym("x", 4)], [casadi.horzcat(x[0, :], x[1, :], casadi.sin(x[2, :]/2), x[3, :])])
+
         '''
         (3) Problem Setup: Constraints, Cost, Initial Solve
         '''
@@ -208,9 +207,6 @@ class KinMPCPathFollower(Controller, Node):
         right = [(6.08, -1.85), (6.089759349822998, -1.8552625179290771), (8.982789993286133, -1.796582579612732), (12.939980506896973, -1.9238924980163574), (16.51483917236328, -1.6030025482177734), (20.14760971069336, -0.3732425570487976), (23.430938720703125, 0.49919745326042175), (25.965240478515625, 1.5015974044799805), (27.96493911743164, 0.9834974408149719), (29.605138778686523, -1.1794525384902954), (29.706039428710938, -4.192082405090332), (28.87574005126953, -6.820742607116699), (28.10573959350586, -8.797102928161621), (26.676239013671875, -10.299802780151367), (25.072938919067383, -11.731022834777832), (22.419269561767578, -13.14719295501709), (20.26255989074707, -14.240602493286133), (17.651329040527344, -15.4548921585083), (14.787479400634766, -16.96703338623047), (11.020049095153809, -18.86309242248535), (7.818509578704834, -20.855302810668945), (5.429309368133545, -22.412302017211914), (3.2358596324920654, -23.007902145385742), (0.9659395813941956, -21.971603393554688), (-0.9300604462623596, -19.282712936401367), (-1.157760500907898, -16.07309341430664), (-1.0045604705810547, -12.92978286743164), (-0.6089604496955872, -10.299802780151367), (-0.3480604290962219, -7.242682456970215), (-0.34576043486595154, -4.511722564697266), (0.7813395857810974, -2.6917724609375)]
         left = np.array([list(i) for i in left])
         right = np.array([list(i) for i in right])
-        tr_con_fun = get_g_triangulation(left, right, [13, -10], n_pts=40, n_meshes=1, sink=0.02)
-        constraint = tr_con_fun(casadi.horzcat(self.x_dv[1:], self.y_dv[1:]).T)
-        # self.opti.subject_to(constraint-self.sl_tr_dv.T < 0 )
     
     def local_path_callback(self, msg: FebPath):
         '''
@@ -453,7 +449,8 @@ class KinMPCPathFollower(Controller, Node):
             # 1. Error between current state and reference state for each planned timestep
             # cost += _quad_form((mat @ (self.z_dv[i+1, :]-self.z_ref[i, :]).T).T, self.Q)
             # cost += _quad_form(self.z_dv[i+1, :] - self.z_ref[i,:], 9*self.Q/(i+9)) # tracking cost
-            cost += _quad_form(self.z_dv[i+1, :] - self.z_ref[i,:], self.Q) # tracking cost
+            # cost += _quad_form(self.fix_angle(self.z_dv[i+1, :] - self.z_ref[i,:]), self.Q) # tracking cost
+            cost += _quad_form(self.fix_angle(self.z_dv[i+1, :] - self.z_ref[i,:]), self.Q) # tracking cost
 
         # 2. Error between current state and reference state for last planned timestep
         # cost += _quad_form(self.z_dv[-1, :] - self.z_ref[-1, :], self.F)

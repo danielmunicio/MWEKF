@@ -109,7 +109,7 @@ class MPC(Node):
 
 
             self.mpc.update(new_values)
-            self.prev_soln = self.mpc.solve()
+            self.mpc.prev_soln = self.mpc.solve()
 
             # print('drive message:', self.prev_soln['u_control'][0])
             # print('steering message:', self.prev_soln['u_control'][1])

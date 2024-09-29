@@ -2,7 +2,7 @@ import numpy as np
 import scipy as sp
 from typing import Union
 
-class GraphSLAMFast:
+class GraphSLAMSolve:
     def __init__(self, x0: np.ndarray = np.array([0., 0.]), initial_rows: int = 100, initial_cols: int = 100, max_landmark_distance: float = 1, dx_weight: float = 2.0, z_weight: float = 1.0, dclip: float = 2.0, expansion_ratio: float = 1.7):
         """initialize GraphSLAMFast object
 
@@ -21,7 +21,6 @@ class GraphSLAMFast:
         self.maxcols=initial_cols
         self.dx_weight = dx_weight # how much to weigh localization
         self.z_weight = z_weight # how much to weigh mapping
-        
         # Constraints for optimization problem, x here represents our optimal state vector representing the most likely values for all time steps & landmark positions
         #Ax-b = 0
         
@@ -105,13 +104,13 @@ class GraphSLAMFast:
         
         Args:
 
-        """np.ndarray
+        """
         pass
 
     #define line btwn orange cones method
 
 
-    def lap_completion(self) -> boolean:
+    def lap_completion(self) -> bool:
         """ checks whether the car's latest position estimate crosses line between orange cone position estimate 
         
         Args: N/A - uses slam position data

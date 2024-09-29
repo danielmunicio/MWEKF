@@ -21,7 +21,6 @@ from eufs_msgs.msg import WheelSpeeds
 class MPC(Node):
     def __init__(self):
         super().__init__('mpc_node')
-
         # Subscribers
         self.curr_steer_sub = self.create_subscription(Float64, '/ground_truth/wheel_speeds', self.steer_callback, 1)
         self.curr_acc_sub = self.create_subscription(Float64, '/odometry/wss', self.acc_callback, 1) 
@@ -107,7 +106,7 @@ class MPC(Node):
             prev_controls = np.array([self.mpc.curr_steer, self.mpc.curr_acc][::-1])
             new_values = get_update_dict(pose=np.array(curr_state), prev_u=prev_controls, kmpc=self.mpc, states=self.mpc.path, prev_soln=self.mpc.prev_soln)
 
-
+            print("MAde it here")
             self.mpc.update(new_values)
             self.mpc.prev_soln = self.mpc.solve()
 

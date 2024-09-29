@@ -2,8 +2,8 @@ import numpy as np
 import scipy as sp
 from typing import Union
 
-class GraphSLAMFast:
-    def __init__(self, x0: np.ndarray = np.array([0., 0.]), initial_rows: int = 100, initial_cols: int = 100, max_landmark_distance: float = 1, dx_weight: float = 2.0, z_weight: float = 1.0, dclip: float = 2.0, expansion_ratio: float = 1.7):
+class GraphSLAMSolve:
+    def __init__(self, x0: np.ndarray = np.array([0., 0.]), initial_rows: int = 100, initial_cols: int = 100, max_landmark_distance: float = 1, dx_weight: float = 2.0, z_weight: float = 1.0, dclip: float = 2.0, expansion_ratio: float = 1.7, local_radius: float = 1e5):
         """initialize GraphSLAMFast object
 
         Args:
@@ -15,12 +15,14 @@ class GraphSLAMFast:
             z_weight (float, optional): weight (certainty) for landmark measurements. Defaults to 1.0.
             dclip (float, optional): distance at which to clip cost function for data association. Defaults to 2.0.
             expansion_ratio (float, optional): amount by which to grow matrices when we run out of space. Defaults to 1.7.
+            local radius (float, optional): radius to include cones in local map. Defaults to 1e5
         """
         self.max_landmark_distance = max_landmark_distance
         self.maxrows=initial_rows
         self.maxcols=initial_cols
         self.dx_weight = dx_weight # how much to weigh localization
         self.z_weight = z_weight # how much to weigh mapping
+        self.local_radius = local_radius
         
         # Constraints for optimization problem, x here represents our optimal state vector representing the most likely values for all time steps & landmark positions
         #Ax-b = 0
@@ -105,13 +107,14 @@ class GraphSLAMFast:
         
         Args:
 
-        """np.ndarray
+        """
+        #np.ndarray
         pass
 
     #define line btwn orange cones method
 
 
-    def lap_completion(self) -> boolean:
+    def lap_completion(self) -> bool:
         """ checks whether the car's latest position estimate crosses line between orange cone position estimate 
         
         Args: N/A - uses slam position data

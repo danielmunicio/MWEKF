@@ -1,5 +1,5 @@
 import numpy as np
-from .GraphSLAMSolve import GraphSLAMFast
+from .GraphSLAMSolve import GraphSLAMSolve
 from all_settings.all_settings import GraphSLAMFastSettings as settings
 from time import perf_counter
 import math
@@ -121,7 +121,7 @@ class GraphSLAM_Global(Node):
 
         # Initializes a new instance of graphslam from the graphslam
         # Data Association Threshold is to be tweaked
-        self.slam = GraphSLAMFast(**settings)
+        self.slam = GraphSLAMSolve(**settings)
         
         # used to calculate the state of the vehicle
         self.currentstate_simulator = State()
@@ -314,7 +314,6 @@ class GraphSLAM_Global(Node):
  
         pose_msg.header.frame_id = "map"
         pose_msg.header.stamp = self.get_clock().now().to_msg()
-        print("Velocity!", self.currentstate.velocity)
         self.pose_pub.publish(pose_msg)
 
         ## Show Estimated Pose END 
@@ -388,9 +387,8 @@ class GraphSLAM_Global(Node):
         cartesian_cones = np.vstack((cone_dx, cone_dy, cone_matrix[:,2])).T # n x 3 array of n cones and dx, dy, color   -- input for update_graph
 
 
-
-        if (self.time - time.time() > 10000): #NOTE self.time - time.time() should be negative
-
+        if (abs(self.time - time.time()) > 1): #NOTE self.time - time.time() should be negative
+            print("MADE IT HERE")
             # last_slam_update initialized to infinity, so set current state x,y to 0 in the case. otherwise, update graph with relative position from last update graph
             self.slam.update_graph(np.array([self.currentstate.x, self.currentstate.y])-self.last_slam_update if self.last_slam_update[0]<999999999.0 else np.array([0.0, 0.0]), 
                                    cartesian_cones[:, :2], 
@@ -400,6 +398,7 @@ class GraphSLAM_Global(Node):
             self.time = time.time()
             print("UPDATING STATE")
         else:
+            print("Sorry, time was: ", abs(self.time - time.time()))
             return
     
         

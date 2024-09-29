@@ -21,7 +21,7 @@ setup(
     entry_points={
         'console_scripts': [
             'graphslam_global = graphslam_global.graphslam_global:main',
-            'graphslam_global_fast = graphslam_global.graphslam_global_fast:main'
+            'graphslam_global_fast = graphslam_global.graphslam_global:main'
         ],
     },
 )

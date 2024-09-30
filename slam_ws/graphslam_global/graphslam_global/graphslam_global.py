@@ -386,8 +386,8 @@ class GraphSLAM_Global(Node):
         cone_dy = cone_matrix[:,0] * np.sin(cone_matrix[:,1]+self.currentstate.heading) # r * sin(theta) element_wise
         cartesian_cones = np.vstack((cone_dx, cone_dy, cone_matrix[:,2])).T # n x 3 array of n cones and dx, dy, color   -- input for update_graph
 
-
-        if (abs(self.time - time.time()) > 1): #NOTE self.time - time.time() should be negative
+        if np.linalg.norm(self.last_slam_update-np.array([self.currentstate.x, self.currentstate.y])) > 1.0:
+        #if (abs(self.time - time.time()) > 0.3): #NOTE self.time - time.time() should be negative
             print("MADE IT HERE")
             # last_slam_update initialized to infinity, so set current state x,y to 0 in the case. otherwise, update graph with relative position from last update graph
             self.slam.update_graph(np.array([self.currentstate.x, self.currentstate.y])-self.last_slam_update if self.last_slam_update[0]<999999999.0 else np.array([0.0, 0.0]), 
@@ -396,6 +396,7 @@ class GraphSLAM_Global(Node):
             print(cartesian_cones.T.shape)
             self.last_slam_update = np.array([self.currentstate.x, self.currentstate.y])
             self.time = time.time()
+            self.slam.solve_graph()
             print("UPDATING STATE")
         else:
             print("Sorry, time was: ", abs(self.time - time.time()))

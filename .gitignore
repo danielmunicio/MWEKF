@@ -26,6 +26,7 @@ casadi_src/*
 # No Virtual Environements
 venv/
 
+# No solver created Code
 global_opt.c
 global_opt.so
 

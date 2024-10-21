@@ -16,8 +16,7 @@ from geometry_msgs.msg import Quaternion, Vector3, PoseStamped, Pose, Point, Poi
 from sensor_msgs.msg import PointCloud
 
 
-
-from feb_msgs.msg import State, FebPath, Map
+from feb_msgs.msg import State, FebPath, Map, Cones
 from eufs_msgs.msg import ConeArrayWithCovariance, ConeWithCovariance
 
 
@@ -37,7 +36,7 @@ from eufs_msgs.msg import ConeArrayWithCovariance, ConeWithCovariance
 
 class GraphSLAM_Global(Node):
     def __init__(self):
-
+        print("SLAM INIT")
         # ROS2 INTEGRATIONS
 
         super().__init__('graphslam_global_node')
@@ -54,15 +53,15 @@ class GraphSLAM_Global(Node):
 
         # Handle new cone readings from perception
         self.cones_sub = self.create_subscription(
-            ConeArrayWithCovariance,
-            '/fusion/cones', 
+            Cones,
+            '/perception_cones', 
             self.cones_callback,
             1
         )
 
         self.wheelspeeds = self.create_subscription(
             WheelSpeedsStamped,
-            '/ground_truth/wheel_speeds',
+            '/odometry/wheelspeeds',
             self.wheelspeed_sub,
             1
         )
@@ -155,7 +154,8 @@ class GraphSLAM_Global(Node):
         self.finished = False
         self.usefastslam = False
         self.last_slam_update = np.array([np.Inf, np.Inf])
-
+    
+    print("SLAM INIT DONE")
     def state_sub(self, msg: CarState):
         """ This is a callback function for the SIMULATORS ground truth carstate. 
             Currently being used to get the cars position so we can calculate the cones R, theta properly.
@@ -167,7 +167,7 @@ class GraphSLAM_Global(Node):
 
     def wheelspeed_sub(self, msg: WheelSpeedsStamped):
         self.currentstate.velocity = ((msg.speeds.lb_speed + msg.speeds.rb_speed)/2)*np.pi*0.505/60
-
+        print("recieved wheelspeed")
     """
     Function that takes in message header and computes difference in time from last state msg
     Input: Header (std_msg/Header)
@@ -278,12 +278,12 @@ class GraphSLAM_Global(Node):
             return
 
         # generate current heading
-        roll, pitch, yaw = self.quat_to_euler(imu.orientation)
-
+        #roll, pitch, yaw = self.quat_to_euler(imu.orientation)
+        yaw = imu.orientation.x
         # generate current velocity
-        delta_velocity = self.compute_delta_velocity(imu.linear_acceleration, dt)
-        velocity = self.currentstate.velocity + delta_velocity
-        self.currentstate.velocity = velocity
+        #delta_velocity = self.compute_delta_velocity(imu.linear_acceleration, dt)
+        #velocity = self.currentstate.velocity + delta_velocity
+        #self.currentstate.velocity = velocity
 
         # for now, we assume velocity is in the direction of heading
         # generate dx [change in x, change in y] to add new pose to graph
@@ -344,50 +344,26 @@ class GraphSLAM_Global(Node):
     
     """
     def cones_callback(self, cones: ConeArrayWithCovariance) -> None: # abt todo: we have had cones as a placeholder message structure yet to be defined (cones.r, cones.theta, cones.color) for now
-        bloobs = np.array([[i.point.x for i in cones.blue_cones],
-                           [i.point.y for i in cones.blue_cones]])
-        yellow = np.array([[i.point.x for i in cones.yellow_cones],
-                           [i.point.y for i in cones.yellow_cones]])
-        
-
-        carstate_array = [self.currentstate.x, self.currentstate.y, self.currentstate.velocity, self.currentstate.heading]
-        rot = lambda theta: np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
-        pos = np.array(carstate_array[:2])[:, np.newaxis]
-        bloobs = rot(-self.currentstate.heading)@bloobs + pos
-        yellow = rot(-self.currentstate.heading)@yellow + pos
-
-        self.local_map.left_cones_x = list(bloobs[0])
-        self.local_map.left_cones_y = list(bloobs[1])
-        self.local_map.right_cones_x = list(yellow[0])
-        self.local_map.right_cones_y = list(yellow[1])
-
-
         # Dummy function for now, need to update graph and solve graph on each timestep
         if self.finished:
             return
-        
+        print("Received Cones")
         #input cone list & dummy dx since we are already doing that in update_graph with imu data
         # cone_matrix = np.hstack(Cones.r, Cones.theta, Cones.color)
         cone_matrix = [[], [], []]
-        for cone in cones.blue_cones:
-            r, theta = self.cartesian_to_polar([0.0, 0.0], (cone.point.x, cone.point.y))
-            cone_matrix[0].append(r)
-            cone_matrix[1].append(theta)
-            cone_matrix[2].append(2)
-        for cone in cones.yellow_cones:
-            r, theta = self.cartesian_to_polar([0.0, 0.0], (cone.point.x, cone.point.y))
-            cone_matrix[0].append(r)
-            cone_matrix[1].append(theta)
-            cone_matrix[2].append(1)
- 
-
+        array_len = len(cones.r)
+        for idx in range(array_len): 
+            cone_matrix[0].append(cones.r[idx])
+            cone_matrix[1].append(cones.theta[idx])
+            cone_matrix[2].append(cones.color[idx])
+        
         cone_matrix = np.array(cone_matrix).T
         cone_dx = cone_matrix[:,0] * np.cos(cone_matrix[:,1]+self.currentstate.heading) # r * cos(theta) element wise
         cone_dy = cone_matrix[:,0] * np.sin(cone_matrix[:,1]+self.currentstate.heading) # r * sin(theta) element_wise
         cartesian_cones = np.vstack((cone_dx, cone_dy, cone_matrix[:,2])).T # n x 3 array of n cones and dx, dy, color   -- input for update_graph
 
-        if np.linalg.norm(self.last_slam_update-np.array([self.currentstate.x, self.currentstate.y])) > 1.0:
-        #if (abs(self.time - time.time()) > 0.3): #NOTE self.time - time.time() should be negative
+        #if np.linalg.norm(self.last_slam_update-np.array([self.currentstate.x, self.currentstate.y])) > 1.0:
+        if (abs(self.time - time.time()) > 0.3): #NOTE self.time - time.time() should be negative
             print("MADE IT HERE")
             # last_slam_update initialized to infinity, so set current state x,y to 0 in the case. otherwise, update graph with relative position from last update graph
             self.slam.update_graph(np.array([self.currentstate.x, self.currentstate.y])-self.last_slam_update if self.last_slam_update[0]<999999999.0 else np.array([0.0, 0.0]), 

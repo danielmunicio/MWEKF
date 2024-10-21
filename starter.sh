@@ -1,5 +1,6 @@
 #!/bin/bash
 source install/setup.bash;
+
 ros2 run local_path compile_solver;
 ros2 run fastslam fastslam > /dev/null &
 ros2 run mpc mpc &

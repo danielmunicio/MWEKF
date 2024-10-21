@@ -54,23 +54,25 @@ class LocalPath(Node):
         if len(list(msg.left_cones_x))<=1 or len(list(msg.right_cones_x))<=1:
             return
         
-        reverse_left, reverse_right = ConeOrdering(msg, self.state)
+        left, right = ConeOrdering(msg, self.state)
 
-        reverse_left = np.vstack(sorted(np.array(reverse_left), key = lambda x: np.linalg.norm(x-self.state[:2])))
-        reverse_right = np.vstack(sorted(np.array(reverse_right), key = lambda x: np.linalg.norm(x-self.state[:2])))
+        # reverse_left = np.vstack(sorted(np.array(reverse_left), key = lambda x: np.linalg.norm(x-self.state[:2])))
+        # reverse_right = np.vstack(sorted(np.array(reverse_right), key = lambda x: np.linalg.norm(x-self.state[:2])))
 
         #Reverse lists
-        left = reverse_left#[::-1]
-        right = reverse_right#[::-1]
-        # with open("sim_data.txt", "a") as f:
-        #     print("---------------------------------------------", file = f)
-        #     print("FROM PNC: ", file =f)
-        #     print(f"state:\t{self.state}", file = f)
-        #     print(f"left:\t{left}", file=f)
-        #     print(f"right:\t{right}", file=f)
-        #     print("--------------------------------------------", file = f)
-        #     print(file=f)
-        print("OK HERE")
+
+        left = np.array(left)#[::-1]
+        right = np.array(right)#[::-1]
+        print("SHAPE:", left.shape, right.shape)
+        with open("sim_data.txt", "a") as f:
+            print("---------------------------------------------", file = f)
+            print("FROM PNC: ", file =f)
+            print(f"state:\t{self.state}", file = f)
+            print(f"left:\t{left}", file=f)
+            print(f"right:\t{right}", file=f)
+            print("--------------------------------------------", file = f)
+            print(file=f)
+
         try:
             res = self.g.solve(left, right, self.state, err_ok=(self.fails>-0.5))
             self.fails=0

@@ -60,7 +60,7 @@ class GraphSLAM_Global(Node):
         )
 
         self.wheelspeeds = self.create_subscription(
-            WheelSpeedsStamped,
+            Float64,
             '/odometry/wheelspeeds',
             self.wheelspeed_sub,
             1
@@ -165,9 +165,8 @@ class GraphSLAM_Global(Node):
         # self.currentstate.velocity = np.sqrt(msg.twist.twist.linear.x**2 + msg.twist.twist.linear.y**2)
         return
 
-    def wheelspeed_sub(self, msg: WheelSpeedsStamped):
-        self.currentstate.velocity = ((msg.speeds.lb_speed + msg.speeds.rb_speed)/2)*np.pi*0.505/60
-        print("recieved wheelspeed")
+    def wheelspeed_sub(self, msg: Float64):
+        self.currentstate.velocity = msg.data
     """
     Function that takes in message header and computes difference in time from last state msg
     Input: Header (std_msg/Header)
@@ -358,7 +357,7 @@ class GraphSLAM_Global(Node):
             cone_matrix[2].append(cones.color[idx])
         
         cone_matrix = np.array(cone_matrix).T
-        cone_dx = cone_matrix[:,0] * np.cos(cone_matrix[:,1]+self.currentstate.heading) # r * cos(theta) element wise
+        cone_dx = cone_matrix[:,0] * np.cos(cone_matrix[:,1]+self.currentstate.heading) + 1# r * cos(theta) element wise
         cone_dy = cone_matrix[:,0] * np.sin(cone_matrix[:,1]+self.currentstate.heading) # r * sin(theta) element_wise
         cartesian_cones = np.vstack((cone_dx, cone_dy, cone_matrix[:,2])).T # n x 3 array of n cones and dx, dy, color   -- input for update_graph
 

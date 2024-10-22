@@ -36,7 +36,7 @@ class Arduino(Node):
         self.acceleration = 0
         self.steering_angle = 0 
         self.is_serial_communication_active = True
-        self.serial_port = '/dev/ttyACM0'  # Update this with serial port if changes
+        self.serial_port = '/dev/serial/by-id/usb-Arduino__www.arduino.cc__0043_6493433313535110B121-if00'  # Update this with serial port if changes
         self.baud_rate = 115200
         self.ser = ser = serial.Serial(self.serial_port, self.baud_rate)
 
@@ -63,10 +63,13 @@ class Arduino(Node):
         steering_value = msg.drive.steering_angle
         print("recieved message: ", steering_value)
         #Convert the steering value to what the motor has to rotate
-        motor_value = np.clip(steering_value * 4.615, (-2 *np.pi), (2 * np.pi))
-        motor_str = str(motor_value)
-        motor_str = motor_str + '\n'
-        self.ser.write(motor_str.encode())
+        motor_value = -1 * np.round(np.clip(steering_value * 4.615, (-2 *np.pi), (2 * np.pi)), 2)
+        motor_str = str(motor_value) + '\n'
+        motor_float = float(motor_str)
+        print("Motor Float: ", motor_float)
+        #self.ser.write(str(motor_str).encode('utf-8'))
+        #self.ser.write(motor_str.encode())
+        self.ser.write(bytearray(motor_str, 'ascii'))
         print("sent message")
         return 
 
@@ -104,7 +107,7 @@ class Arduino(Node):
                 msg = Float64()
                 msg.data = float(velocity_match.group(1))
                 self.wheelspeed_publisher.publish(msg)
-                self.get_logger().info(f"Published Wheelspeed data: {msg}")
+                #self.get_logger().info(f"Published Wheelspeed data: {msg}")
                 
             if self.orientation_ready is True and self.acceleration_ready is True: 
                 # Publish IMU message

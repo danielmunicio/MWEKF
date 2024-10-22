@@ -247,7 +247,7 @@ def project_point_cloud(self, velodyne, img_msg, image_pub, model_operator, disp
                 points_in_polygon = points3D[in_polygon]
 
                 # iterate_through_poly = time.perf_counter() - fillPolyTime
-                angle = np.arctan(np.median(points_in_polygon[:, 0])/np.median(points_in_polygon[:, 1]))
+                angle = np.arctan2(np.median(points_in_polygon[:, 0]), np.median(points_in_polygon[:, 1]))
                 if angle < 0:
                     angle = -((np.pi / 2) + angle)
                 else:
@@ -276,19 +276,43 @@ def project_point_cloud(self, velodyne, img_msg, image_pub, model_operator, disp
             print(e)
     else:
         cones_msg = Cones()
+        print(included_classes)
         #orange = 0, yellow = 1, blue = 2 in feb system
         classesToActual = {0: 0, 1: 1, 2: 7, 3: 8, 4: 9}
         yolo_class_to_feb_class = {8: 2, 1: 1, 0: 0, 7: 0, 9: 0}
         mask_conf = [idx for idx, con in enumerate(conf) if con > 0.7]
-        # print(set([int(class_1) for class_1 in mask_conf]))
-        chosen_classes = [yolo_class_to_feb_class[classesToActual[int(included_classes[i])]] for i in mask_conf]
-        chosen_angles = [angles[i] for i in mask_conf]
-        chosen_distances = [median_distances[i] for i in mask_conf]
+        print(len(mask_conf))
+        print("================")
+        chosen_classes = []
+        # for i in range(included_classes):
+        #     print(included_classes[i])
+        #     print(classesToActual[int(included_classes[i])])
+        #     print(yolo_class_to_feb_class[classesToActual[int(included_classes[i])]])
+        chosen_classes = [yolo_class_to_feb_class[classesToActual[int(included_classes[i])]] for i in range(len(included_classes))]
+        # chosen_angles = []
+        # chosen_angles = [angles[i] for i in mask_conf]
+        # chosen_distances = median_distances
         cones_msg.header.stamp = self.get_clock().now().to_msg()
-        cones_msg.r = chosen_distances
-        cones_msg.theta = chosen_angles
-        cones_msg.color = chosen_classes
-        perception_pub.publish(cones_msg)
+        print("CONES R: ", median_distances)
+        print("CONES THETA: ", angles)
+        print("COLOR: ", chosen_classes)
+
+        # Filter all lists based on NaN presence in any of the three
+        filtered_median_distances, filtered_angles, filtered_chosen_classes = zip(*[
+            (md, ang, cls) for md, ang, cls in zip(median_distances, angles, chosen_classes)
+            if not (np.isnan(md) or np.isnan(ang) or np.isnan(cls))
+        ])
+
+        # Convert filtered tuples back to lists
+        filtered_median_distances = list(filtered_median_distances)
+        filtered_angles = list(filtered_angles)
+        filtered_chosen_classes = list(filtered_chosen_classes)
+
+        flipped_filtered_angles = [-i for i in filtered_angles]
+        cones_msg.r = filtered_median_distances
+        cones_msg.theta = flipped_filtered_angles
+        cones_msg.color = filtered_chosen_classes
+        self.perception_pub.publish(cones_msg)
 
 
 class CalibrateCameraLidar(Node):

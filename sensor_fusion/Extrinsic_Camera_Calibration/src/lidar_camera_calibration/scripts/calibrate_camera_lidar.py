@@ -26,6 +26,9 @@ import image_geometry
 from file_operations import FileOperations
 from model_operations import ModelOperations
 from feb_msgs.msg import Cones
+from sensor_msgs.msg import PointCloud
+from geometry_msgs.msg import Quaternion, Vector3, PoseStamped, Pose, Point, Point32
+
 
 # Global variables
 OUSTER_LIDAR = False
@@ -293,15 +296,17 @@ def project_point_cloud(self, velodyne, img_msg, image_pub, model_operator, disp
         # chosen_angles = [angles[i] for i in mask_conf]
         # chosen_distances = median_distances
         cones_msg.header.stamp = self.get_clock().now().to_msg()
-        print("CONES R: ", median_distances)
-        print("CONES THETA: ", angles)
-        print("COLOR: ", chosen_classes)
 
-        # Filter all lists based on NaN presence in any of the three
         filtered_median_distances, filtered_angles, filtered_chosen_classes = zip(*[
             (md, ang, cls) for md, ang, cls in zip(median_distances, angles, chosen_classes)
-            if not (np.isnan(md) or np.isnan(ang) or np.isnan(cls))
+            if not (md != md or ang != ang or cls != cls)  # Using 'x != x' to check for NaN
         ])
+
+        print("CONES R: ", filtered_median_distances)
+        print("CONES THETA: ", filtered_angles)
+        print("COLOR: ", filtered_chosen_classes)
+
+        [print("LSDFJSLDKFJ:S") for angle in filtered_angles if angle == '.nan']
 
         # Convert filtered tuples back to lists
         filtered_median_distances = list(filtered_median_distances)
@@ -309,11 +314,26 @@ def project_point_cloud(self, velodyne, img_msg, image_pub, model_operator, disp
         filtered_chosen_classes = list(filtered_chosen_classes)
 
         flipped_filtered_angles = [-i for i in filtered_angles]
+
+        cartesian_x_distances = filtered_median_distances * np.cos(flipped_filtered_angles)
+        cartesian_y_distances = filtered_median_distances * np.sin(flipped_filtered_angles)
+
         cones_msg.r = filtered_median_distances
         cones_msg.theta = flipped_filtered_angles
         cones_msg.color = filtered_chosen_classes
         self.perception_pub.publish(cones_msg)
 
+        cones_guess = PointCloud()
+        positions = []
+        for x, y, color_value in zip(cartesian_x_distances, cartesian_y_distances, filtered_chosen_classes):
+            positions.append(Point32())
+            positions[-1].x = x
+            positions[-1].y = y
+            positions[-1].z = 0.0
+        cones_guess.points = positions
+        cones_guess.header.frame_id = "map"
+        cones_guess.header.stamp = self.get_clock().now().to_msg()
+        self.perception_visual_pub.publish(cones_guess)
 
 class CalibrateCameraLidar(Node):
     def __init__(self, camera_info, image_color, velodyne_points, calibrate_mode=True, camera_lidar=None, project_mode=False, display_projection = True):
@@ -336,6 +356,7 @@ class CalibrateCameraLidar(Node):
         # Publish output topic
         self.image_pub = self.create_publisher(Image, camera_lidar, 5) if camera_lidar else None
         self.perception_pub = self.create_publisher(Cones, '/perception_cones', 1)
+        self.perception_visual_pub = self.create_publisher(PointCloud, '/perception_cones_viz', 1)
         self.camera_info_msg = None
         self.image_msg = None
         self.velodyne_msg = None

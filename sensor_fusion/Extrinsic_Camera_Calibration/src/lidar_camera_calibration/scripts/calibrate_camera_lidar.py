@@ -43,7 +43,8 @@ CAMERA_MODEL = image_geometry.PinholeCameraModel()
 # Global paths
 PKG_PATH = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 CALIB_PATH = 'calibration_data/lidar_camera_calibration'
-UTILITIES_PATH = '/home/daniel/feb-system-integration/sensor_fusion/Extrinsic_Camera_Calibration/src/lidar_camera_calibration/utilities'#os.path.join(PKG_PATH, 'utilities')
+UTILITIES_PATH = '/home/daniel/feb-system-integration/sensor_fusion/Extrinsic_Camera_Calibration/src/lidar_camera_calibration/utilities'
+# UTILITIES_PATH = os.path.join(PKG_PATH, 'utilities')
 
 def handle_keyboard():
     global KEY_LOCK, PAUSE
@@ -175,48 +176,25 @@ def project_point_cloud(self, velodyne, img_msg, image_pub, model_operator, disp
 
     # Extract 3D points from the PointCloud2 message
     points3D = ros2_numpy.point_cloud2.point_cloud2_to_array(velodyne)['xyz']
-    # print(points3D)
-    # print(np.shape(points3D))
-    # conversion_start = time.perf_counter()
     points3D = np.asarray(points3D.tolist())
-    # points3D = np.reshape(points3D, (points3D.shape[0], points3D.shape[1], -1))
     max_intensity = np.max(points3D[:, -1])
     # Convert the 3D points to homogeneous coordinates
     points3D_homogeneous = np.hstack((points3D[:, :3], np.ones((points3D.shape[0], 1))))
 
-    # Apply the projection matrix to project the 3D points onto the 2D image plane
-    # print(np.shape(points3D_homogeneous))
     points2D_homogeneous = P @ points3D_homogeneous.T
 
     # Convert homogeneous 2D coordinates to Cartesian coordinates
     points2D = points2D_homogeneous[:2, :] / points2D_homogeneous[2, :]
     points2D = points2D.T  # Convert back to Nx2 format
-    # Read the image using CV bridge
-    # conversion_finish = time.perf_counter()
-    # print("Conversion Time: ", conversion_finish - conversion_start)
-    # try:
-    #     img = CV_BRIDGE.imgmsg_to_cv2(img_msg, 'bgr8')
-    # except CvBridgeError as e:
-    #     print(e)
-    #     return# Filter points within the image boundaries
     img_height, img_width = 480, 640
-    # checking_points_start = time.perf_counter()
     inrange = np.where((points2D[:, 0] >= 0) &
                        (points2D[:, 1] >= 0) &
                        (points2D[:, 0] < img_width - 1) &
                        (points2D[:, 1] < img_height - 1))
     points2D = points2D[inrange[0]].round().astype('int')
     points3D = points3D[inrange[0]]
-    # checking_points_finish = time.perf_counter()
 
-    # Apply segmentation and draw points within the segmented regions
-    # model_start = time.perf_counter()
     segmentation_outputs, classes, conf = model_operator.predict(img_msg, CV_BRIDGE)
-    # model_finish = time.perf_counter()
-    # print(segmentation_outputs)
-    # print(segmentation_outputs)
-    # print(classes)
-    # print(conf)
     # cmap = plt.cm.get_cmap('jet')
     # colors = cmap(points3D[:, -1] / max_intensity) * 255
     # for i in range(len(points2D)):
@@ -228,49 +206,31 @@ def project_point_cloud(self, velodyne, img_msg, image_pub, model_operator, disp
 
     for idx, segmentation_output in enumerate(segmentation_outputs):
         if conf[idx] > 0.7:
-            # post_model_start = time.perf_counter()
             mask = np.zeros((img_height, img_width), dtype=np.uint8)
-            # print(np.shape(segmentation_output))
-            # print(len(segmentation_output))
-            # print("Num Iterations: ", len(segmentation_outputs))
             if len(segmentation_output) != 0:
-                # startTime = time.perf_counter()
                 cv2.fillPoly(mask, [np.array(segmentation_output, np.int32)], 1)
-                # fillPolyTime = time.perf_counter() 
-                #in_polygon = [mask[y, x] == 1 for (x, y) in points2D]
 
                 # Extract x and y coordinates as separate arrays
                 x_coords = points2D[:, 0]
                 y_coords = points2D[:, 1]
 
-                # Vectorized operation: Check if each point in points2D is within the polygon
-                in_polygon = mask[y_coords, x_coords] == 1  # This will give you a boolean array
+                in_polygon = mask[y_coords, x_coords] == 1 
 
                 # Use the boolean array to filter points3D
                 points_in_polygon = points3D[in_polygon]
+                if len(points_in_polygon) > 0:
+                    angle = np.arctan2(np.median(points_in_polygon[:, 0]), np.median(points_in_polygon[:, 1]))
+                    if angle < 0:
+                        angle = -((np.pi / 2) + angle)
+                    else:
+                        angle = (np.pi / 2) - angle
+                    angles.append(-1 * angle)
+                    # print(points_in_polygon[:10])
+                    distances = np.linalg.norm(points_in_polygon[:, :2], axis=1)
+                    median_distance = np.median(distances) if len(distances) > 0 else float('nan')
+                    median_distances.append(median_distance)
+                    included_classes.append(classes[idx])
 
-                # iterate_through_poly = time.perf_counter() - fillPolyTime
-                angle = np.arctan2(np.median(points_in_polygon[:, 0]), np.median(points_in_polygon[:, 1]))
-                if angle < 0:
-                    angle = -((np.pi / 2) + angle)
-                else:
-                    angle = (np.pi / 2) - angle
-                angles.append(-angle)
-                distances = np.linalg.norm(points_in_polygon[:, :3], axis=1)
-                # median_start_time = time.perf_counter()
-                median_distance = np.median(distances) if len(distances) > 0 else float('nan')
-                # median_finish_time = time.perf_counter()
-                median_distances.append(median_distance)
-                included_classes.append(classes[idx])
-
-                # print("Fill Poly Time: ", fillPolyTime - startTime)
-                # print("Iterate through poly time: ", iterate_through_poly)
-                # print("Median Calculation Time: ", median_finish_time - median_start_time)
-                # print("Total Time: ", median_finish_time - startTime)
-    # post_model_finish = time.perf_counter()
-
-    # print("TIMES: ")
-    # print("--------------------")
 
     if display_projection:
         try:
@@ -279,53 +239,29 @@ def project_point_cloud(self, velodyne, img_msg, image_pub, model_operator, disp
             print(e)
     else:
         cones_msg = Cones()
-        print(included_classes)
         #orange = 0, yellow = 1, blue = 2 in feb system
         classesToActual = {0: 0, 1: 1, 2: 7, 3: 8, 4: 9}
         yolo_class_to_feb_class = {8: 2, 1: 1, 0: 0, 7: 0, 9: 0}
         mask_conf = [idx for idx, con in enumerate(conf) if con > 0.7]
-        print(len(mask_conf))
-        print("================")
         chosen_classes = []
-        # for i in range(included_classes):
-        #     print(included_classes[i])
-        #     print(classesToActual[int(included_classes[i])])
-        #     print(yolo_class_to_feb_class[classesToActual[int(included_classes[i])]])
         chosen_classes = [yolo_class_to_feb_class[classesToActual[int(included_classes[i])]] for i in range(len(included_classes))]
-        # chosen_angles = []
-        # chosen_angles = [angles[i] for i in mask_conf]
-        # chosen_distances = median_distances
         cones_msg.header.stamp = self.get_clock().now().to_msg()
 
-        filtered_median_distances, filtered_angles, filtered_chosen_classes = zip(*[
-            (md, ang, cls) for md, ang, cls in zip(median_distances, angles, chosen_classes)
-            if not (md != md or ang != ang or cls != cls)  # Using 'x != x' to check for NaN
-        ])
+        print("CONES R: ", median_distances)
+        print("CONES THETA: ", angles)
+        print("COLOR: ", chosen_classes)
 
-        print("CONES R: ", filtered_median_distances)
-        print("CONES THETA: ", filtered_angles)
-        print("COLOR: ", filtered_chosen_classes)
+        cartesian_x_distances = median_distances * np.cos(angles)
+        cartesian_y_distances = median_distances * np.sin(angles)
 
-        [print("LSDFJSLDKFJ:S") for angle in filtered_angles if angle == '.nan']
-
-        # Convert filtered tuples back to lists
-        filtered_median_distances = list(filtered_median_distances)
-        filtered_angles = list(filtered_angles)
-        filtered_chosen_classes = list(filtered_chosen_classes)
-
-        flipped_filtered_angles = [-i for i in filtered_angles]
-
-        cartesian_x_distances = filtered_median_distances * np.cos(flipped_filtered_angles)
-        cartesian_y_distances = filtered_median_distances * np.sin(flipped_filtered_angles)
-
-        cones_msg.r = filtered_median_distances
-        cones_msg.theta = flipped_filtered_angles
-        cones_msg.color = filtered_chosen_classes
+        cones_msg.r = median_distances
+        cones_msg.theta = angles
+        cones_msg.color = chosen_classes
         self.perception_pub.publish(cones_msg)
 
         cones_guess = PointCloud()
         positions = []
-        for x, y, color_value in zip(cartesian_x_distances, cartesian_y_distances, filtered_chosen_classes):
+        for x, y, color_value in zip(cartesian_x_distances, cartesian_y_distances, chosen_classes):
             positions.append(Point32())
             positions[-1].x = x
             positions[-1].y = y
@@ -338,12 +274,6 @@ def project_point_cloud(self, velodyne, img_msg, image_pub, model_operator, disp
 class CalibrateCameraLidar(Node):
     def __init__(self, camera_info, image_color, velodyne_points, calibrate_mode=True, camera_lidar=None, project_mode=False, display_projection = True):
         super().__init__('calibrate_camera_lidar')
-        # self.get_logger().info('Current PID: [%d]' % os.getpid())
-        # self.get_logger().info('Projection mode: %s' % project_mode)
-        # self.get_logger().info('CameraInfo topic: %s' % camera_info)
-        # self.get_logger().info('Image topic: %s' % image_color)
-        # self.get_logger().info('PointCloud2 topic: %s' % velodyne_points)
-        # self.get_logger().info('Output topic: %s' % camera_lidar)
 
         self.project_mode = project_mode
         self.camera_lidar = camera_lidar

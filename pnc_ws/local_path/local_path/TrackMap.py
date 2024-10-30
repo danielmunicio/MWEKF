@@ -1,9 +1,8 @@
 from typing import Dict, Set, Tuple, List
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy.spatial import Delaunay
 from itertools import permutations
-from shapely.geometry import Polygon, Point, LineString, MultiLineString
+from shapely.geometry import LineString, MultiLineString
 import networkx as nx
 
 def distance_between_points(point1 :Tuple[int, int], point2: Tuple[int, int]) -> int:
@@ -69,8 +68,9 @@ def categorize_edges(tri: Delaunay, yellow_points: List[Tuple[int, int]]) -> Tup
                 green_edges.append(edge)
     return yellow_edges, blue_edges, green_edges
 
-def get_triangles(tri: Delaunay) -> List[List[int, int, int]]:
-    """This function takes a triangulation and returns all the triangles present in the triangulation.
+def get_triangles(tri: Delaunay) -> List[List[int]]:
+    """This function takes a triangulation and returns all the triangles 
+        present in the triangulation.
 
     Keyword arguments:
     tri -- a Delaunay triangulation object
@@ -78,8 +78,9 @@ def get_triangles(tri: Delaunay) -> List[List[int, int, int]]:
     triangles = tri.simplices.tolist()
     return triangles
 
-def count_triangle_occurrences(triangles: List[List[int, int, int]]) -> Dict[Tuple[int, int], int]:
-    """This function takes a list of triangles and returns a dictionary of how many times and edge appeared in the list of triangles.
+def count_triangle_occurrences(triangles: List[List[int]]) -> Dict[Tuple[int, int], int]:
+    """This function takes a list of triangles and returns a dictionary of 
+        how many times and edge appeared in the list of triangles.
 
     Keyword arguments:
     triangles -- a list of triangles where each triangle is a list of 3 vertices
@@ -101,16 +102,17 @@ def count_triangle_occurrences(triangles: List[List[int, int, int]]) -> Dict[Tup
     return counts
 
 def keys_with_value_of_one(dictionary: Dict[Tuple[int, int], int]) -> List[Tuple[int, int]]:
-    """This function takes a dictionary of tuple (edge) keys mapped to ints, and returns a list of keys which have a value of 1.
+    """This function takes a dictionary of tuple (edge) keys mapped to ints, 
+        and returns a list of keys which have a value of 1.
 
     Keyword arguments:
     dictionary -- a dictionary object mapping edges to integers
     """
     return [key for key, value in dictionary.items() if value == 1]
 
-
-def get_edges_from_triangles(triangles: List[List[int, int, int]]) -> List[Tuple[int, int]]:
-    """This function takes in a list of triangles and returns all the edges that are part of the triangles.
+def get_edges_from_triangles(triangles: List[List[int]]) -> List[Tuple[int, int]]:
+    """This function takes in a list of triangles and returns all the edges 
+        that are part of the triangles.
 
     Keyword arguments:
     triangles -- a list of triangles where each triangle is a list of 3 vertices
@@ -128,7 +130,7 @@ def get_edges_from_triangles(triangles: List[List[int, int, int]]) -> List[Tuple
     edges_list = list(edges)
     return edges_list
 
-def filter_triangles(tri: Delaunay, points: List[Tuple[int, int]]) ->  List[List[int, int, int]]:
+def filter_triangles(tri: Delaunay, points: Set[int]) ->  List[List[int]]:
     """This function takes in a triangulation and a list of points 
         and returns a list of triangles whose vertices are all in the specified list of points.
 
@@ -146,7 +148,7 @@ def filter_triangles(tri: Delaunay, points: List[Tuple[int, int]]) ->  List[List
 
 
 def filter_green_triangles(tri: Delaunay, yellow_points: List[Tuple[int, int]], 
-                           blue_points: List[Tuple[int, int]], all_points: List[Tuple[int, int]]) -> List[List[int, int, int]]:
+                           blue_points: List[Tuple[int, int]], all_points: List[Tuple[int, int]]) -> List[List[int]]:
     """This function takes in a triangulation and the list of yellow and blue cones
         and returns a list of triangles whose vertices are in both sets of cones.
 
@@ -169,7 +171,7 @@ def filter_green_triangles(tri: Delaunay, yellow_points: List[Tuple[int, int]],
     return green_triangles
 
 
-def find_boundary_edges(triangles : List[List[int, int, int]]) -> List[Tuple[int, int]]:
+def find_boundary_edges(triangles : List[List[int]]) -> Set:
     """This function takes in a list of triangles making up a triangulation, and returns the edges that form the boundary of that figure.
 
     Keyword arguments:
@@ -197,7 +199,6 @@ def vertices_in_edges(edges: List[Tuple[int, int]]) -> Set[int]:
     """
     return set([num for tup in edges for num in tup])
 
-
 def filter_boundaries(colored_edges, green_boundaries):
     """
     This function takes a list of colored edges and returns a new list which is also present in the second
@@ -209,7 +210,6 @@ def filter_boundaries(colored_edges, green_boundaries):
         if (a, b) in green_boundaries or (b, a) in green_boundaries:
             filtered_edges.append(ce)
     return filtered_edges
-
 
 def make_cc_graphs(edges: List[Tuple[int, int]]) -> Tuple[List[nx.Graph], List[Tuple[int, int]]]:
     """This function takes in a list of edges and breaks down the figure into 
@@ -254,6 +254,7 @@ def combine_ccg_cycles(ccg_cycles: List[List[Tuple[int, int]]], connecting_edges
         all_the_edges.extend(ccgc)
     all_the_edges.extend(connecting_edges)
     return graph_from_edges(all_the_edges)
+
 
 def find_cc_longest_cycles(cc_graphs: List[nx.Graph], tri: Delaunay) -> Tuple[List[List[Tuple[int, int]]], List[Tuple[int, int]]]:
     """This function takes in a list of graphs and a triangulation in order to find a list of cycles which define the outer boundary of the figure.
@@ -342,59 +343,6 @@ def edges_to_connect_ccs_in_ccg(ccg: nx.Graph, original_edges: List[Tuple[int, i
         connecting_subcomponents.extend(connect_two_subgraphs(sg1, sg2))
     
     return connecting_subcomponents
-
-def track_shape(edges: List[Tuple[int, int]], green_boundaries: List[Tuple[int, int]], tri: Delaunay, total_points:List[Tuple[int, int]], all_points: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
-    """This function takes in a set of edges making up a triangulation, the triangulation itself, all the cones, 
-    and a set of edges between the left and right cones in order to find the edges that make the shape of the track.
-
-    Keyword arguments:
-    edges -- the set of edges that are part of the  Delaunay triangulation
-    green_boundaries -- the list of edges between the yellow and blue cones (that are part of the triangulations)
-    tri -- the Delaunay triangulation from all the cones
-    total_points -- a numpy array of all the yellow and blue points
-    all_points -- the list of all the yellow and blue points
-    """
-
-    boundaries = filter_boundaries(edges, green_boundaries)
-    boundaries = remove_duplicates(boundaries)
-
-    connections = find_connecting_edges(edges, tri, total_points, all_points)
-    
-    boundaries.extend(connections)
-    path = remove_duplicates(boundaries)
-    return path
-        
-
-def find_racetrack(yellow_points: List[Tuple[int, int]], blue_points: List[Tuple[int, int]]) -> Tuple[List[Tuple[int, int]], List[Tuple[int, int]]]:
-    """This function takes in a list of yellow and blue points and finds the edges that make up the final racetrack layout.
-
-    Keyword arguments:
-    yellow_points - a list of yellow cones
-    blue_points --a list of blue cones
-    """
-    # construct triangulation
-    all_points, total_points = construct_total_points(yellow_points, blue_points)
-    tri = Delaunay(total_points)
-    
-    # categorize edges
-    yellow_edges, blue_edges, green_edges = categorize_edges(tri, yellow_points)
-    
-    # find green boundaries
-    green_triangles = filter_green_triangles(tri, yellow_points, blue_points, all_points)
-    green_boundaries = find_boundary_edges(green_triangles)
-    
-    # use information to find yellow and blue path edges
-    yellow_path = track_shape(yellow_edges, green_boundaries, tri, total_points, all_points)
-    blue_path = track_shape(blue_edges, green_boundaries, tri, total_points, all_points)
-    
-    yellow_path = remove_duplicates(yellow_path)
-    blue_path = remove_duplicates(blue_path)
-    
-    yellow_path = add_coordinates_back_into_edges(yellow_path, all_points)
-    blue_path = add_coordinates_back_into_edges(blue_path, all_points)
-    
-    return yellow_path, blue_path
-
 
 def racetrack_to_multiline(yellow_path: List[Tuple[int, int]], blue_path: List[Tuple[int, int]]) -> Tuple[MultiLineString, MultiLineString]:
     """This function takes in a list of yellow edges and a list of blue edges and uses Shapely to convert it to a MultiLineString representation of the track boundaries.
@@ -514,12 +462,13 @@ def edges_in_a_path(path: List[int]) -> List[Tuple[int, int]]:
         edges_in_longest_path.append([path[i], path[i+1]])
     return edges_in_longest_path
 
-def find_connecting_edges(edges: List[Tuple[int, int]], total_tri: Delaunay, total_points: List[Tuple[int, int]], all_points: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
+def find_connecting_edges(edges: List[Tuple[int, int]], total_tri: Delaunay, all_points: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
     """
     Find a set of edges that connect different connected components present in a graph.
     """
+    
     cc_graphs, connecting_edges = make_cc_graphs(edges)   
-    cc_longest_cycles, new_connecting_edges = find_cc_longest_cycles(cc_graphs, total_tri, total_points)
+    cc_longest_cycles, new_connecting_edges = find_cc_longest_cycles(cc_graphs, total_tri)
     connecting_edges.extend(new_connecting_edges)
     
     for cclc in cc_longest_cycles:
@@ -528,3 +477,55 @@ def find_connecting_edges(edges: List[Tuple[int, int]], total_tri: Delaunay, tot
         connecting_edges.extend(ultra_new_connections)
     
     return connecting_edges
+
+def track_shape(edges: List[Tuple[int, int]], green_boundaries: List[Tuple[int, int]], tri: Delaunay, total_points:List[Tuple[int, int]], all_points: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
+    """This function takes in a set of edges making up a triangulation, the triangulation itself, all the cones, 
+    and a set of edges between the left and right cones in order to find the edges that make the shape of the track.
+
+    Keyword arguments:
+    edges -- the set of edges that are part of the  Delaunay triangulation
+    green_boundaries -- the list of edges between the yellow and blue cones (that are part of the triangulations)
+    tri -- the Delaunay triangulation from all the cones
+    total_points -- a numpy array of all the yellow and blue points
+    all_points -- the list of all the yellow and blue points
+    """
+    
+    boundaries = filter_boundaries(edges, green_boundaries)
+    boundaries = remove_duplicates(boundaries)
+
+    connections = find_connecting_edges(edges, tri, all_points)
+    
+    boundaries.extend(connections)
+    path = remove_duplicates(boundaries)
+    return path
+
+def find_racetrack(yellow_points: List[Tuple[int, int]], blue_points: List[Tuple[int, int]]) -> Tuple[List[Tuple[int, int]], List[Tuple[int, int]]]:
+    """This function takes in a list of yellow and blue points and finds the edges that make up the final racetrack layout.
+
+    Keyword arguments:
+    yellow_points - a list of yellow cones
+    blue_points --a list of blue cones
+    """
+    
+    # construct triangulation
+    all_points, total_points = construct_total_points(yellow_points, blue_points)
+    tri = Delaunay(total_points)
+    
+    # categorize edges
+    yellow_edges, blue_edges, _ = categorize_edges(tri, yellow_points)
+    
+    # find green boundaries
+    green_triangles = filter_green_triangles(tri, yellow_points, blue_points, all_points)
+    green_boundaries = find_boundary_edges(green_triangles)
+    
+    # use information to find yellow and blue path edges
+    yellow_path = track_shape(yellow_edges, green_boundaries, tri, total_points, all_points)
+    blue_path = track_shape(blue_edges, green_boundaries, tri, total_points, all_points)
+    
+    yellow_path = remove_duplicates(yellow_path)
+    blue_path = remove_duplicates(blue_path)
+    
+    yellow_path = add_coordinates_back_into_edges(yellow_path, all_points)
+    blue_path = add_coordinates_back_into_edges(blue_path, all_points)
+    
+    return yellow_path, blue_path

@@ -1,15 +1,10 @@
-import math
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 import numpy as np
 import matplotlib.pyplot as plt
-import random
-from scipy.spatial import Delaunay, KDTree
-from itertools import permutations
-from shapely.geometry import Polygon, Point, LineString, MultiLineString, MultiPoint
-from scipy.spatial import Voronoi, voronoi_plot_2d
-from shapely.ops import nearest_points, linemerge
-from .TrackMap import graph_from_edges, find_longest_simple_path
-
+from shapely.geometry import Point, LineString, MultiLineString
+from scipy.spatial import Voronoi, KDTree
+from shapely.ops import nearest_points
+from TrackMap import graph_from_edges, find_longest_simple_path, edges_in_a_path
 
 def N_point_generator(yellow_multiline: MultiLineString, blue_multiline: MultiLineString, N: int) -> Tuple[List[Tuple[int, int]], List[Tuple[int, int]]]:
     """This function takes a two MultiLineStrings representing the yellow and blue boundaries of the racetrack and 
@@ -20,20 +15,20 @@ def N_point_generator(yellow_multiline: MultiLineString, blue_multiline: MultiLi
     blue_multiline -- a MultiLineString representing the blue track boundary
     N - the number of pairs to generate
     """
-    
+
     # generate N points on the linestrings
     new_yellow_points = generate_N_points(yellow_multiline, N)
     new_blue_points = generate_N_points(blue_multiline, N)
-
+    
     # create Voronoi diagram 
     all_points = new_yellow_points + new_blue_points
     all_vertices = [(p.x, p.y) for p in all_points]
     vor = Voronoi(all_vertices)
 
     # find the medial line
-    medial_edges = get_medial_line(yellow_multiline, blue_multiline, vor, new_yellow_points, new_blue_points, N)
+    medial_edges = get_medial_line(yellow_multiline, blue_multiline, vor)
     mid_string_points = []
-
+    
     step_size = len(medial_edges)/N
     for i in range(N):
         index = int(round(step_size*i))
@@ -55,7 +50,7 @@ def N_point_generator(yellow_multiline: MultiLineString, blue_multiline: MultiLi
     
     return closest_yellow_points, closest_blue_points
 
-def get_medial_line(yellow_multiline: MultiLineString, blue_multiline:MultiLineString, vor: Voronoi, new_yellow_points: List[Tuple[int, int]], new_blue_points: List[Tuple[int, int]], N: int) -> List[Tuple[int, int]]: 
+def get_medial_line(yellow_multiline: MultiLineString, blue_multiline:MultiLineString, vor: Voronoi) -> List[Tuple[int, int]]: 
     """This function takes a two MultiLineStrings representing the yellow and blue boundaries of the racetrack and 
     gets the medial axis between the two.
 
@@ -99,7 +94,7 @@ def generate_N_points(multiline: MultiLineString, N: int) -> List[Tuple[int, int
     points = [multiline.interpolate(length) for length in segment_lengths]
     return points
 
-def closest_points_on_medial_line(points: List[Tuple[int, int]], medial_line: LineString) -> List[Tuple[int, int]]:
+def closest_points_on_medial_line(points: List[Tuple[int, int]], medial_line: LineString) -> Dict:
     """This function a set of points and a LineString, and finds the closest set of points on the Line to the points provided.
 
     Keyword arguments:
@@ -127,38 +122,5 @@ def find_closest_point(points: List[Tuple[int, int]], location: Tuple[int, int])
     location -- the point we want to find the closest point to
     """
     kdtree = KDTree(points)
-    dist, closest_point_idx = kdtree.query(location)
+    _, closest_point_idx = kdtree.query(location)
     return closest_point_idx, points[closest_point_idx]
-
-def should_reverse(points, car_location, heading_vector):
-    """NOT TOTALLY COMPLETED This function figures out whether the list of pairs outputted should be reversed or not.
-
-    Keyword arguments:
-    points -- the list of points along a boundary
-    car_location -- 
-    heading_vector -- 
-    """
-    
-    # figure out the closest point
-    i, closest_point = find_closest_point(points, car_location)
-    next_i = i+1
-    previous_i = i-1
-    if next_i >= len(points):
-        next_i = 0
-    if previous_i < 0:
-        previous_i = len(points) - 1
-    
-    # check the angles between the next and previous points
-    
-    prev_point = points[previous_i]
-    next_point = points[next_i]
-    prev_vector = (prev_point[0] - closest_point[0], prev_point[1] - closest_point[1])
-    next_vector = (next_point[0] - closest_point[0], next_point[1] - closest_point[1])
-
-    dot_prev = dot_product(heading_vector, prev_vector)
-    dot_next = dot_product(heading_vector, next_vector)
-
-    if dot_prev > 0:
-        return True
-    else:
-        return False

@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from shapely.geometry import Point, LineString, MultiLineString
 from scipy.spatial import Voronoi, KDTree
 from shapely.ops import nearest_points
-from TrackMap import graph_from_edges, find_longest_simple_path, edges_in_a_path
+from .TrackMap import graph_from_edges, find_longest_simple_path, edges_in_a_path
 
 def N_point_generator(yellow_multiline: MultiLineString, blue_multiline: MultiLineString, N: int) -> Tuple[List[Tuple[int, int]], List[Tuple[int, int]]]:
     """This function takes a two MultiLineStrings representing the yellow and blue boundaries of the racetrack and 

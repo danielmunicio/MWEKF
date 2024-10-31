@@ -279,6 +279,7 @@ class GraphSLAM_Global(Node):
         # generate current heading
         #roll, pitch, yaw = self.quat_to_euler(imu.orientation)
         yaw = imu.orientation.x
+        print("YAW: ", yaw)
         # generate current velocity
         #delta_velocity = self.compute_delta_velocity(imu.linear_acceleration, dt)
         #velocity = self.currentstate.velocity + delta_velocity
@@ -346,7 +347,6 @@ class GraphSLAM_Global(Node):
         # Dummy function for now, need to update graph and solve graph on each timestep
         if self.finished:
             return
-        print("Received Cones")
         #input cone list & dummy dx since we are already doing that in update_graph with imu data
         # cone_matrix = np.hstack(Cones.r, Cones.theta, Cones.color)
         cone_matrix = [[], [], []]
@@ -363,16 +363,13 @@ class GraphSLAM_Global(Node):
 
         #if np.linalg.norm(self.last_slam_update-np.array([self.currentstate.x, self.currentstate.y])) > 1.0:
         if (abs(self.time - time.time()) > 0.3): #NOTE self.time - time.time() should be negative
-            print("MADE IT HERE")
             # last_slam_update initialized to infinity, so set current state x,y to 0 in the case. otherwise, update graph with relative position from last update graph
             self.slam.update_graph(np.array([self.currentstate.x, self.currentstate.y])-self.last_slam_update if self.last_slam_update[0]<999999999.0 else np.array([0.0, 0.0]), 
                                    cartesian_cones[:, :2], 
                                    cartesian_cones[:, 2].flatten()) # old pre-ros threading
-            print(cartesian_cones.T.shape)
             self.last_slam_update = np.array([self.currentstate.x, self.currentstate.y])
             self.time = time.time()
             self.slam.solve_graph()
-            print("UPDATING STATE")
         else:
             print("Sorry, time was: ", abs(self.time - time.time()))
             return
@@ -406,7 +403,6 @@ class GraphSLAM_Global(Node):
         blue_array = np.array([2 for i in range(len(lm_guess[:,2]))])
         left_cones = lm_guess[np.round(lm_guess[:,2]) == 2][:,:2] # blue
         right_cones = lm_guess[np.round(lm_guess[:,2]) == 1][:,:2] # yellow
-        print(self.slam.color.shape, self.slam.lhat.shape, left_cones.shape, right_cones.shape, lm_guess, cartesian_cones)
         total_cones = np.vstack((left_cones,right_cones))
         cones_msg = PointCloud()
         cones_to_send = []
@@ -496,7 +492,6 @@ class GraphSLAM_Global(Node):
         cones_msg.header.frame_id = "map"
         cones_msg.header.stamp = self.get_clock().now().to_msg()
         # self.cones_vis_pub.publish(cones_msg)
-        print("local cones done!!")
 
 
 

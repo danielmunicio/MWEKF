@@ -91,6 +91,7 @@ class Arduino(Node):
                 self.x_orientation = float(orientation_match.group(1))
                 self.y_orientation = float(orientation_match.group(2))
                 self.z_orientation = float(orientation_match.group(3))
+                #print("X Orientation: ", self.x_orientation)
                 self.orientation_ready = True
 
             # Case 2: Acceleration Data
@@ -99,13 +100,18 @@ class Arduino(Node):
                 self.x_acceleration = float(acceleration_match.group(1))
                 self.y_acceleration = float(acceleration_match.group(2))
                 self.z_acceleration = float(acceleration_match.group(3))
+                #print("X Accel: ", self.x_acceleration)
+                #print("Y Accel: ", self.y_acceleration)
+                #print("Z Accel: ", self.z_acceleration)
                 self.acceleration_ready = True
 
             # Case 3: Velocity Data
             velocity_match = velocity_pattern.search(str(data))
             if velocity_match: 
                 msg = Float64()
-                msg.data = float(velocity_match.group(1))
+                if (float(velocity_match.group(1)) < 0 ):
+                    return
+                msg.data = float(velocity_match.group(1)) / 2
                 self.wheelspeed_publisher.publish(msg)
                 #self.get_logger().info(f"Published Wheelspeed data: {msg}")
                 

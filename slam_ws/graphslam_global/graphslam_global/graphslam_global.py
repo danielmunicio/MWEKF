@@ -362,7 +362,7 @@ class GraphSLAM_Global(Node):
         cartesian_cones = np.vstack((cone_dx, cone_dy, cone_matrix[:,2])).T # n x 3 array of n cones and dx, dy, color   -- input for update_graph
 
         #if np.linalg.norm(self.last_slam_update-np.array([self.currentstate.x, self.currentstate.y])) > 1.0:
-        if (abs(self.time - time.time()) > 0.3): #NOTE self.time - time.time() should be negative
+        if (abs(self.time - time.time()) > 0.1): #NOTE self.time - time.time() should be negative
             # last_slam_update initialized to infinity, so set current state x,y to 0 in the case. otherwise, update graph with relative position from last update graph
             self.slam.update_graph(np.array([self.currentstate.x, self.currentstate.y])-self.last_slam_update if self.last_slam_update[0]<999999999.0 else np.array([0.0, 0.0]), 
                                    cartesian_cones[:, :2], 
@@ -408,8 +408,8 @@ class GraphSLAM_Global(Node):
         cones_to_send = []
         for cone in lm_guess: 
             cones_to_send.append(Point32())
-            cones_to_send[-1].x = cone[0]
-            cones_to_send[-1].y = cone[1]
+            cones_to_send[-1].x = cone[0]# - self.currentstate.x
+            cones_to_send[-1].y = cone[1]# - self.currentstate.y
             cones_to_send[-1].z = 0.0
         cones_msg.points = cones_to_send
         cones_msg.header.frame_id = "map"

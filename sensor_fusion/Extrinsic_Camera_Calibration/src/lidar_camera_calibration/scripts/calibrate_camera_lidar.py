@@ -224,7 +224,7 @@ def project_point_cloud(self, velodyne, img_msg, image_pub, model_operator, disp
                         angle = -((np.pi / 2) + angle)
                     else:
                         angle = (np.pi / 2) - angle
-                    angles.append(-1 * angle)
+                    angles.append(angle)
                     # print(points_in_polygon[:10])
                     distances = np.linalg.norm(points_in_polygon[:, :2], axis=1)
                     median_distance = np.median(distances) if len(distances) > 0 else float('nan')

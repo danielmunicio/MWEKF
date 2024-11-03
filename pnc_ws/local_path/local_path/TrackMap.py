@@ -5,6 +5,20 @@ from itertools import permutations
 from shapely.geometry import LineString, MultiLineString
 import networkx as nx
 
+def graph_from_multiline(multiline: MultiLineString) -> nx.Graph:
+    """Given a MutiLineString argument made of lines we create a networkx graph using those lines as edges.
+    
+    Keyword arguments:
+    multiline -- The MultiLineString we want to convert to a nx.Graph
+    """
+    boundary_edges = []    
+    for line in multiline.geoms:
+        edge = [line.coords[0], line.coords[1]]
+        boundary_edges.append(edge)
+
+    boundary_graph = graph_from_edges(boundary_edges)
+    return boundary_graph
+
 def distance_between_points(point1 :Tuple[int, int], point2: Tuple[int, int]) -> int:
     """Gives the Euclidean distance between points.
 

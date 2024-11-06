@@ -4,8 +4,11 @@ import numpy as np
 import ast
 class FileOperations:
     
-    def get_intrinsic_parameters(UTILITIES_PATH):
-        with open(os.path.join(UTILITIES_PATH, '/home/daniel/intrinsic_parameters.txt'), 'r') as file:
+    def get_intrinsic_parameters(UTILITIES_PATH, realsenseCamera = False):
+        file_path = '/home/daniel/intrinsic_parameters.txt' 
+        if realsenseCamera:
+            file_path = '/home/daniel/realsense_intrinsic_parameters.txt'
+        with open(os.path.join(UTILITIES_PATH, file_path), 'r') as file:
             lines = file.readlines()
         heightWidth = lines[0].strip().split(', ')
         return float(heightWidth[0]), float(heightWidth[1]), [float(val) for val in lines[1].strip().split(', ')], [float(val) for val in lines[2].strip().split(', ')], [float(val) for val in lines[3].strip().split(', ')]

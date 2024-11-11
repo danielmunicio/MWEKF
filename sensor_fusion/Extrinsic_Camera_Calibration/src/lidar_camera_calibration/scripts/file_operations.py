@@ -4,7 +4,7 @@ import numpy as np
 import ast
 class FileOperations:
     
-    def get_intrinsic_parameters(UTILITIES_PATH, realsenseCamera = False):
+    def get_intrinsic_parameters(UTILITIES_PATH, realsenseCamera):
         file_path = '/home/daniel/intrinsic_parameters.txt' 
         if realsenseCamera:
             file_path = '/home/daniel/realsense_intrinsic_parameters.txt'

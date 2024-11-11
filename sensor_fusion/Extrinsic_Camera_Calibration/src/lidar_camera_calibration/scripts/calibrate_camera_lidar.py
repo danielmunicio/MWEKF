@@ -272,12 +272,12 @@ def project_point_cloud(self, velodyne, img_msg, image_pub, model_operator, disp
         self.perception_visual_pub.publish(cones_guess)
 
 class CalibrateCameraLidar(Node):
-    def __init__(self, camera_info, image_color, velodyne_points, calibrate_mode=True, camera_lidar=None, project_mode=False, display_projection = True):
+    def __init__(self, camera_info, image_color, velodyne_points, calibrate_mode=True, camera_lidar=None, project_mode=False, display_projection = True, realsense = False):
         super().__init__('calibrate_camera_lidar')
 
         self.project_mode = project_mode
         self.camera_lidar = camera_lidar
-
+        print(image_color)
         # Subscribe to topic
         self.info_sub = self.create_subscription(CameraInfo, camera_info, self.camera_info_callback, qos_profile_sensor_data)
         self.image_sub = self.create_subscription(Image, image_color, self.image_callback, qos_profile_sensor_data)
@@ -292,6 +292,7 @@ class CalibrateCameraLidar(Node):
         self.velodyne_msg = None
         self.calibrate_mode = calibrate_mode
         self.display_projection = display_projection
+        self.realsense = realsense
         self.model_operator = ModelOperations(UTILITIES_PATH)
     def camera_info_callback(self, msg):
         self.camera_info_msg = msg
@@ -316,7 +317,7 @@ class CalibrateCameraLidar(Node):
                 camera_info_msg = CameraInfo()
                 camera_info_msg.header.frame_id = 'camera_frame'
                 camera_info_msg.distortion_model = 'plumb_bob'
-                h, w, d, k, p = FileOperations.get_intrinsic_parameters(UTILITIES_PATH)
+                h, w, d, k, p = FileOperations.get_intrinsic_parameters(UTILITIES_PATH, self.realsense)
                 camera_info_msg.height = int(h)
                 camera_info_msg.width = int(w)
                 camera_info_msg.d = d
@@ -348,44 +349,45 @@ class CalibrateCameraLidar(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = None
+    print("in here")
+    
+    # Default values
+    camera_info = '/sensors/camera/camera_info'  # Ignore this one
+    image_color = '/sensors/camera/image_color'  # The camera topic
+    velodyne_points = '/rslidar_points'  # The LiDAR topic
+    camera_lidar = '/sensors/camera/camera_lidar'  # The output topic
+    calibrate_mode = False
+    project_mode = True
+    display_projection = False
+    realsense = False
+    
+    print(sys.argv)
     if len(sys.argv) == 1:
-        camera_info = '/sensors/camera/camera_info' #Ignore this one
-        image_color = '/sensors/camera/image_color' #The camera topic
-        velodyne_points = '/rslidar_points' #The LiDAR topic
-        camera_lidar = '/sensors/camera/camera_lidar' #The output topic
-        calibrate_mode = False
-        project_mode = True
-        display_projection = False
+        pass  # Use the default values set above
     elif sys.argv[1] == '--select_points':
-        camera_info = '/sensors/camera/camera_info' #Ignore this one
-        image_color = '/sensors/camera/image_color'
-        velodyne_points = '/rslidar_points' #The LiDAR topic
-        camera_lidar = '/sensors/camera/camera_lidar' #The output topic
-        calibrate_mode = False
         project_mode = False
-        display_projection = False
+    elif sys.argv[1] == '--select_points_realsense':
+        camera_info = '/camera/camera/color/camera_info'  # Ignore this one
+        image_color = '/camera/camera/color/image_raw'
+        realsense = True
+        project_mode = False
     elif sys.argv[1] == '--calibration':
-        camera_info = '/sensors/camera/camera_info' #Ignore this one
-        image_color = '/sensors/camera/image_color'
-        velodyne_points = '/rslidar_points' #The LiDAR topic
-        camera_lidar = '/sensors/camera/camera_lidar' #The output topic
         calibrate_mode = True
-        project_mode = True
-        display_projection = False
+    elif sys.argv[1] == '--calibration-realsense':
+        camera_info = '/camera/camera/color/camera_info'  # Ignore this one
+        image_color = '/camera/camera/color/image_raw'
+        calibrate_mode = True
+        realsense = True
     elif sys.argv[1] == '--projection':
-        camera_info = '/sensors/camera/camera_info' #Ignore this one
-        image_color = '/sensors/camera/image_color' #The camera topic
-        velodyne_points = '/rslidar_points' #The LiDAR topic
-        camera_lidar = '/sensors/camera/camera_lidar' #The output topic
-        calibrate_mode = False
-        project_mode = True
         display_projection = True
-    node = CalibrateCameraLidar(camera_info, image_color, velodyne_points, calibrate_mode, camera_lidar, project_mode, display_projection)
+    elif sys.argv[1] == '--projection_realsense':
+        camera_info = '/camera/camera/color/camera_info'  # Ignore this one
+        image_color = '/camera/camera/color/image_raw'
+        display_projection = True
+        realsense = True
 
-    if not project_mode:
-        start_keyboard_handler()
-
+    # Initialize the node with the (now guaranteed) variables
+    node = CalibrateCameraLidar(camera_info, image_color, velodyne_points, calibrate_mode, camera_lidar, project_mode, display_projection, realsense)
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()

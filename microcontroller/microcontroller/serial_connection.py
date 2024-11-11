@@ -111,7 +111,7 @@ class Arduino(Node):
                 msg = Float64()
                 if (float(velocity_match.group(1)) < 0 ):
                     return
-                msg.data = float(velocity_match.group(1)) / 2
+                msg.data = float(velocity_match.group(1))
                 self.wheelspeed_publisher.publish(msg)
                 #self.get_logger().info(f"Published Wheelspeed data: {msg}")
                 

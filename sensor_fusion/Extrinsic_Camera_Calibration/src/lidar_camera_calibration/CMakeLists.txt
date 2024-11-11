@@ -32,7 +32,6 @@ install(
     scripts/calibrate_camera_lidar.py
     scripts/file_operations.py
     scripts/model_operations.py
-    scripts/realsense_camera_only.py
     scripts/point_3d_extractor.py
   DESTINATION lib/${PROJECT_NAME}
 )

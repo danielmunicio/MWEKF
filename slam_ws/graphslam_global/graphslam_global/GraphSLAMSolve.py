@@ -108,7 +108,6 @@ class GraphSLAMSolve:
         Args:
 
         """
-        #np.ndarray
         pass
 
     #define line btwn orange cones method
@@ -268,4 +267,4 @@ class GraphSLAMSolve:
         return self.lhat[self.color==color]
     def get_positions(self) -> np.ndarray:
         return self.xhat
-        
+

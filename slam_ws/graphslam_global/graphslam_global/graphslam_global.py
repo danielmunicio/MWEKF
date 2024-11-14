@@ -144,6 +144,7 @@ class GraphSLAM_Global(Node):
         self.is_clear_of_lap_count_radius = False
         self.time = time.time()
         # radius for which to include local cones ---#UPDATE, perhaps from mpc message
+        self.local_radius = 2#settings.local_radius
         self.local_radius = settings.local_radius
         
         # how far into periphery of robot heading on each side to include local cones (robot has tunnel vision if this is small) (radians)
@@ -314,6 +315,7 @@ class GraphSLAM_Global(Node):
  
         pose_msg.header.frame_id = "map"
         pose_msg.header.stamp = self.get_clock().now().to_msg()
+
         self.pose_pub.publish(pose_msg)
 
         ## Show Estimated Pose END 

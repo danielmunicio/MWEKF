@@ -1,5 +1,5 @@
 import casadi as ca
-from casadi import MX, DM
+from casadi import MX
 import numpy as np
 
 def continuous_dynamics_fixed_x_order(x, u, l_r=0.5, l_f=0.5, m=1.0):

@@ -34,4 +34,6 @@ global_opt.so
 eufs_msgs/
 eufs_sim/
 
+.DS_Store
+
 delta_and_heading

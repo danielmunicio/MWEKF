@@ -102,4 +102,3 @@ class BrakingSettings(metaclass=Settings):
     VOLTS_PER_PSI: float = 0.0271494 # computed using linear regression on desmos with like 3 datapoints
     VOLTS_FOR_ZERO_PSI: float = 0.962366 # same regression ^
     VMAX: float = 4.7 # max voltage the arduino can output (at PWM duty cycle 255)
-    

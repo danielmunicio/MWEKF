@@ -6,7 +6,6 @@ import casadi as ca
 import numpy as np
 from .utils import discrete_dynamics
 
-
 class KinMPCPathFollower():
     def __init__(self, 
                  N          = 10,     # timesteps in MPC Horizon

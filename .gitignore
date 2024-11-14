@@ -26,6 +26,7 @@ casadi_src/*
 # No Virtual Environements
 venv/
 
+# No solver created Code
 global_opt.c
 global_opt.so
 
@@ -33,7 +34,6 @@ global_opt.so
 eufs_msgs/
 eufs_sim/
 
-*.txt
 .DS_Store
 
 delta_and_heading

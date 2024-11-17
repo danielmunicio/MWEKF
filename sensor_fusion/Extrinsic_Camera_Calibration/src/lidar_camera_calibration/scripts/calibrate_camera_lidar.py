@@ -158,65 +158,50 @@ def calibrate():
     rotation_matrix = cv2.Rodrigues(rotation_vector)[0]
     
     # Save extrinsics
-    np.savez(os.path.join(UTILITIES_PATH, 'extrinsics.npz'), R=rotation_matrix, T=translation_vector.T)
+    CUR_PATH = "/home/dhruvagarwal/feb-system-integration/sensor_fusion/Extrinsic_Camera_Calibration/src/lidar_camera_calibration/utilities/logitech_extrinsics.npz"
+    np.savez(CUR_PATH, R=rotation_matrix, T=translation_vector.T)
 
     print('Rotation Matrix:', rotation_matrix)
     print('Translation Offsets:', translation_vector.T)
 
-def project_point_cloud(self, velodyne, img_msg, image_pub, model_operator, display_projection, perception_pub):
-    R, T = FileOperations.get_extrinsic_parameters(UTILITIES_PATH)
+
+def get_dist_angle_classes(self, velodyne, img_msg, model_operator, is_realsense):
+    R, T = FileOperations.get_extrinsic_parameters(UTILITIES_PATH, is_realsense)
     RT = np.hstack((R, T.T))
-
-    # Obtain the intrinsic matrix (K) from the camera model
-    camera_matrix = CAMERA_MODEL.intrinsicMatrix()
+    h, w, _, camera_matrix, _ = FileOperations.get_intrinsic_parameters(UTILITIES_PATH, is_realsense)
+    h, w = 480, 640
     camera_matrix = np.array(camera_matrix, dtype=np.float64).reshape(3, 3)
-
-    # Construct the 3x4 projection matrix P
     P = camera_matrix @ RT
-
-    # Extract 3D points from the PointCloud2 message
+    intensities = ros2_numpy.point_cloud2.point_cloud2_to_array(velodyne)['intensity']
+    max_intensity = np.max(intensities)
     points3D = ros2_numpy.point_cloud2.point_cloud2_to_array(velodyne)['xyz']
     points3D = np.asarray(points3D.tolist())
-    max_intensity = np.max(points3D[:, -1])
-    # Convert the 3D points to homogeneous coordinates
     points3D_homogeneous = np.hstack((points3D[:, :3], np.ones((points3D.shape[0], 1))))
-
     points2D_homogeneous = P @ points3D_homogeneous.T
-
-    # Convert homogeneous 2D coordinates to Cartesian coordinates
+    points3D_homogeneous = np.hstack((points3D[:, :3], np.ones((points3D.shape[0], 1))))
+    points2D_homogeneous = P @ points3D_homogeneous.T
     points2D = points2D_homogeneous[:2, :] / points2D_homogeneous[2, :]
-    points2D = points2D.T  # Convert back to Nx2 format
-    img_height, img_width = 480, 640
+    points2D = points2D.T
     inrange = np.where((points2D[:, 0] >= 0) &
                        (points2D[:, 1] >= 0) &
-                       (points2D[:, 0] < img_width - 1) &
-                       (points2D[:, 1] < img_height - 1))
+                       (points2D[:, 0] < h - 1) &
+                       (points2D[:, 1] < w - 1))
     points2D = points2D[inrange[0]].round().astype('int')
     points3D = points3D[inrange[0]]
-
+    intensities = intensities[inrange[0]]
     segmentation_outputs, classes, conf = model_operator.predict(img_msg, CV_BRIDGE)
-    # cmap = plt.cm.get_cmap('jet')
-    # colors = cmap(points3D[:, -1] / max_intensity) * 255
-    # for i in range(len(points2D)):
-    #     cv2.circle(img, tuple(points2D[i]), 2, tuple(colors[i]), -1)
     median_distances = []
     center_points = []
     angles = []
     included_classes = []
-
     for idx, segmentation_output in enumerate(segmentation_outputs):
         if conf[idx] > 0.7:
-            mask = np.zeros((img_height, img_width), dtype=np.uint8)
+            mask = np.zeros((h, w), dtype=np.uint8)
             if len(segmentation_output) != 0:
                 cv2.fillPoly(mask, [np.array(segmentation_output, np.int32)], 1)
-
-                # Extract x and y coordinates as separate arrays
                 x_coords = points2D[:, 0]
                 y_coords = points2D[:, 1]
-
                 in_polygon = mask[y_coords, x_coords] == 1 
-
-                # Use the boolean array to filter points3D
                 points_in_polygon = points3D[in_polygon]
                 if len(points_in_polygon) > 0:
                     angle = np.arctan2(np.median(points_in_polygon[:, 0]), np.median(points_in_polygon[:, 1]))
@@ -225,13 +210,75 @@ def project_point_cloud(self, velodyne, img_msg, image_pub, model_operator, disp
                     else:
                         angle = (np.pi / 2) - angle
                     angles.append(angle)
-                    # print(points_in_polygon[:10])
                     distances = np.linalg.norm(points_in_polygon[:, :2], axis=1)
                     median_distance = np.median(distances) if len(distances) > 0 else float('nan')
                     median_distances.append(median_distance)
                     included_classes.append(classes[idx])
+    #orange = 0, yellow = 1, blue = 2 in feb system
+    classesToActual = {0: 0, 1: 1, 2: 7, 3: 8, 4: 9}
+    yolo_class_to_feb_class = {8: 2, 1: 1, 0: 0, 7: 0, 9: 0}
+    mask_conf = [idx for idx, con in enumerate(conf) if con > 0.7]
+    chosen_classes = []
+    chosen_classes = [yolo_class_to_feb_class[classesToActual[int(included_classes[i])]] for i in range(len(included_classes))]
+    return median_distances, angles, chosen_classes
 
+# cmap = plt.cm.get_cmap('jet')
+# img = CV_BRIDGE.imgmsg_to_cv2(img_msg, 'bgr8')
+# intensities = np.array([intensity[0] for intensity in intensities])
+# print(intensities)
+# colors = (cmap(intensities / max_intensity)[:, :3] * 255).astype(np.uint8)
+# # colors = colors[:, ::-1]
+# # print(colors)
+# for i, color in enumerate(colors):
+#     color = ( int (color [ 0 ]), int (color [ 1 ]), int (color [ 2 ])) 
+#     print(color)
+#     cv2.circle(img, tuple(points2D[i]), 2, tuple(color), -1)
 
+def project_both_point_clouds(self):
+    dists_realsense, angles_realsense_unmodified, classes_realsense = get_dist_angle_classes(self, self.velodyne_msg, self.realsense_image_msg, self.model_operator, True)
+    dists_logitech, angles_logitech_unmodified, classes_logitech = get_dist_angle_classes(self, self.velodyne_msg, self.logitech_image_msg, self.model_operator, False)
+    angles_logitech = [angle for angle in angles_logitech_unmodified]
+    angles_realsense = [angle for angle in angles_realsense_unmodified]
+    cones_msg = Cones()
+    cones_msg.header.stamp = self.get_clock().now().to_msg()
+
+    print("LOGITECH STUFF")
+    print("CONES R: ", dists_logitech)
+    print("CONES THETA: ", angles_logitech)
+    print("COLOR: ", classes_logitech)
+    print("==================================")
+    print("REALSENSE STUFF")
+    print("CONES R: ", dists_realsense)
+    print("CONES THETA: ", angles_realsense)
+    print("COLOR: ", classes_realsense)
+    print("================================================")
+    print("================================================")
+    
+
+    all_distances = dists_logitech + dists_realsense
+    all_angles = angles_logitech + angles_realsense
+    all_classes = classes_logitech + classes_realsense
+    cartesian_x_distances = all_distances * np.cos(all_angles)
+    cartesian_y_distances = all_distances * np.sin(all_angles)
+    cones_msg.r = all_distances
+    cones_msg.theta = all_angles
+    cones_msg.color = all_classes
+    self.perception_pub.publish(cones_msg)
+
+    cones_guess = PointCloud()
+    positions = []
+    for x, y, color_value in zip(cartesian_x_distances, cartesian_y_distances, all_classes):
+        positions.append(Point32())
+        positions[-1].x = x
+        positions[-1].y = y
+        positions[-1].z = 0.0
+    cones_guess.points = positions
+    cones_guess.header.frame_id = "map"
+    cones_guess.header.stamp = self.get_clock().now().to_msg()
+    self.perception_visual_pub.publish(cones_guess)
+
+def project_point_cloud(self, velodyne, img_msg, image_pub, model_operator, display_projection, perception_pub, realsense):
+    median_distances, angles, chosen_classes = get_dist_angle_classes(self, velodyne, img_msg, model_operator, realsense)
     if display_projection:
         try:
             image_pub.publish(CV_BRIDGE.cv2_to_imgmsg(img, "bgr8"))
@@ -239,12 +286,6 @@ def project_point_cloud(self, velodyne, img_msg, image_pub, model_operator, disp
             print(e)
     else:
         cones_msg = Cones()
-        #orange = 0, yellow = 1, blue = 2 in feb system
-        classesToActual = {0: 0, 1: 1, 2: 7, 3: 8, 4: 9}
-        yolo_class_to_feb_class = {8: 2, 1: 1, 0: 0, 7: 0, 9: 0}
-        mask_conf = [idx for idx, con in enumerate(conf) if con > 0.7]
-        chosen_classes = []
-        chosen_classes = [yolo_class_to_feb_class[classesToActual[int(included_classes[i])]] for i in range(len(included_classes))]
         cones_msg.header.stamp = self.get_clock().now().to_msg()
 
         print("CONES R: ", median_distances)
@@ -272,15 +313,20 @@ def project_point_cloud(self, velodyne, img_msg, image_pub, model_operator, disp
         self.perception_visual_pub.publish(cones_guess)
 
 class CalibrateCameraLidar(Node):
-    def __init__(self, camera_info, image_color, velodyne_points, calibrate_mode=True, camera_lidar=None, project_mode=False, display_projection = True, realsense = False):
+    def __init__(self, camera_info, image_color, velodyne_points, calibrate_mode=True, camera_lidar=None, project_mode=False, display_projection = True, realsense = False, combined = False):
         super().__init__('calibrate_camera_lidar')
-
+        logitech_camera_topic = '/sensors/camera/image_color'
+        realsense_camera_topic = '/camera/camera/color/image_raw'
         self.project_mode = project_mode
         self.camera_lidar = camera_lidar
-        print(image_color)
+        # print(image_color)
         # Subscribe to topic
         self.info_sub = self.create_subscription(CameraInfo, camera_info, self.camera_info_callback, qos_profile_sensor_data)
-        self.image_sub = self.create_subscription(Image, image_color, self.image_callback, qos_profile_sensor_data)
+        if combined:
+            self.image_sub_logitech = self.create_subscription(Image, logitech_camera_topic, self.logitech_callback, qos_profile_sensor_data)
+            self.image_sub_realsense = self.create_subscription(Image, realsense_camera_topic, self.realsense_callback, qos_profile_sensor_data)
+        else:
+            self.image_sub = self.create_subscription(Image, image_color, self.image_callback, qos_profile_sensor_data)
         self.velodyne_sub = self.create_subscription(PointCloud2, velodyne_points, self.velodyne_callback, qos_profile_sensor_data)
 
         # Publish output topic
@@ -289,14 +335,25 @@ class CalibrateCameraLidar(Node):
         self.perception_visual_pub = self.create_publisher(PointCloud, '/perception_cones_viz', 1)
         self.camera_info_msg = None
         self.image_msg = None
+        self.realsense_image_msg = None
+        self.logitech_image_msg = None
         self.velodyne_msg = None
         self.calibrate_mode = calibrate_mode
         self.display_projection = display_projection
         self.realsense = realsense
+        self.combined = combined
         self.model_operator = ModelOperations(UTILITIES_PATH)
     def camera_info_callback(self, msg):
         self.camera_info_msg = msg
         self.process()
+
+    def realsense_callback(self, msg):
+        self.realsense_image_msg = msg
+        self.process()
+
+    def logitech_callback(self, msg):
+        self.logitech_image_msg = msg
+        self.process() 
 
     def image_callback(self, msg):
         self.image_msg = msg
@@ -309,7 +366,7 @@ class CalibrateCameraLidar(Node):
     def process(self):
         global FIRST_TIME, PAUSE, TF_BUFFER, TF_LISTENER, CAMERA_MODEL
         self.camera_info_msg = CameraInfo()
-        if self.camera_info_msg and self.image_msg and self.velodyne_msg:
+        if self.camera_info_msg and (self.image_msg or self.realsense_image_msg) and self.velodyne_msg:
             if FIRST_TIME:
                 FIRST_TIME = False
                 # Setup camera model
@@ -334,11 +391,13 @@ class CalibrateCameraLidar(Node):
                 TF_LISTENER = tf2_ros.TransformListener(TF_BUFFER, self)
                 self.R, self.T = FileOperations.get_extrinsic_parameters(UTILITIES_PATH)
             # Projection/display mode
-            if self.calibrate_mode and self.project_mode:
+            if self.combined:
+                project_both_point_clouds(self)
+            elif self.calibrate_mode and self.project_mode:
                 calibrate()
             elif self.project_mode:
-                project_point_cloud(self, self.velodyne_msg, self.image_msg, self.image_pub, self.model_operator, self.display_projection, self.perception_pub)
-            elif PAUSE:
+                project_point_cloud(self, self.velodyne_msg, self.image_msg, self.image_pub, self.model_operator, self.display_projection, self.perception_pub, self.realsense)
+            else:
                 # Create GUI processes
                 now = self.get_clock().now().seconds_nanoseconds()[0]
                 img_p = multiprocessing.Process(target=extract_points_2D, args=[self.image_msg, now])
@@ -353,20 +412,22 @@ def main(args=None):
     
     # Default values
     camera_info = '/sensors/camera/camera_info'  # Ignore this one
-    image_color = '/sensors/camera/image_color'  # The camera topic
+    image_color = '/sensors/camera/image_color'
+    # image_color = '/sensors/camera/image_color'  # The camera topic
     velodyne_points = '/rslidar_points'  # The LiDAR topic
     camera_lidar = '/sensors/camera/camera_lidar'  # The output topic
     calibrate_mode = False
     project_mode = True
     display_projection = False
     realsense = False
+    combined = False
     
     print(sys.argv)
     if len(sys.argv) == 1:
         pass  # Use the default values set above
-    elif sys.argv[1] == '--select_points':
+    elif sys.argv[1] == '--select-points':
         project_mode = False
-    elif sys.argv[1] == '--select_points_realsense':
+    elif sys.argv[1] == '--select-points-realsense':
         camera_info = '/camera/camera/color/camera_info'  # Ignore this one
         image_color = '/camera/camera/color/image_raw'
         realsense = True
@@ -380,14 +441,16 @@ def main(args=None):
         realsense = True
     elif sys.argv[1] == '--projection':
         display_projection = True
-    elif sys.argv[1] == '--projection_realsense':
+    elif sys.argv[1] == '--projection-realsense':
         camera_info = '/camera/camera/color/camera_info'  # Ignore this one
         image_color = '/camera/camera/color/image_raw'
         display_projection = True
         realsense = True
+    elif sys.argv[1] == '--projection-combined':
+        combined = True
 
     # Initialize the node with the (now guaranteed) variables
-    node = CalibrateCameraLidar(camera_info, image_color, velodyne_points, calibrate_mode, camera_lidar, project_mode, display_projection, realsense)
+    node = CalibrateCameraLidar(camera_info, image_color, velodyne_points, calibrate_mode, camera_lidar, project_mode, display_projection, realsense, combined)
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()

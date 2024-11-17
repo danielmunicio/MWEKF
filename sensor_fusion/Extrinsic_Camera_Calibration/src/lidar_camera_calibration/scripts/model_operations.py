@@ -4,7 +4,7 @@ import os
 class ModelOperations:
 
     def __init__(self, root_dir):
-        self.model_path = '/home/dhruvagarwal/feb-system-integration/sensor_fusion/Extrinsic_Camera_Calibration/src/lidar_camera_calibration/utilities/segment_bounding_box_cones.pt'
+        self.model_path = '/home/daniel/segment_bounding_box_cones.pt'
         #print(self.model_path)
         # self.model_path = "/home/daniel/testing_model_new.pt"
         self.model = YOLO(self.model_path)

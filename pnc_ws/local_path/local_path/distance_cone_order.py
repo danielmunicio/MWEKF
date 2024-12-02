@@ -38,8 +38,9 @@ def distance_cone_order(msg: Map, state: list[float]):
 def interpolate_between_cones(left_distances, right_distances):
     
     # Left cones
-    left_x = [point[0] for point in left_distances]
-    left_y = [point[1] for point in left_distances]
+    left_arr = np.array(left_distances)
+    left_x = left_arr[:, 0]
+    left_y = left_arr[:, 1]
     
     t_left = np.zeros(len(left_x))
     for i in range(1, len(left_x)):
@@ -51,8 +52,9 @@ def interpolate_between_cones(left_distances, right_distances):
     f_y_left = interp1d(t_left, left_y, kind='cubic')
     
     # Right cones
-    right_x = [point[0] for point in right_distances]
-    right_y = [point[1] for point in right_distances]
+    right_arr = np.array(right_distances)
+    right_x = right_arr[:, 0]
+    right_y = right_arr[:, 1]
     
     t_right = np.zeros(len(right_x))
     for i in range(1, len(right_x)):
@@ -64,7 +66,7 @@ def interpolate_between_cones(left_distances, right_distances):
     f_y_right = interp1d(t_right, right_y, kind='cubic')
     
 
-    num_points = 50
+    num_points = 10
     t_new_left = np.linspace(0, t_left[-1], num_points)
     t_new_right = np.linspace(0, t_right[-1], num_points)
     

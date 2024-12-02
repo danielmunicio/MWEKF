@@ -35,7 +35,7 @@ class LocalOptSettings(metaclass=Settings):
         'print_time': 0,
     }
     # car_params: dict[str:float] = {'l_r': 1.4987, 'l_f':1.5213, 'm': 1.}1.201
-    car_params: dict = {'l_r': 0.76, 'l_f':0.76, 'm': 1.}
+    car_params: dict = {'l_r': 0.76, 'l_f':0.76, 'm': 1.0}
     bbox: dict = {'l': 2.7, 'w': 1.6}
     DF_MAX: float  =  0.5
     ACC_MIN: float = -3.0

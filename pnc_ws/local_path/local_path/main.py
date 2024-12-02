@@ -72,13 +72,16 @@ class LocalPath(Node):
         #     print("--------------------------------------------", file = f)
         #     print(file=f)
         print("OK HERE")
+        
         try:
-            res = self.g.solve(left, right, self.state, err_ok=(self.fails>-0.5))
+            self.res = self.g.solve(left, right, self.state, err_ok=(self.fails>-0.5 and self.fails<=2))
             self.fails=0
         except RuntimeError:
             self.fails += 1
             if 1 <= self.fails <= 2:
                 return
+        res = self.res
+
         print("ok after solve try/except")
         if (res is None): 
             print("RES EMPTY")

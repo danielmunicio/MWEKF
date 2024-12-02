@@ -9,7 +9,7 @@ from all_settings.all_settings import LocalOptSettings as settings
 from sensor_msgs.msg import PointCloud
 from geometry_msgs.msg import Point32
 from .local_opt_compiled import CompiledLocalOpt
-from .ConeOrdering import ConeOrdering
+from .distance_cone_order import distance_cone_order
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import Pose
@@ -55,10 +55,10 @@ class LocalPath(Node):
         if len(list(msg.left_cones_x))<=1 or len(list(msg.right_cones_x))<=1:
             return
         
-        reverse_left, reverse_right = ConeOrdering(msg, self.state)
+        reverse_left, reverse_right = distance_cone_order(msg, self.state)
 
-        reverse_left = np.vstack(sorted(np.array(reverse_left), key = lambda x: np.linalg.norm(x-self.state[:2])))
-        reverse_right = np.vstack(sorted(np.array(reverse_right), key = lambda x: np.linalg.norm(x-self.state[:2])))
+        # reverse_left = np.vstack(sorted(np.array(reverse_left), key = lambda x: np.linalg.norm(x-self.state[:2])))
+        # reverse_right = np.vstack(sorted(np.array(reverse_right), key = lambda x: np.linalg.norm(x-self.state[:2])))
 
         #Reverse lists
         left = reverse_left#[::-1]
@@ -72,7 +72,7 @@ class LocalPath(Node):
         #     print("--------------------------------------------", file = f)
         #     print(file=f)
         print("OK HERE")
-        
+
         try:
             self.res = self.g.solve(left, right, self.state, err_ok=(self.fails>-0.5 and self.fails<=2))
             self.fails=0

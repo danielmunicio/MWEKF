@@ -79,6 +79,9 @@ class LocalPath(Node):
             if 1 <= self.fails <= 2:
                 return
         print("ok after solve try/except")
+        if (res is None): 
+            print("RES EMPTY")
+            return
         states, _ = self.g.to_constant_tgrid(0.02, **res)
         print("ok converting to constant tgrid")
         # states = np.zeros((50, 4))

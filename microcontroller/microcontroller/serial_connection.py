@@ -53,7 +53,7 @@ class Arduino(Node):
         # Create a timer that goes off every 0.001 seconds, and calls self.recieve_serial_values
         # VERY ABITRARILY CREATED, SOMEBODY WRITE THIS BETTER
         self.serial_timer = self.create_timer(0.001, self.recieve_serial_values)
-
+        print("Microcontroller innit")
 
     def cmd_callback(self, msg: AckermannDriveStamped):
         """ 

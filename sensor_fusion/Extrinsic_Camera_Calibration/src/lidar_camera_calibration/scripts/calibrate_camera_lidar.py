@@ -268,10 +268,11 @@ def project_both_point_clouds(self):
     cones_guess = PointCloud()
     positions = []
     for x, y, color_value in zip(cartesian_x_distances, cartesian_y_distances, all_classes):
-        positions.append(Point32())
-        positions[-1].x = x
-        positions[-1].y = y
-        positions[-1].z = 0.0
+        if color_value == 2:
+            positions.append(Point32())
+            positions[-1].x = x
+            positions[-1].y = y
+            positions[-1].z = 0.0
     cones_guess.points = positions
     cones_guess.header.frame_id = "map"
     cones_guess.header.stamp = self.get_clock().now().to_msg()
@@ -328,7 +329,6 @@ class CalibrateCameraLidar(Node):
         else:
             self.image_sub = self.create_subscription(Image, image_color, self.image_callback, qos_profile_sensor_data)
         self.velodyne_sub = self.create_subscription(PointCloud2, velodyne_points, self.velodyne_callback, qos_profile_sensor_data)
-
         # Publish output topic
         self.image_pub = self.create_publisher(Image, camera_lidar, 5) if camera_lidar else None
         self.perception_pub = self.create_publisher(Cones, '/perception_cones', 1)

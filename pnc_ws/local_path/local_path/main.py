@@ -41,6 +41,7 @@ class LocalPath(Node):
         print("done")
         self.fails = -1
         self.finished = False
+        
     def finished_cb(self, msg: Bool):
         self.finished = True
 

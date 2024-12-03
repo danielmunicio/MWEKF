@@ -55,8 +55,11 @@ class LocalPath(Node):
         if len(list(msg.left_cones_x))<=1 or len(list(msg.right_cones_x))<=1:
             return
         
-        reverse_left, reverse_right = distance_cone_order(msg, self.state)
-
+        try: 
+            reverse_left, reverse_right = distance_cone_order(msg, self.state)
+        except RuntimeError: 
+            print("boobies")
+            return
         # reverse_left = np.vstack(sorted(np.array(reverse_left), key = lambda x: np.linalg.norm(x-self.state[:2])))
         # reverse_right = np.vstack(sorted(np.array(reverse_right), key = lambda x: np.linalg.norm(x-self.state[:2])))
 

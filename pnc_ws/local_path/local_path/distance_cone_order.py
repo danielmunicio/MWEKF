@@ -7,19 +7,23 @@ import matplotlib.pyplot as plt
 def distance_cone_order(msg: Map, state: list[float]):
     state = np.array(state)
     left, right = (
-        np.array([list(msg.left_cones_x), list(msg.left_cones_y)]).T.tolist(),
-        np.array([list(msg.right_cones_x), list(msg.right_cones_y)]).T.tolist(),
+        np.array([list(msg.left_cones_x), list(msg.left_cones_y)]).T,
+        np.array([list(msg.right_cones_x), list(msg.right_cones_y)]).T,
     )
     print(f"Received state {state}")
-
+    print("LEFT: ", left)
+    print("RIGHT: ", right)
     left_sorted = []
     pt_cone = state[:2]
+    pt_cone = np.array(pt_cone)
+    print(pt_cone)
     while len(left) > 0:
         left_distances = np.linalg.norm(left - pt_cone, axis=1)
         closest_left_idx = np.argmin(left_distances)
         closest_left = left[closest_left_idx]
         left_sorted.append(closest_left)
-        left.pop(closest_left_idx)
+        left = np.delete(left, closest_left_idx, axis=0)
+        print("NEW CLOSETST LEFT: ", closest_left)
         pt_cone = closest_left
     
     right_sorted = []
@@ -29,16 +33,20 @@ def distance_cone_order(msg: Map, state: list[float]):
         closest_right_idx = np.argmin(right_distances)
         closest_right = np.array(right[closest_right_idx])
         right_sorted.append(closest_right)
-        right.pop(closest_right_idx)
+        right = np.delete(right, closest_right_idx, axis=0)
         pt_cone = closest_right
     
+    if (len(right_sorted) < 1 or len(left_sorted) < 1):
+        raise RuntimeError
     left_interpolated, right_interpolated = interpolate_between_cones(left_sorted, right_sorted)
     return left_interpolated, right_interpolated
 
 def interpolate_between_cones(left_distances, right_distances):
-    
+    print("LEFT: ", left_distances)
+    print("RIGHT: ", right_distances)
     # Left cones
     left_arr = np.array(left_distances)
+    print("LEFTARR: ", left_arr)
     left_x = left_arr[:, 0]
     left_y = left_arr[:, 1]
     

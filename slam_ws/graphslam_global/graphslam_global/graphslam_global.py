@@ -279,7 +279,7 @@ class GraphSLAM_Global(Node):
         # generate current heading
         #roll, pitch, yaw = self.quat_to_euler(imu.orientation)
         yaw = imu.orientation.x
-        print("YAW: ", yaw)
+        #print("YAW: ", yaw)
         # generate current velocity
         #delta_velocity = self.compute_delta_velocity(imu.linear_acceleration, dt)
         #velocity = self.currentstate.velocity + delta_velocity

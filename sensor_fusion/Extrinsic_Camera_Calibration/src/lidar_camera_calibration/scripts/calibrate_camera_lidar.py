@@ -175,7 +175,7 @@ def get_dist_angle_classes(self, velodyne, img_msg, model_operator, is_realsense
     intensities = ros2_numpy.point_cloud2.point_cloud2_to_array(velodyne)['intensity']
     max_intensity = np.max(intensities)
     points3D = ros2_numpy.point_cloud2.point_cloud2_to_array(velodyne)['xyz']
-    points3D = np.asarray(points3D.tolist())
+    points3D = np.array(points3D, dtype=np.float64)
     points3D_homogeneous = np.hstack((points3D[:, :3], np.ones((points3D.shape[0], 1))))
     points2D_homogeneous = P @ points3D_homogeneous.T
     points3D_homogeneous = np.hstack((points3D[:, :3], np.ones((points3D.shape[0], 1))))
@@ -198,7 +198,11 @@ def get_dist_angle_classes(self, velodyne, img_msg, model_operator, is_realsense
         if conf[idx] > 0.7:
             mask = np.zeros((h, w), dtype=np.uint8)
             if len(segmentation_output) != 0:
-                cv2.fillPoly(mask, [np.array(segmentation_output, np.int32)], 1)
+                vertices = np.array(segmentation_output, np.int32)
+                centroid = np.average(vertices, axis=0)
+                vertices = np.array([centroid + 0.9 * (v-centroid) for v in vertices], np.int32)
+                cv2.fillPoly(mask, [vertices], 1)
+                #cv2.fillPoly(mask, [np.array(segmentation_output, np.int32)], 1)
                 x_coords = points2D[:, 0]
                 y_coords = points2D[:, 1]
                 in_polygon = mask[y_coords, x_coords] == 1 
@@ -254,20 +258,74 @@ def project_both_point_clouds(self):
     print("================================================")
     print("================================================")
     
+    cartesian_x_distances_logitech = dists_logitech * np.cos(angles_logitech)
+    cartesian_y_distances_logitech = dists_logitech * np.sin(angles_logitech)
+    cartesian_x_distances_realsense = dists_realsense * np.cos(angles_realsense)
+    cartesian_y_distances_realsense = dists_realsense * np.sin(angles_realsense)
 
-    all_distances = dists_logitech + dists_realsense
-    all_angles = angles_logitech + angles_realsense
-    all_classes = classes_logitech + classes_realsense
-    cartesian_x_distances = all_distances * np.cos(all_angles)
-    cartesian_y_distances = all_distances * np.sin(all_angles)
-    cones_msg.r = all_distances
-    cones_msg.theta = all_angles
-    cones_msg.color = all_classes
+    # Combine Cartesian coordinates and colors from both cameras
+    x_combined = np.concatenate([cartesian_x_distances_logitech, cartesian_x_distances_realsense])
+    y_combined = np.concatenate([cartesian_y_distances_logitech, cartesian_y_distances_realsense])
+    colors_combined = np.concatenate([classes_logitech, classes_realsense])
+
+    # Create a 2D array of points with colors
+    points = np.column_stack((x_combined, y_combined, colors_combined))
+
+    # Initialize a list to store filtered points
+    filtered_points = []
+
+    # Sort points based on x, y, and colors for easier comparison
+    sorted_points = points[np.lexsort((points[:, 1], points[:, 0]))]
+
+    # Iterate through the sorted points and merge close ones
+    for i, point in enumerate(sorted_points):
+        if not filtered_points:
+            filtered_points.append(point)
+        else:
+            last_point = filtered_points[-1]
+            distance = np.linalg.norm(point[:2] - last_point[:2])
+            if distance < 0.6:
+                # Replace the last point with the average of the two (x, y) and maintain a dominant color
+                averaged_point = (last_point[:2] + point[:2]) / 2
+                dominant_color = last_point[2] if last_point[2] == point[2] else point[2]  # Prefer the current point's color if different
+                filtered_points[-1] = np.append(averaged_point, dominant_color)
+            else:
+                filtered_points.append(point)
+
+    # Convert filtered points back to a numpy array
+    filtered_points = np.array(filtered_points)
+
+    # Separate the filtered points into x, y components and colors
+    filtered_x = filtered_points[:, 0]
+    filtered_y = filtered_points[:, 1]
+    filtered_colors = filtered_points[:, 2]
+
+    # Debug output
+    print(f"Original number of points: {len(points)}")
+    print(f"Number of points after filtering: {len(filtered_points)}")
+
+    # Convert filtered Cartesian coordinates back to polar
+    filtered_r = np.sqrt(filtered_x**2 + filtered_y**2).astype(float)
+    filtered_r = [float(r) for r in filtered_r]
+    print(type(filtered_r[0]))
+    filtered_theta = np.arctan2(filtered_y, filtered_x)
+
+    filtered_theta =[float(theta) for theta in filtered_theta]
+    filtered_colors = [int(colors) for colors in filtered_colors]
+    #all_distances = dists_logitech + dists_realsense
+    #all_angles = angles_logitech + angles_realsense
+    #all_classes = classes_logitech + classes_realsense
+    cartesian_x_distances = filtered_r * np.cos(filtered_theta)
+    cartesian_y_distances = filtered_r * np.sin(filtered_theta)
+    #all_distances = filtered_x
+    cones_msg.r = filtered_r
+    cones_msg.theta = filtered_theta
+    cones_msg.color = filtered_colors
     self.perception_pub.publish(cones_msg)
 
     cones_guess = PointCloud()
     positions = []
-    for x, y, color_value in zip(cartesian_x_distances, cartesian_y_distances, all_classes):
+    for x, y, color_value in zip(cartesian_x_distances, cartesian_y_distances, filtered_colors):
         positions.append(Point32())
         positions[-1].x = x
         positions[-1].y = y

@@ -278,7 +278,7 @@ class GraphSLAM_Global(Node):
 
         # generate current heading
         #roll, pitch, yaw = self.quat_to_euler(imu.orientation)
-        yaw = imu.orientation.x
+        yaw = -imu.orientation.x
         #print("YAW: ", yaw)
         # generate current velocity
         #delta_velocity = self.compute_delta_velocity(imu.linear_acceleration, dt)
@@ -362,8 +362,8 @@ class GraphSLAM_Global(Node):
         cone_matrix = np.array(cone_matrix).T
         cone_dx = cone_matrix[:,0] * np.cos(cone_matrix[:,1]+self.currentstate.heading)# r * cos(theta) element wise
         cone_dy = cone_matrix[:,0] * np.sin(cone_matrix[:,1]+self.currentstate.heading) # r * sin(theta) element_wise
-        cone_dx -= self.currentstate.x
-        cone_dy -= self.currentstate.y
+        #cone_dx -= self.currentstate.x
+        #cone_dy -= self.currentstate.y
         cartesian_cones = np.vstack((cone_dx, cone_dy, cone_matrix[:,2])).T # n x 3 array of n cones and dx, dy, color   -- input for update_graph
 
         #if np.linalg.norm(self.last_slam_update-np.array([self.currentstate.x, self.currentstate.y])) > 1.0:

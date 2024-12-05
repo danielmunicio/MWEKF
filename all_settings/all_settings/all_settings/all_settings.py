@@ -77,7 +77,7 @@ class GraphSLAMFastSettings(metaclass=Settings):
     initial_cols: int = int(1e4)
     local_radius: int = int(10)
     
-    max_landmark_distance: float = 0.5
+    max_landmark_distance: float = 0.7
     dx_weight: float = 1e-4
     z_weight: float = 5.0
 

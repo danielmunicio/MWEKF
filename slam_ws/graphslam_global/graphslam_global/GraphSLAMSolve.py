@@ -205,7 +205,7 @@ class GraphSLAMSolve:
                 dists = np.linalg.norm(z_c[:, np.newaxis, :] - self.lhat[self.color==c], axis=2)
                 l_idxs = np.argmin(dists, axis=1)
                 l_dists = np.min(dists, axis=1)
-            
+                print("L DISTANCES: ", l_dists)
             for i in range(len(z_c)):
                 # if we haven't seen thihs landmark before, add it
                 if l_dists[i] > self.max_landmark_distance:

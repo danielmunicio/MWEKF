@@ -352,13 +352,18 @@ class GraphSLAM_Global(Node):
         cone_matrix = [[], [], []]
         array_len = len(cones.r)
         for idx in range(array_len): 
-            cone_matrix[0].append(cones.r[idx])
-            cone_matrix[1].append(cones.theta[idx])
-            cone_matrix[2].append(cones.color[idx])
+            if cones.r[idx] >  self.local_radius: 
+                pass
+            else:
+                cone_matrix[0].append(cones.r[idx])
+                cone_matrix[1].append(cones.theta[idx])
+                cone_matrix[2].append(cones.color[idx])
         
         cone_matrix = np.array(cone_matrix).T
         cone_dx = cone_matrix[:,0] * np.cos(cone_matrix[:,1]+self.currentstate.heading)# r * cos(theta) element wise
         cone_dy = cone_matrix[:,0] * np.sin(cone_matrix[:,1]+self.currentstate.heading) # r * sin(theta) element_wise
+        cone_dx -= self.currentstate.x
+        cone_dy -= self.currentstate.y
         cartesian_cones = np.vstack((cone_dx, cone_dy, cone_matrix[:,2])).T # n x 3 array of n cones and dx, dy, color   -- input for update_graph
 
         #if np.linalg.norm(self.last_slam_update-np.array([self.currentstate.x, self.currentstate.y])) > 1.0:
@@ -435,7 +440,7 @@ class GraphSLAM_Global(Node):
         self.local_map.header.frame_id = "map"
 
         self.local_map_pub.publish(self.local_map)
-
+        print("LOCAL MAP LENGTH: ", len(self.local_map.left_cones_x))
     
     def compareAngle(self, a, b, threshold): # a<b
         mn = min(b-a, 2*np.pi - b + a) # (ex. in degrees): a = 15 and b = 330 are 45 degrees apart (not 315)

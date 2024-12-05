@@ -56,8 +56,8 @@ def interpolate_between_cones(left_distances, right_distances):
         dy = left_y[i] - left_y[i-1]
         t_left[i] = t_left[i-1] + np.sqrt(dx**2 + dy**2)
     
-    f_x_left = interp1d(t_left, left_x, kind='cubic')
-    f_y_left = interp1d(t_left, left_y, kind='cubic')
+    f_x_left = interp1d(t_left, left_x, kind='linear')
+    f_y_left = interp1d(t_left, left_y, kind='linear')
     
     # Right cones
     right_arr = np.array(right_distances)
@@ -70,8 +70,8 @@ def interpolate_between_cones(left_distances, right_distances):
         dy = right_y[i] - right_y[i-1]
         t_right[i] = t_right[i-1] + np.sqrt(dx**2 + dy**2)
     
-    f_x_right = interp1d(t_right, right_x, kind='cubic')
-    f_y_right = interp1d(t_right, right_y, kind='cubic')
+    f_x_right = interp1d(t_right, right_x, kind='linear')
+    f_y_right = interp1d(t_right, right_y, kind='linear')
     
 
     num_points = 10

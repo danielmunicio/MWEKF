@@ -53,6 +53,7 @@ class LocalPath(Node):
         print('MAP Message Received')
         #lists are reversed
         if len(list(msg.left_cones_x))<=1 or len(list(msg.right_cones_x))<=1:
+            print("Cop out")
             return
         
         try: 

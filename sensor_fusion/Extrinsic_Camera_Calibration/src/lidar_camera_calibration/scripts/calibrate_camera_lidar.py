@@ -284,7 +284,7 @@ def project_both_point_clouds(self):
         else:
             last_point = filtered_points[-1]
             distance = np.linalg.norm(point[:2] - last_point[:2])
-            if distance < 0.6:
+            if distance < 0.8:
                 # Replace the last point with the average of the two (x, y) and maintain a dominant color
                 averaged_point = (last_point[:2] + point[:2]) / 2
                 dominant_color = last_point[2] if last_point[2] == point[2] else point[2]  # Prefer the current point's color if different

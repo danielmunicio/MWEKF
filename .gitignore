@@ -7,7 +7,8 @@ install/
 log/
 
 # Don't push YOLO models!!
-*.pt
+#*.pt
+# YOLO models will be forgiven 
 
 # Don't push pycaches
 __pycache__/

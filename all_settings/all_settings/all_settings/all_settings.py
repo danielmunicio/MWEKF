@@ -71,15 +71,32 @@ class MPCSettings(metaclass=Settings):
     use_rk_dynamics: bool = False
     solver: str = 'ipopt'
 
-class GraphSLAMFastSettings(metaclass=Settings):
+class GraphSLAMSolverSettings(metaclass=Settings):
     x0: np.ndarray = np.array([0.0, 0.0])
     initial_rows: int = int(1e4)
     initial_cols: int = int(1e4)
-    local_radius: int = int(1e5)
-    
     max_landmark_distance: float = 1.5
     dx_weight: float = 1.0
     z_weight: float = 5.0
+
+class GraphSLAMSettings(metaclass=Settings):
+    publish_to_rviz: bool = True
+    local_radius: int = int(1e5)
+    local_vision_delta: float = pi / 2 # how far into periphery of robot heading on each side to include local cones (robot has tunnel vision if this is small) (radians)
+    solve_by_time: bool = True # Solve based on distance traveled otherwise
+    solve_frequency: float = 0.3 # Time in seconds between solves
+    solve_distance: float = 1.0 # Distance in meters between solves 
+    using_wheelspeeds: bool = True
+
+    # Simulator Based Settings
+    using_simulator: bool = True
+    # Whether or not to use ground truth (perfectly accurate) measurements or not 
+    using_ground_truth_cones: bool = False 
+    using_ground_truth_wheelspeeds: bool = True # Whether or not to use the perfect wheel speeds
+    using_ground_truth_state = False # Bypasses SLAM Entirely, publishes ground truth position
+
+    # Hardware Based Settings
+    forward_imu_direction: str = 'x' # Which direction is forward for the IMU. Can  be 'x', 'y', or 'z'
 
 class CANSettings(metaclass=Settings):
     interface: str = 'socketcan'

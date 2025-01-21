@@ -59,7 +59,6 @@ class GraphSLAM_Global(Node):
         self.currentstate.lap_count = 0
         self.state_seq = 0.0
         self.cone_seq = 0.0
-        self.distance_traveled_danny = 0.0
         self.global_map = Map()
         self.local_map = Map()
         self.lap_counter = 1
@@ -246,7 +245,6 @@ class GraphSLAM_Global(Node):
         # generate dx [change in x, change in y] to add new pose to graph
         dx = self.currentstate.velocity * dt * np.array([math.cos(self.currentstate.heading), math.sin(self.currentstate.heading)])
         
-        #self.slam.update_backlog_imu(dx)
         self.update_state(dx, self.currentstate.heading, self.currentstate.velocity)
         self.state_pub.publish(self.currentstate)
 
@@ -268,11 +266,12 @@ class GraphSLAM_Global(Node):
             self.pose_pub.publish(pose_msg)
 
 
-    """
-    Function that takes the list of cones, updates and solves the graph
-    
-    """
+
     def cones_callback(self, cones) -> None:
+        """
+        Function that takes the list of cones, updates and solves the graph
+    
+        """
         if self.using_simulator: 
             cone_matrix = [[], [], []]
             for cone in cones.blue_cones:
@@ -312,20 +311,21 @@ class GraphSLAM_Global(Node):
         if self.finished:
             return
         
-        if np.linalg.norm(self.last_slam_update-np.array([self.currentstate.x, self.currentstate.y])) > 1.0:
-        #if (abs(self.time - time.time()) > 0.3): #NOTE self.time - time.time() should be negative
-            print("MADE IT HERE")
+        distance_solve_condition = np.linalg.norm(self.last_slam_update-np.array([self.currentstate.x, self.currentstate.y])) > 1.0
+        time_solve_condition = time.time() - self.time > 0.3
+        # Check depending on if ready to solve based on whether you're solving by time or by condition
+        ready_to_solve = (self.solve_by_time and time_solve_condition) or (not self.solve_by_time and distance_solve_condition)
+
+        if ready_to_solve:
             # last_slam_update initialized to infinity, so set current state x,y to 0 in the case. otherwise, update graph with relative position from last update graph
-            self.slam.update_graph(np.array([self.currentstate.x, self.currentstate.y])-self.last_slam_update if self.last_slam_update[0]<999999999.0 else np.array([0.0, 0.0]), 
+            self.slam.update_graph(
+                np.array([self.currentstate.x, self.currentstate.y])-self.last_slam_update if self.last_slam_update[0]<999999999.0 else np.array([0.0, 0.0]), 
                                    cartesian_cones[:, :2], 
-                                   cartesian_cones[:, 2].flatten()) # old pre-ros threading
-            print(cartesian_cones.T.shape)
+                                   cartesian_cones[:, 2].flatten())
             self.last_slam_update = np.array([self.currentstate.x, self.currentstate.y])
             self.time = time.time()
             self.slam.solve_graph()
-            print("UPDATING STATE")
         else:
-            print("Sorry, time was: ", abs(self.time - time.time()))
             return
     
         
@@ -333,18 +333,6 @@ class GraphSLAM_Global(Node):
 
         # Publish Running Estimate of Car Positions & Cone Positions in respective messages: positionguess & cone_vis_pub
 
-        position_guess = PointCloud()
-        positions = []
-        for pos in x_guess: 
-            positions.append(Point32())
-            positions[-1].x = pos[0]
-            positions[-1].y = pos[1]
-            positions[-1].z = 0.0
-        position_guess.points = positions
-        position_guess.header.frame_id = "map"
-        position_guess.header.stamp = self.get_clock().now().to_msg()
-        self.positionguess.publish(position_guess)
-        
         pos = np.array(x_guess[-1]).flatten()
         self.currentstate.x = pos[0]
         self.currentstate.y = pos[1]
@@ -353,24 +341,8 @@ class GraphSLAM_Global(Node):
         x_guess = np.array(x_guess)
         lm_guess = np.array(lm_guess)
         
-
-        blue_array = np.array([2 for i in range(len(lm_guess[:,2]))])
         left_cones = lm_guess[np.round(lm_guess[:,2]) == 2][:,:2] # blue
         right_cones = lm_guess[np.round(lm_guess[:,2]) == 1][:,:2] # yellow
-        print(self.slam.color.shape, self.slam.lhat.shape, left_cones.shape, right_cones.shape, lm_guess, cartesian_cones)
-        total_cones = np.vstack((left_cones,right_cones))
-        cones_msg = PointCloud()
-        cones_to_send = []
-        for cone in lm_guess: 
-            cones_to_send.append(Point32())
-            cones_to_send[-1].x = cone[0]
-            cones_to_send[-1].y = cone[1]
-            cones_to_send[-1].z = 0.0
-        cones_msg.points = cones_to_send
-        cones_msg.header.frame_id = "map"
-        cones_msg.header.stamp = self.get_clock().now().to_msg()
-        self.cones_vis_pub.publish(cones_msg)
-
 
         #filter local conesfor sim & publihs in local_map_pub
 
@@ -391,7 +363,37 @@ class GraphSLAM_Global(Node):
 
         self.local_map_pub.publish(self.local_map)
 
-    
+        if self.publish_to_rviz:
+            # Publish SLAM Position visual
+            position_guess = PointCloud()
+            positions = []
+            for pos in x_guess: 
+                positions.append(Point32())
+                positions[-1].x = pos[0]
+                positions[-1].y = pos[1]
+                positions[-1].z = 0.0
+            position_guess.points = positions
+            position_guess.header.frame_id = "map"
+            position_guess.header.stamp = self.get_clock().now().to_msg()
+            self.positionguess.publish(position_guess)   
+
+            # Publish SLAM Map visual
+            blue_array = np.array([2 for i in range(len(lm_guess[:,2]))])
+            left_cones = lm_guess[np.round(lm_guess[:,2]) == 2][:,:2] # blue
+            right_cones = lm_guess[np.round(lm_guess[:,2]) == 1][:,:2] # yellow
+            print(self.slam.color.shape, self.slam.lhat.shape, left_cones.shape, right_cones.shape, lm_guess, cartesian_cones)
+            total_cones = np.vstack((left_cones,right_cones))
+            cones_msg = PointCloud()
+            cones_to_send = []
+            for cone in lm_guess: 
+                cones_to_send.append(Point32())
+                cones_to_send[-1].x = cone[0]
+                cones_to_send[-1].y = cone[1]
+                cones_to_send[-1].z = 0.0
+            cones_msg.points = cones_to_send
+            cones_msg.header.frame_id = "map"
+            cones_msg.header.stamp = self.get_clock().now().to_msg()
+            self.cones_vis_pub.publish(cones_msg)
 
 
     # publishes all cones within given radius

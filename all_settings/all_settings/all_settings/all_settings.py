@@ -91,7 +91,7 @@ class GraphSLAMSettings(metaclass=Settings):
     # Simulator Based Settings
     using_simulator: bool = True
     # Whether or not to use ground truth (perfectly accurate) measurements or not 
-    using_ground_truth_cones: bool = False 
+    using_ground_truth_cones: bool = True
     using_ground_truth_wheelspeeds: bool = True # Whether or not to use the perfect wheel speeds
     using_ground_truth_state = False # Bypasses SLAM Entirely, publishes ground truth position
 

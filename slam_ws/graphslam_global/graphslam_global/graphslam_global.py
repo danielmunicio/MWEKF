@@ -77,8 +77,12 @@ class GraphSLAM_Global(Node):
         # SIMULATOR SPECIFIC SUBSCRIBERS 
         if (self.using_simulator):
             if (self.using_ground_truth_cones):
-                # NOTE: Add Ground Truth Sub
-                pass
+                self.cones_sub = self.create_subscription(
+                    ConeArrayWithCovariance,
+                    '/ground_truth/cones',
+                    self.cones_callback,
+                    1
+                )
             else: 
                 self.cones_sub = self.create_subscription(
                     ConeArrayWithCovariance,
@@ -182,18 +186,15 @@ class GraphSLAM_Global(Node):
     def wheelspeed_sub(self, msg: WheelSpeedsStamped):
         self.currentstate.velocity = ((msg.speeds.lb_speed + msg.speeds.rb_speed)/2)*np.pi*0.505/60
 
-
-
-
-    """
-    Function that updates the State.msg variables after a new state has been produced
-    Inputs: 
-    - dx: change in position [delta_x, delta_y]
-    - yaw: new heading (theta)
-    - velocity
-    Outputs: None
-    """
     def update_state(self, dx: np.array, yaw: float, velocity: float) -> None:
+        """
+        Function that updates the State.msg variables after a new state has been produced
+        Inputs: 
+        - dx: change in position [delta_x, delta_y]
+        - yaw: new heading (theta)
+        - velocity
+        Outputs: None
+        """
         # All carstates should be float #'s 
         if self.currentstate.x**2 + self.currentstate.y**2 < self.LPKRDSM**2:
             if self.is_clear_of_lap_count_radius:

@@ -436,18 +436,19 @@ class GraphSLAM_Global(Node):
         mask = delta_vecs[:, 0]>0
 
         to_plot = close[mask]
-        cones_msg = PointCloud()
-        cones_to_send = []
-        for cone in to_plot: 
-            cones_to_send.append(Point32())
-            cones_to_send[-1].x = cone[0]
-            cones_to_send[-1].y = cone[1]
-            cones_to_send[-1].z = 0.0
-        cones_msg.points = cones_to_send
-        cones_msg.header.frame_id = "map"
-        cones_msg.header.stamp = self.get_clock().now().to_msg()
-        # self.cones_vis_pub.publish(cones_msg)
-        print("local cones done!!")
+        if self.publish_to_rviz:
+            cones_msg = PointCloud()
+            cones_to_send = []
+            for cone in to_plot: 
+                cones_to_send.append(Point32())
+                cones_to_send[-1].x = cone[0]
+                cones_to_send[-1].y = cone[1]
+                cones_to_send[-1].z = 0.0
+            cones_msg.points = cones_to_send
+            cones_msg.header.frame_id = "map"
+            cones_msg.header.stamp = self.get_clock().now().to_msg()
+            self.cones_vis_pub.publish(cones_msg)
+            print("local cones done!!")
 
 
 

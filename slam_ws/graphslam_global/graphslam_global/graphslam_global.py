@@ -99,8 +99,11 @@ class GraphSLAM_Global(Node):
                         1
                     )
                 else: 
-                    # NOTE: Add Not Ground Truth Sub
-                    pass
+                    self.wheelspeeds_sub = self.create_subscription(
+                        WheelSpeedsStamped,
+                        '/ros_can/wheel_speeds',
+                        1
+                    )
             
             self.state_subby = self.create_subscription(
                 CarState,

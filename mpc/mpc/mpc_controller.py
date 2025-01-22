@@ -4,8 +4,110 @@
 import time
 import casadi as ca
 import numpy as np
-from .utils import discrete_dynamics
+from .utils import discrete_dynamics, continuous_dynamics_fixed_x_order
 
+
+
+class MPCPathFollower:
+    def __init__(self,
+                 N,
+                 DT,
+                 L_F,
+                 L_R,
+                 V_MIN,
+                 V_MAX,
+                 A_MIN,
+                 A_MAX,
+                 A_DOT_MIN,
+                 A_DOT_MAX,
+                 DF_MIN,
+                 DF_MAX,
+                 DF_DOT_MIN,
+                 DF_DOT_MAX,
+                 Q,
+                 R,
+                 **kwargs):
+        self.__dict__.update(kwargs)
+        for key in list(locals()):
+            if key == 'self':
+                pass
+            elif key in 'QR': 
+                setattr(self, key, ca.diag(locals()[key]))
+            else:
+                setattr(self, key, locals()[key])
+
+        self.q = ca.SX.sym('q', 6, self.N)
+        self.x = self.q[0:4, :]
+        self.u = self.q[4:6, :]
+
+        self.p = ca.SX.sym('p', 6, self.N)
+        self.x0 = self.p[0:4, 0:1]
+        self.u_prev = self.p[4:6, 0:1]
+        self.xbar = self.p[0:4, 1:self.N] # target states
+        self.ubar = self.p[4:6, 1:self.N] # target controls (applied one before states)
+        self.P = ca.SX.sym('P', 4, 4)
+
+        self.F = self.make_discrete_dynamics(n=3)
+
+        dynamics_constr = self.x[:, 1:] - self.F.map(self.N-1)(self.x[:, :-1], self.u[:, 1:])
+
+        self.g = []
+        self.lbg = []
+        self.ubg = []
+        self.equality = []
+
+        def constrain(expr, lb, ub):
+            assert expr.shape==lb.shape, "lower bound must have same shape as expression"
+            assert expr.shape==ub.shape, "upper bound must have same shape as expression"
+            self.g.append(ca.vec(expr))
+            self.lbg.append(ca.vec(lb))
+            self.ubg.append(ca.vec(ub))
+            self.equality.append(lb==ub)
+
+        cost = 0
+        for stage in range(self.N):
+            if stage==0: # gap closing constraints
+                constrain(self.x[:, 0]-self.x0, ca.DM([0.0]*4), ca.DM([0.0]*4))
+                constrain(self.u[:, 0]-self.u_prev, ca.DM([0.0]*2), ca.DM([0.0]*2))
+            if stage<self.N-1: # only n-1 dynamics constraints and controls
+                constrain(dynamics_constr[:, stage], ca.DM([0.0]*4), ca.DM([0.0]*4))
+                constrain((self.u[0, stage]-self.u[0, stage+1])/self.DT, ca.DM([self.A_DOT_MIN]), ca.DM([self.A_DOT_MAX]))
+                constrain((self.u[1, stage]-self.u[1, stage+1])/self.DT, ca.DM([self.DF_DOT_MIN]), ca.DM([self.DF_DOT_MAX]))
+            if stage>0:
+                constrain(self.u[0, stage], ca.DM([self.A_MIN]), ca.DM([self.A_MAX]))
+                constrain(self.u[1, stage], ca.DM([self.DF_MIN]), ca.DM([self.DF_MAX]))
+
+            # now add costs!
+            if 0<stage:
+                cost += ca.bilin(self.R, self.u[:, stage])
+            if 0<stage<self.N-1:
+                cost += ca.bilin(self.Q, self.x[:, stage])
+        cost += ca.bilin(self.P, self.x[:, self.N-1])
+
+        nlp = {
+            'x': self.q,
+            'f': cost,
+            'g': ca.vertcat(*self.g),
+            'p': ca.vertcat(ca.vec(self.p), ca.vec(self.P)),
+        }
+
+        self.options = dict(**self.nlpsolver.opts, equality=self.equality)
+        self.solver = ca.nlpsol('solver', self.nlpsolver.name, nlp, self.options)
+    def solve(self, x0, u_prev, trajectory, P):
+        ...
+
+    def make_discrete_dynamics(self, n):
+        x0 = ca.SX.sym('q0', 4)
+        u0 = ca.SX.sym('u0', 2)
+        x1 = continuous_dynamics_fixed_x_order(x0, u0, self.L_R, self.L_F)
+        f = ca.Function('f', [x0, u0], [x1])
+
+        x = x0
+        for i in range(n):
+            xm = x + f(x, u0)*(self.DT/(2*n))
+            x = x+f(xm, u0)*(self.DT/n)
+        
+        return ca.Function('F', [x0, u0], [x])
 class KinMPCPathFollower():
     def __init__(self, 
                  N          = 10,     # timesteps in MPC Horizon

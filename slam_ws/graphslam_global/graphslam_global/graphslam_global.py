@@ -15,7 +15,7 @@ from eufs_msgs.msg import CarState
 from geometry_msgs.msg import Quaternion, Vector3, PoseStamped, Pose, Point, Point32
 from sensor_msgs.msg import PointCloud
 from .utility_functions import compute_timediff, quat_to_euler, compute_delta_velocity, cartesian_to_polar
-
+from .ground_truth_publisher import Ground_Truth_Publisher
 
 from feb_msgs.msg import State, FebPath, Map, Cones
 from eufs_msgs.msg import ConeArrayWithCovariance, ConeWithCovariance
@@ -25,7 +25,6 @@ class GraphSLAM_Global(Node):
     def __init__(self):
 
         # ROS2 INTEGRATIONS
-
         super().__init__('graphslam_global_node')
         
         self.slam = GraphSLAMSolve(**solver_settings)
@@ -173,17 +172,17 @@ class GraphSLAM_Global(Node):
                 1
             )
 
-    def state_sub(self, msg: CarState):
+    def state_sub(self, state: CarState):
         """ This is a callback function for the SIMULATORS ground truth carstate. 
             Currently being used to get the cars position so we can calculate the cones R, theta properly.
         """
-        self.currentstate_simulator.x = msg.pose.pose.position.x
-        self.currentstate_simulator.y = msg.pose.pose.position.y
+        self.currentstate_simulator.x = state.pose.pose.position.x
+        self.currentstate_simulator.y = state.pose.pose.position.y
         if self.using_ground_truth_state: 
-            self.currenstate.x = msg.pose.pose.position.x
-            self.currentstate.y = msg.pose.pose.position.y
-            self.currentstate.heading = quat_to_euler(msg.pose.pose.orientation)
-            self.currentstate.velocity = np.sqrt(msg.twist.twist.linear.x**2 + msg.twist.twist.linear.y**2)
+            self.currenstate.x = state.pose.pose.position.x
+            self.currentstate.y = state.pose.pose.position.y
+            self.currentstate.heading = quat_to_euler(state.pose.pose.orientation)
+            self.currentstate.velocity = np.sqrt(state.twist.twist.linear.x**2 + state.twist.twist.linear.y**2)
         return
 
     def wheelspeed_sub(self, msg: WheelSpeedsStamped):
@@ -462,9 +461,14 @@ class GraphSLAM_Global(Node):
 # For running node
 def main(args=None):#
     rclpy.init(args=args)
-    graphslam_global_node = GraphSLAM_Global()
-    rclpy.spin(graphslam_global_node)
-    rclpy.shutdown()
+    if settings.bypass_SLAM == True:
+        graphslam_bypass_node = Ground_Truth_Publisher()
+        rclpy.spin(graphslam_bypass_node)
+        rclpy.shutdown()
+    else:
+        graphslam_global_node = GraphSLAM_Global()
+        rclpy.spin(graphslam_global_node)
+        rclpy.shutdown()
 
 if __name__ == '__main__':
     main()

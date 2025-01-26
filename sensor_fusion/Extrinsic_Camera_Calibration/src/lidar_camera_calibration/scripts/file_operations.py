@@ -6,9 +6,9 @@ import re
 class FileOperations:
 
     def get_intrinsic_parameters(UTILITIES_PATH, realsenseCamera):
-        file_path = '/home/daniel/feb-system-integration/sensor_fusion/Extrinsic_Camera_Calibration/src/lidar_camera_calibration/utilities/logitech_intrinsic_parameters.txt' 
+        file_path = '/home/daniel/Formula_Electric_Berkeley/feb-system-integration/sensor_fusion/Extrinsic_Camera_Calibration/src/lidar_camera_calibration/utilities/logitech_intrinsic_parameters.txt' 
         if realsenseCamera:
-            file_path = '/home/daniel/feb-system-integration/sensor_fusion/Extrinsic_Camera_Calibration/src/lidar_camera_calibration/utilities/realsense_intrinsic_parameters.txt'
+            file_path = '/home/daniel/Formula_Electric_Berkeley/feb-system-integration/sensor_fusion/Extrinsic_Camera_Calibration/src/lidar_camera_calibration/utilities/realsense_intrinsic_parameters.txt'
         with open(os.path.join(UTILITIES_PATH, file_path), 'r') as file:
             lines = file.readlines()
         heightWidth = lines[0].strip().split(', ')
@@ -46,7 +46,7 @@ class FileOperations:
     
     def get_extrinsic_parameters(UTILITIES_PATH, realsense = True):
         if realsense:
-            data = np.load('/home/daniel/feb-system-integration/sensor_fusion/Extrinsic_Camera_Calibration/src/lidar_camera_calibration/utilities/extrinsics.npz')
+            data = np.load('/home/daniel/Formula_Electric_Berkeley/feb-system-integration/sensor_fusion/Extrinsic_Camera_Calibration/src/lidar_camera_calibration/utilities/extrinsics.npz')
         else:
-            data = np.load('/home/daniel/feb-system-integration/sensor_fusion/Extrinsic_Camera_Calibration/src/lidar_camera_calibration/utilities/logitech_extrinsics.npz')
+            data = np.load('/home/daniel/Formula_Electric_Berkeley/feb-system-integration/sensor_fusion/Extrinsic_Camera_Calibration/src/lidar_camera_calibration/utilities/logitech_extrinsics.npz')
         return data['R'], data['T']

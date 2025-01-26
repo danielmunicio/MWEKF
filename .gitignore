@@ -35,3 +35,6 @@ eufs_msgs/
 eufs_sim/
 
 delta_and_heading
+
+# YOLO Created Images
+runs/

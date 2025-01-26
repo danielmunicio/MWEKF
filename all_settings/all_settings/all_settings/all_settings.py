@@ -51,6 +51,10 @@ class LocalOptSettings(metaclass=Settings):
     filtering_method = 0
     distance_cone_order: bool = False
 
+class FATROPSolver(metaclass=Settings):
+    name = 'fatrop'
+    opts = {'structure_detection': 'auto', 'expand': False, 'debug': True, 'fatrop.print_level': 5} # 'equality' key must be passed by user!
+
 class MPCSettings(metaclass=Settings):
     """settings for CompiledGlobalOpt. All in one place, so it's always synced."""
     N: int = 50
@@ -68,13 +72,16 @@ class MPCSettings(metaclass=Settings):
     DF_DOT_MIN: float = -0.5
     DF_DOT_MAX: float =  0.5
     # Q: list[float] = [1., 1., 10., 0.1]
-    Q: list = [5., 5., 0., 0.]
+    Q: list = [5., 5., 1., 1.]
     R: list = [10., 100.]
     # R: list[float] = [0., 0.]
     F: list = [0., 0., 0., 0.]
     TRACK_SLACK_WEIGHT: float = 5e5
     use_rk_dynamics: bool = False
-    solver: str = 'ipopt'
+    # solver: str = 'ipopt'
+    nlpsolver = FATROPSolver
+
+
 
 class GraphSLAMSolverSettings(metaclass=Settings):
     x0: np.ndarray = np.array([0.0, 0.0])

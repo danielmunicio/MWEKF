@@ -137,7 +137,7 @@ class LocalPath(Node):
         m.header.frame_id = "map"
 
         self.path_pub.publish(m)
-        print(m)
+        # print(m)
 
 
     def state_callback(self, carstate: State):

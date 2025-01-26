@@ -5,8 +5,8 @@ import time
 import casadi as ca
 import numpy as np
 from .utils import discrete_dynamics, continuous_dynamics_fixed_x_order
-
-
+import scipy as sp
+import control as ct
 
 class MPCPathFollower:
     def __init__(self,
@@ -36,9 +36,9 @@ class MPCPathFollower:
             else:
                 setattr(self, key, locals()[key])
 
-        self.q = ca.SX.sym('q', 6, self.N)
-        self.x = self.q[0:4, :]
-        self.u = self.q[4:6, :]
+        self.q = ca.SX.sym('q', 8, self.N)
+        self.x = self.q[0:6, :]
+        self.u = self.q[6:8, :]
 
         self.p = ca.SX.sym('p', 6, self.N)
         self.x0 = self.p[0:4, 0:1]
@@ -46,10 +46,25 @@ class MPCPathFollower:
         self.xbar = self.p[0:4, 1:self.N] # target states
         self.ubar = self.p[4:6, 1:self.N] # target controls (applied one before states)
         self.P = ca.SX.sym('P', 4, 4)
+        self.warmstart = dict()
 
-        self.F = self.make_discrete_dynamics(n=3)
+        self.F, self.f, self.A, self.B = self.make_dynamics(n=3)
+        
+        
+        A = np.array(self.A([0, 0, 0, 10], [0, 0]))
+        B = np.array(self.B([0, 0, 0, 10], [0, 0]))
+        print(np.linalg.matrix_rank(ct.ctrb(A, B)))
 
-        dynamics_constr = self.x[:, 1:] - self.F.map(self.N-1)(self.x[:, :-1], self.u[:, 1:])
+
+
+        self.default_P = sp.linalg.solve_continuous_are(
+            a = A, 
+            b = B, 
+            q = self.Q, 
+            r = self.R,
+        )/self.DT
+
+        dynamics_constr = self.x[:, 1:] - self.F.map(self.N-1)(self.x[:, :-1], self.u[:, :-1])
 
         self.g = []
         self.lbg = []
@@ -64,18 +79,20 @@ class MPCPathFollower:
             self.ubg.append(ca.vec(ub))
             self.equality.append(lb==ub)
 
+        self.u_full = ca.horzcat(self.u_prev, self.u[:, :-1])
         cost = 0
         for stage in range(self.N):
-            if stage==0: # gap closing constraints
-                constrain(self.x[:, 0]-self.x0, ca.DM([0.0]*4), ca.DM([0.0]*4))
-                constrain(self.u[:, 0]-self.u_prev, ca.DM([0.0]*2), ca.DM([0.0]*2))
-            if stage<self.N-1: # only n-1 dynamics constraints and controls
-                constrain(dynamics_constr[:, stage], ca.DM([0.0]*4), ca.DM([0.0]*4))
-                constrain((self.u[0, stage]-self.u[0, stage+1])/self.DT, ca.DM([self.A_DOT_MIN]), ca.DM([self.A_DOT_MAX]))
-                constrain((self.u[1, stage]-self.u[1, stage+1])/self.DT, ca.DM([self.DF_DOT_MIN]), ca.DM([self.DF_DOT_MAX]))
-            if stage>0:
+            if stage < self.N-1:
+                constrain(dynamics_constr[:, stage], ca.DM([0.0]*4 + [self.A_DOT_MIN*self.DT, self.DF_DOT_MIN*self.DT]), ca.DM([0.0]*4 + [self.A_DOT_MAX*self.DT, self.DF_DOT_MAX*self.DT]))
+                # constrain((self.u_full[0, stage]-self.u_full[0, stage+1])/self.DT, ca.DM([self.A_DOT_MIN]), ca.DM([self.A_DOT_MAX]))
+                # constrain((self.u_full[1, stage]-self.u_full[1, stage+1])/self.DT, ca.DM([self.DF_DOT_MIN]), ca.DM([self.DF_DOT_MAX]))
                 constrain(self.u[0, stage], ca.DM([self.A_MIN]), ca.DM([self.A_MAX]))
                 constrain(self.u[1, stage], ca.DM([self.DF_MIN]), ca.DM([self.DF_MAX]))
+            # if stage<self.N-1: # only n-1 dynamics constraints and controls
+            # if stage>0:
+            if stage==0: # gap closing constraints
+                constrain(self.x[:, 0]-ca.vertcat(self.x0, self.u_prev), ca.DM([0.0]*6), ca.DM([0.0]*6))
+                # constrain(self.u[:, 0]-self.u_prev, ca.DM([0.0]*2), ca.DM([0.0]*2))
 
             # now add costs!
             if 0<stage:
@@ -85,29 +102,47 @@ class MPCPathFollower:
         cost += ca.bilin(self.P, self.x[:, self.N-1])
 
         nlp = {
-            'x': self.q,
+            'x': ca.vec(self.q),
             'f': cost,
             'g': ca.vertcat(*self.g),
             'p': ca.vertcat(ca.vec(self.p), ca.vec(self.P)),
         }
 
-        self.options = dict(**self.nlpsolver.opts, equality=self.equality)
+        self.options = dict(**self.nlpsolver.opts, equality=np.array(ca.vertcat(*self.equality)).flatten().astype(bool).tolist())
+        print(self.options)
         self.solver = ca.nlpsol('solver', self.nlpsolver.name, nlp, self.options)
-    def solve(self, x0, u_prev, trajectory, P):
-        ...
+    def solve(self, x0, u_prev, trajectory, P=None):
+        if P is None: P = self.default_P
+        p = ca.vertcat(ca.DM(x0.reshape((4, 1))), ca.DM(u_prev.reshape((2, 1))))
+        ca.blockcat([[ca.DM(x0.reshape((4, 1))), trajectory[0:4, :]], [u_prev.reshape((2, 1)), trajectory[4:6, :]]])
+        P = ca.DM(P)
+        p = ca.vertcat(ca.vec(p), ca.vec(P))
+        res = self.solver.solve(p=p, lbg=self.lbg, ubg=self.ubg, **self.warmstart)
+        self.warmstart = {
+            'x0': res['x'],
+            'lam_x0': res['lam_x'],
+            'lam_g0': res['lam_g'],
+        }
+        self.soln = np.array(ca.reshape(res['x'], (6, self.N)))
+        return self.soln[4:6, 1:2]
 
-    def make_discrete_dynamics(self, n):
+
+    def make_dynamics(self, n):
         x0 = ca.SX.sym('q0', 4)
         u0 = ca.SX.sym('u0', 2)
         x1 = continuous_dynamics_fixed_x_order(x0, u0, self.L_R, self.L_F)
         f = ca.Function('f', [x0, u0], [x1])
-
+        A = ca.Function('A', [x0, u0], [ca.jacobian(x1, x0)])
+        B = ca.Function('A', [x0, u0], [ca.jacobian(x1, u0)])
         x = x0
         for i in range(n):
             xm = x + f(x, u0)*(self.DT/(2*n))
             x = x+f(xm, u0)*(self.DT/n)
+
+        x0 = ca.vertcat(x0, ca.SX.sym('u0_2', 2))
+        x = ca.vertcat(x0, u0)
         
-        return ca.Function('F', [x0, u0], [x])
+        return ca.Function('F', [x0, u0], [x]), f, A, B
 class KinMPCPathFollower():
     def __init__(self, 
                  N          = 10,     # timesteps in MPC Horizon

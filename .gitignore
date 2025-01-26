@@ -50,3 +50,7 @@ sim_data.txt
 # YOLO Created Images
 **/runs/
 *.json
+
+*.csv
+runs/
+*.mtx

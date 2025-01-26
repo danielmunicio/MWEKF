@@ -15,25 +15,47 @@ def distance_cone_order(msg: Map, state: list[float]):
     print("RIGHT: ", right)
     left_sorted = []
     pt_cone = state[:2]
+
+    # Filter out cones behind the car
+    heading = state[2] 
+    rotation = lambda theta: np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
+    rotation_matrix = rotation(-heading)
+
+    filtered_left = np.zeros((0, 2))
+    filtered_right = np.zeros((0, 2))
+
+    for cone in left:
+        cone_rel = cone - pt_cone
+        cone_in_car_frame = rotation_matrix @ cone_rel
+        if cone_in_car_frame[0] > 0:
+            filtered_left = np.vstack([filtered_left, [cone[0], cone[1]]])
+        
+    for cone in right:
+        cone_rel = cone - pt_cone
+        cone_in_car_frame = rotation_matrix @ cone_rel
+        if cone_in_car_frame[0] > 0:
+            filtered_right = np.vstack([filtered_right, [cone[0], cone[1]]])
+
     pt_cone = np.array(pt_cone)
     print(pt_cone)
-    while len(left) > 0:
-        left_distances = np.linalg.norm(left - pt_cone, axis=1)
+    while len(filtered_left) > 0:
+        left_distances = np.linalg.norm(filtered_left - pt_cone, axis=1)
         closest_left_idx = np.argmin(left_distances)
-        closest_left = left[closest_left_idx]
+        closest_left = filtered_left[closest_left_idx]
         left_sorted.append(closest_left)
-        left = np.delete(left, closest_left_idx, axis=0)
+        filtered_left = np.delete(filtered_left, closest_left_idx, axis=0)
         print("NEW CLOSETST LEFT: ", closest_left)
         pt_cone = closest_left
     
     right_sorted = []
     pt_cone = state[:2]
-    while len(right) > 0:
-        right_distances = np.linalg.norm(right - pt_cone, axis=1)
+    print("Made it here")
+    while len(filtered_right) > 0:
+        right_distances = np.linalg.norm(filtered_right - pt_cone, axis=1)
         closest_right_idx = np.argmin(right_distances)
-        closest_right = np.array(right[closest_right_idx])
+        closest_right = np.array(filtered_right[closest_right_idx])
         right_sorted.append(closest_right)
-        right = np.delete(right, closest_right_idx, axis=0)
+        filtered_right = np.delete(filtered_right, closest_right_idx, axis=0)
         pt_cone = closest_right
     
     if (len(right_sorted) < 1 or len(left_sorted) < 1):

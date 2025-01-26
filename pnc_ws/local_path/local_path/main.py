@@ -16,6 +16,7 @@ from geometry_msgs.msg import Pose
 from geometry_msgs.msg import Quaternion, Point
 import matplotlib.pyplot as plt
 from time import sleep
+from .distance_cone_order import distance_cone_order
 
 class LocalPath(Node):
     def __init__(self):
@@ -49,35 +50,34 @@ class LocalPath(Node):
         
     def listener_cb(self, msg: Map):
         if self.finished: return
-        print('MAP Message Received')
         #lists are reversed
         if len(list(msg.left_cones_x))<=1 or len(list(msg.right_cones_x))<=1:
             return
         
-        reverse_left, reverse_right = ConeOrdering(msg, self.state)
 
-        reverse_left = np.vstack(sorted(np.array(reverse_left), key = lambda x: np.linalg.norm(x-self.state[:2])))
-        reverse_right = np.vstack(sorted(np.array(reverse_right), key = lambda x: np.linalg.norm(x-self.state[:2])))
+        # This is Yash's Cone Ordering, bugs out on sim, so temporarily swapped for shitty distance cone ordering
+        #reverse_left, reverse_right = ConeOrdering(msg, self.state)
+
+        #reverse_left = np.vstack(sorted(np.array(reverse_left), key = lambda x: np.linalg.norm(x-self.state[:2])))
+        #reverse_right = np.vstack(sorted(np.array(reverse_right), key = lambda x: np.linalg.norm(x-self.state[:2])))
 
         #Reverse lists
-        left = reverse_left#[::-1]
-        right = reverse_right#[::-1]
-        # with open("sim_data.txt", "a") as f:
-        #     print("---------------------------------------------", file = f)
-        #     print("FROM PNC: ", file =f)
-        #     print(f"state:\t{self.state}", file = f)
-        #     print(f"left:\t{left}", file=f)
-        #     print(f"right:\t{right}", file=f)
-        #     print("--------------------------------------------", file = f)
-        #     print(file=f)
-        print("OK HERE")
+        #left = reverse_left#[::-1]
+        #right = reverse_right#[::-1]
+
+        try: 
+            left, right = distance_cone_order(msg, self.state)
+        except RuntimeError:
+            # Our cone ordering *might* error sometimes, but errors shouldn't be reocurring
+            return
         try:
-            res = self.g.solve(left, right, self.state, err_ok=(self.fails>-0.5))
+            self.res = self.g.solve(left, right, self.state, err_ok=(self.fails>-0.5 and self.fails <=2))
             self.fails=0
         except RuntimeError:
             self.fails += 1
             if 1 <= self.fails <= 2:
                 return
+        res = self.res
         print("ok after solve try/except")
         states, _ = self.g.to_constant_tgrid(0.02, **res)
         print("ok converting to constant tgrid")

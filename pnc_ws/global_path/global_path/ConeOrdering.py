@@ -4,6 +4,7 @@ from feb_msgs.msg import Map
 import numpy as np
 from .NPointGenerator import N_point_generator
 from .TrackMap import find_racetrack, racetrack_to_multiline
+from .ConeHistory import ConeHistory
 
 cone_history = ConeHistory()
 

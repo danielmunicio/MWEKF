@@ -16,6 +16,7 @@ from geometry_msgs.msg import Pose
 from geometry_msgs.msg import Quaternion, Point
 import matplotlib.pyplot as plt
 from time import sleep
+from .distance_cone_order import distance_cone_order
 
 class LocalPath(Node):
     def __init__(self):
@@ -49,7 +50,6 @@ class LocalPath(Node):
         
     def listener_cb(self, msg: Map):
         if self.finished: return
-        print('MAP Message Received')
         #lists are reversed
         if len(list(msg.left_cones_x))<=1 or len(list(msg.right_cones_x))<=1:
             return
@@ -74,12 +74,15 @@ class LocalPath(Node):
             print(file=f)
 
         try:
-            res = self.g.solve(left, right, self.state, err_ok=(self.fails>-0.5))
+            self.res = self.g.solve(left, right, self.state, err_ok=(self.fails>-0.5 and self.fails <=2))
             self.fails=0
         except RuntimeError:
             self.fails += 1
             if 1 <= self.fails <= 2:
                 return
+        except UnboundLocalError:
+            return
+        res = self.res
         print("ok after solve try/except")
         states, _ = self.g.to_constant_tgrid(0.02, **res)
         print("ok converting to constant tgrid")

@@ -20,7 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'mpc = mpc.mpc_controller:main'
+            'mpc = mpc.main:main'
         ],
     },
 )

@@ -17,10 +17,12 @@ from geometry_msgs.msg import Quaternion, Point
 import matplotlib.pyplot as plt
 from time import sleep
 from .distance_cone_order import distance_cone_order
+from .ConeHistory import ConeHistory
 
 class LocalPath(Node):
     def __init__(self):
         super().__init__("local_path")
+        self.cone_history = ConeHistory()
 
         #Publishers
         self.pc_publisher = self.create_publisher(FebPath, '/path/local', 1)
@@ -54,7 +56,7 @@ class LocalPath(Node):
         if len(list(msg.left_cones_x))<=1 or len(list(msg.right_cones_x))<=1:
             return
         
-        left, right = ConeOrdering(msg, self.state)
+        left, right = ConeOrdering(msg, self.state, self.cone_history)
 
         # reverse_left = np.vstack(sorted(np.array(reverse_left), key = lambda x: np.linalg.norm(x-self.state[:2])))
         # reverse_right = np.vstack(sorted(np.array(reverse_right), key = lambda x: np.linalg.norm(x-self.state[:2])))

@@ -71,6 +71,7 @@ class Ground_Truth_Publisher(Node):
             # Publisher every 0.5 seconds
             self.timer = self.create_timer(0.5, self.publish_global_map)
     def cones_callback(self, cones: ConeArrayWithCovariance) -> None:
+        print("HERE")
         if self.instant_global_map:
             return
         bloobs = np.array([[i.point.x for i in cones.blue_cones],

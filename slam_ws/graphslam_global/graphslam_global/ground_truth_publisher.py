@@ -4,8 +4,10 @@ from rclpy.node import Node
 from eufs_msgs.msg import CarState, ConeArrayWithCovariance
 from feb_msgs.msg import State, Map
 from .utility_functions import quat_to_euler
+from .ground_truth_cone_map import blue_cones_global, yellow_cones_global
 from sensor_msgs.msg import PointCloud
 from geometry_msgs.msg import Point32, PoseStamped
+from all_settings.all_settings import GraphSLAMSettings as settings
 
 class Ground_Truth_Publisher(Node):
     def __init__(self):
@@ -64,8 +66,13 @@ class Ground_Truth_Publisher(Node):
         self.x = 0.0
         self.y = 0.0
         self.heading = 0.0
+        self.instant_global_map = settings.instant_global_map
+        if self.instant_global_map: 
+            # Publisher every 0.5 seconds
+            self.timer = self.create_timer(0.5, self.publish_global_map)
     def cones_callback(self, cones: ConeArrayWithCovariance) -> None:
-
+        if self.instant_global_map:
+            return
         bloobs = np.array([[i.point.x for i in cones.blue_cones],
                            [i.point.y for i in cones.blue_cones]])
         yellow = np.array([[i.point.x for i in cones.yellow_cones],
@@ -106,29 +113,21 @@ class Ground_Truth_Publisher(Node):
         cones_map.right_cones_x = self.yellow_cones[:, 0].astype(float).tolist()
         cones_map.right_cones_y = self.yellow_cones[:, 1].astype(float).tolist()
 
-        #cones_map.left_cones_x = self.blue_cones[0].astype(float).tolist()
-        #cones_map.left_cones_y = self.blue_cones[1].astype(float).tolist()
-        #cones_map.right_cones_x = self.yellow_cones[0].astype(float).tolist()
-        #cones_map.right_cones_y = self.yellow_cones[1].astype(float).tolist()
         self.local_map_pub.publish(cones_map)
 
 
-        # Create and populate the PointCloud message
         cones_viz = PointCloud()
-        cones_viz.header.frame_id = "map"  # Set an appropriate frame_id
+        cones_viz.header.frame_id = "map"
         cones_viz.header.stamp = self.get_clock().now().to_msg()
 
-        # Add left cones (blue cones)
         for x, y in zip(cones_map.left_cones_x, cones_map.left_cones_y):
-            point = Point32(x=x, y=y, z=0.0)  # Assuming z = 0 for ground-level cones
+            point = Point32(x=x, y=y, z=0.0)
             cones_viz.points.append(point)
 
-        # Add right cones (yellow cones)
         for x, y in zip(cones_map.right_cones_x, cones_map.right_cones_y):
             point = Point32(x=x, y=y, z=0.0)
             cones_viz.points.append(point)
 
-        # Publish the PointCloud
         self.cones_viz_pub.publish(cones_viz)
 
     def state_callback(self, state: CarState) -> None:
@@ -157,3 +156,11 @@ class Ground_Truth_Publisher(Node):
         pose_msg.header.stamp = self.get_clock().now().to_msg()
 
         self.pose_pub.publish(pose_msg)
+
+    def publish_global_map(self) -> None:
+        cones_map = Map()
+        cones_map.left_cones_x = blue_cones_global[:, 0].astype(float).tolist()
+        cones_map.left_cones_y = blue_cones_global[:, 1].astype(float).tolist()
+        cones_map.right_cones_x = yellow_cones_global[:, 0].astype(float).tolist()
+        cones_map.right_cones_y = yellow_cones_global[:, 1].astype(float).tolist()
+        self.global_map_pub.publish(cones_map)

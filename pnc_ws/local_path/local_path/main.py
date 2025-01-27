@@ -70,6 +70,8 @@ class LocalPath(Node):
         except RuntimeError:
             # Our cone ordering *might* error sometimes, but errors shouldn't be reocurring
             return
+        except ValueError:
+            print("Filtering too much bonk")
         try:
             self.res = self.g.solve(left, right, self.state, err_ok=(self.fails>-0.5 and self.fails <=2))
             self.fails=0
@@ -77,6 +79,8 @@ class LocalPath(Node):
             self.fails += 1
             if 1 <= self.fails <= 2:
                 return
+        except UnboundLocalError:
+            return
         res = self.res
         print("ok after solve try/except")
         states, _ = self.g.to_constant_tgrid(0.02, **res)

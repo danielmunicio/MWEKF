@@ -42,7 +42,7 @@ class LocalOptSettings(metaclass=Settings):
     ACC_MAX_FN: Union[float, Function] = 2.0
     DF_DOT_MAX: float =  0.5
     V_MIN: float = 0.0
-    V_MAX: float = 10.0
+    V_MAX: float = 15.0
     FRIC_MAX: Union[float, Function] = 12.0
 
 
@@ -53,9 +53,9 @@ class MPCSettings(metaclass=Settings):
     L_F: float = 0.76
     L_R: float = 0.76
     V_MIN: float = 0.0
-    V_MAX: float = 25.0
+    V_MAX: float = 15.0
     A_MIN: float = -3.0
-    A_MAX: float = 3.0
+    A_MAX: float = 2.0
     DF_MIN: float = -0.6
     DF_MAX: float = 0.6
     A_DOT_MIN: float = -5.0
@@ -93,7 +93,7 @@ class GraphSLAMSettings(metaclass=Settings):
     # Whether or not to use ground truth (perfectly accurate) measurements or not 
     using_ground_truth_cones: bool = True
     using_ground_truth_wheelspeeds: bool = True # Whether or not to use the perfect wheel speeds
-    bypass_SLAM = True # Bypasses SLAM Entirely, publishes ground truth position
+    bypass_SLAM = False # Bypasses SLAM Entirely, publishes ground truth position
 
     # Hardware Based Settings
     forward_imu_direction: str = 'x' # Which direction is forward for the IMU. Can  be 'x', 'y', or 'z'

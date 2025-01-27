@@ -44,7 +44,7 @@ class GraphSLAM_Global(Node):
         if (self.using_simulator):
             self.using_ground_truth_cones = settings.using_ground_truth_cones
             self.using_ground_truth_wheelspeeds = settings.using_ground_truth_wheelspeeds
-            self.using_ground_truth_state = settings.using_ground_truth_state
+            self.using_ground_truth_state = settings.bypass_SLAM
         # used to calculate the state of the vehicle
         self.currentstate_simulator = State()
         self.currentstate_simulator.x = 0.0

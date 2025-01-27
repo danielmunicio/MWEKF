@@ -27,13 +27,13 @@ def distance_cone_order(msg: Map, state: list[float]):
     for cone in left:
         cone_rel = cone - pt_cone
         cone_in_car_frame = rotation_matrix @ cone_rel
-        if cone_in_car_frame[0] > 0:
+        if cone_in_car_frame[0] > 0 and np.abs(cone_in_car_frame[1]) < 5.5:
             filtered_left = np.vstack([filtered_left, [cone[0], cone[1]]])
         
     for cone in right:
         cone_rel = cone - pt_cone
         cone_in_car_frame = rotation_matrix @ cone_rel
-        if cone_in_car_frame[0] > 0:
+        if cone_in_car_frame[0] > 0 and np.abs(cone_in_car_frame[1]) < 5.5:
             filtered_right = np.vstack([filtered_right, [cone[0], cone[1]]])
 
     pt_cone = np.array(pt_cone)

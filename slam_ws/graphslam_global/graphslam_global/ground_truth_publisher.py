@@ -71,7 +71,6 @@ class Ground_Truth_Publisher(Node):
             # Publisher every 0.5 seconds
             self.timer = self.create_timer(0.5, self.publish_global_map)
     def cones_callback(self, cones: ConeArrayWithCovariance) -> None:
-        print("HERE")
         if self.instant_global_map:
             return
         bloobs = np.array([[i.point.x for i in cones.blue_cones],
@@ -95,7 +94,7 @@ class Ground_Truth_Publisher(Node):
                     break
             if new_cone:
                 self.blue_cones = np.vstack([self.blue_cones, [cone[0], cone[1]]])
-                print("Blue Cone Map: ", self.blue_cones)
+                # print("Blue Cone Map: ", self.blue_cones)
 
         for cone in yellow.T:
             new_cone = True
@@ -105,7 +104,7 @@ class Ground_Truth_Publisher(Node):
                     break
             if new_cone:
                 self.yellow_cones = np.vstack([self.yellow_cones, [cone[0], cone[1]]])
-                print("Yellow Cone Map: ", self.yellow_cones)
+                # print("Yellow Cone Map: ", self.yellow_cones)
 
 
         cones_map = Map()

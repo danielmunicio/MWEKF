@@ -22,8 +22,6 @@ class GraphSLAMSolve:
         self.maxcols=initial_cols
         self.dx_weight = dx_weight # how much to weigh localization
         self.z_weight = z_weight # how much to weigh mapping
-        self.local_radius = local_radius
-        
         # Constraints for optimization problem, x here represents our optimal state vector representing the most likely values for all time steps & landmark positions
         #Ax-b = 0
         

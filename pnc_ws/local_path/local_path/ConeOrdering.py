@@ -39,7 +39,7 @@ def ConeOrdering(msg: Map, state: list[float]):
       > np.linalg.norm((np.array(leftN_points[-1])+np.array(rightN_points[-1]))/2 - np.array(state[0:2]))):
         leftN_points, rightN_points = leftN_points[::-1], rightN_points[::-1]
 
-    leftN_points = leftN_points[::N]
-    rightN_points = rightN_points[::N]
+    leftN_points = leftN_points[::int(300/N)]
+    rightN_points = rightN_points[::int(300/N)]
 
     return leftN_points, rightN_points

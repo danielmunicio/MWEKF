@@ -25,7 +25,7 @@ def ConeOrdering(msg: Map, state: list[float], cone_history: ConeHistory):
         np.array([list(msg.right_cones_x), list(msg.right_cones_y)]).T.tolist(),
     )
 
-    cone_history.update_history(left, right)
+    cone_history.update_history(left, right, write_to_file=True)
     left_history, right_history = cone_history.get_history()
     print("length of left history: ", len(left_history))
     print("length of right history: ", len(right_history))

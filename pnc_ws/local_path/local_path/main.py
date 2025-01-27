@@ -65,15 +65,15 @@ class LocalPath(Node):
 
         left = np.array(left)#[::-1]
         right = np.array(right)#[::-1]
-        print("SHAPE:", left.shape, right.shape)
+        # print("SHAPE:", left.shape, right.shape)
         with open("sim_data.txt", "a") as f:
             print("---------------------------------------------", file = f)
-            print("FROM PNC: ", file =f)
+            # print("FROM PNC: ", file =f)
             print(f"state:\t{self.state}", file = f)
-            print(f"left:\t{left}", file=f)
-            print(f"right:\t{right}", file=f)
-            print("--------------------------------------------", file = f)
-            print(file=f)
+            # print(f"left:\t{left}", file=f)
+            # print(f"right:\t{right}", file=f)
+            # print("--------------------------------------------", file = f)
+            # print(file=f)
 
         try:
             self.res = self.g.solve(left, right, self.state, err_ok=(self.fails>-0.5 and self.fails <=2))
@@ -133,7 +133,7 @@ class LocalPath(Node):
             poses[-1].pose.orientation.x = 0.0
             poses[-1].pose.orientation.y = 0.0
             poses[-1].pose.orientation.z = np.sin(x[2]/2)
-            print("APPENDED:", poses[-1])
+            # print("APPENDED:", poses[-1])
 
         m.poses = poses
         m.header.frame_id = "map"

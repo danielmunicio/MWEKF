@@ -106,7 +106,7 @@ class MPC(Node):
             prev_controls = np.array([self.mpc.curr_steer, self.mpc.curr_acc][::-1])
             new_values = get_update_dict(pose=np.array(curr_state), prev_u=prev_controls, kmpc=self.mpc, states=self.mpc.path, prev_soln=self.mpc.prev_soln)
 
-            print("MAde it here")
+            # print("MAde it here")
             self.mpc.update(new_values)
             self.mpc.prev_soln = self.mpc.solve()
 

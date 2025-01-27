@@ -6,7 +6,7 @@ from .NPointGenerator import N_point_generator
 from .TrackMap import find_racetrack, racetrack_to_multiline
 from .ConeHistory import ConeHistory
 
-cone_history = ConeHistory()
+# cone_history = ConeHistory()
 
 def ConeOrdering(msg: Map, state: list[float]):
     """get cones from message and call the cone ordering algorithm and return the results
@@ -25,12 +25,12 @@ def ConeOrdering(msg: Map, state: list[float]):
         np.array([list(msg.right_cones_x), list(msg.right_cones_y)]).T.tolist(),
     )
 
-    cone_history.update_history(left, right)
-    left_history, right_history = cone_history.get_history()
-    print("length of left history: ", left_history)
-    print("length of right history: ", right_history)
+    # cone_history.update_history(left, right)
+    # left_history, right_history = cone_history.get_history()
+    # print("length of left history: ", len(left_history))
+    # print("length of right history: ", len(right_history))
 
-    yellow_edges, blue_edges = find_racetrack(left_history, right_history)
+    yellow_edges, blue_edges = find_racetrack(left, right)
     yellow_multiline, blue_multiline = racetrack_to_multiline(yellow_edges, blue_edges)
     leftN_points, rightN_points = N_point_generator(yellow_multiline, blue_multiline, bigN)
 

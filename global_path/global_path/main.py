@@ -47,13 +47,16 @@ class GlobalPath(Node):
         left, right = ConeOrdering(msg, self.state, self.cone_history)
         
         res = self.g.solve(np.array(left), np.array(right))
-        states, _ = self.g.to_constant_tgrid(0.02, **res)
+        states, controls = self.g.to_constant_tgrid(0.02, **res)
         
         msg = FebPath()
         msg.x = states[:, 0].flatten().tolist()
         msg.y = states[:, 1].flatten().tolist()
         msg.psi = states[:, 2].flatten().tolist()
         msg.v = states[:, 3].flatten().tolist()
+
+        msg.a = controls[:, 0].flatten().tolist()
+        msg.theta = controls[:, 1].flatten().tolist()
         
         self.pc_publisher.publish(msg)
 

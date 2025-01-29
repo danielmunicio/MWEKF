@@ -37,6 +37,11 @@ class MPC(Node):
 
         self.mpc = MPCPathFollower(**settings)
         print("inited mpc")
+
+        self.path = None
+        self.global_path = None
+        self.local_path = None
+        self.prev_soln = np.array([0.0, 0.0])
         
     def steer_callback(self, msg: WheelSpeeds):
         '''
@@ -61,7 +66,9 @@ class MPC(Node):
         y = np.array(msg.y)
         v = np.array(msg.v)
         psi = np.array(msg.psi)
-        path = np.column_stack((x, y, v, psi))
+        a = np.array(msg.a)
+        theta = np.array(msg.theta)
+        path = np.column_stack((x, y, v, psi, a, theta))
         self.global_path = path
         self.path = self.global_path if self.global_path is not None else self.local_path
         if self.constraint_added: return
@@ -83,7 +90,9 @@ class MPC(Node):
         y = np.array(msg.y)
         psi = np.array(msg.psi)
         v = np.array(msg.v)
-        path = np.column_stack((x, y, psi, v))
+        a = np.array(msg.a)
+        theta = np.array(msg.theta)
+        path = np.column_stack((x, y, psi, v, a, theta))
         self.local_path = path
         self.path = self.global_path if self.global_path is not None else self.local_path
 
@@ -109,8 +118,8 @@ class MPC(Node):
             idxs = (np.arange(idx, idx+10*self.mpc.N, 10)%len(self.path)).tolist()
             trajectory = self.path[idxs]
 
-            self.prev_soln = self.mpc.solve(np.array(curr_state), self.prev_soln, trajectory)
-
+            self.prev_soln = self.mpc.solve(np.array(curr_state), self.prev_soln, trajectory.T).flatten()
+            print(self.prev_soln)
             # print('drive message:', self.prev_soln['u_control'][0])
             # print('steering message:', self.prev_soln['u_control'][1])
             # Publishing controls

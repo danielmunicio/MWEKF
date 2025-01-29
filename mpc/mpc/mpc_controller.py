@@ -36,9 +36,9 @@ class MPCPathFollower:
             else:
                 setattr(self, key, locals()[key])
 
-        self.q = ca.SX.sym('q', 8, self.N)
-        self.x = self.q[0:6, :]
-        self.u = self.q[6:8, :]
+        self.q = ca.SX.sym('q', 6, self.N)
+        self.x = self.q[0:4, :]
+        self.u = self.q[4:6, :]
 
         self.p = ca.SX.sym('p', 6, self.N)
         self.x0 = self.p[0:4, 0:1]
@@ -83,7 +83,7 @@ class MPCPathFollower:
         cost = 0
         for stage in range(self.N):
             if stage < self.N-1:
-                constrain(dynamics_constr[:, stage], ca.DM([0.0]*4 + [self.A_DOT_MIN*self.DT, self.DF_DOT_MIN*self.DT]), ca.DM([0.0]*4 + [self.A_DOT_MAX*self.DT, self.DF_DOT_MAX*self.DT]))
+                constrain(dynamics_constr[:, stage], ca.DM([0.0]*4), ca.DM([0.0]*4))
                 # constrain((self.u_full[0, stage]-self.u_full[0, stage+1])/self.DT, ca.DM([self.A_DOT_MIN]), ca.DM([self.A_DOT_MAX]))
                 # constrain((self.u_full[1, stage]-self.u_full[1, stage+1])/self.DT, ca.DM([self.DF_DOT_MIN]), ca.DM([self.DF_DOT_MAX]))
                 constrain(self.u[0, stage], ca.DM([self.A_MIN]), ca.DM([self.A_MAX]))
@@ -91,15 +91,15 @@ class MPCPathFollower:
             # if stage<self.N-1: # only n-1 dynamics constraints and controls
             # if stage>0:
             if stage==0: # gap closing constraints
-                constrain(self.x[:, 0]-ca.vertcat(self.x0, self.u_prev), ca.DM([0.0]*6), ca.DM([0.0]*6))
+                constrain(self.x[:, 0]-self.x0, ca.DM([0.0]*4), ca.DM([0.0]*4))
                 # constrain(self.u[:, 0]-self.u_prev, ca.DM([0.0]*2), ca.DM([0.0]*2))
 
             # now add costs!
             if 0<stage:
-                cost += ca.bilin(self.R, self.u[:, stage])
+                cost += ca.bilin(self.R, self.u[:, stage]-self.ubar[:, stage-1])
             if 0<stage<self.N-1:
-                cost += ca.bilin(self.Q, self.x[:, stage])
-        cost += ca.bilin(self.P, self.x[:, self.N-1])
+                cost += ca.bilin(self.Q, self.x[:, stage]-self.xbar[:, stage-1])
+        cost += ca.bilin(self.P, self.x[:, self.N-1]-self.xbar[:, -1])
 
         nlp = {
             'x': ca.vec(self.q),
@@ -111,13 +111,23 @@ class MPCPathFollower:
         self.options = dict(**self.nlpsolver.opts, equality=np.array(ca.vertcat(*self.equality)).flatten().astype(bool).tolist())
         print(self.options)
         self.solver = ca.nlpsol('solver', self.nlpsolver.name, nlp, self.options)
+        self.lbg = ca.vertcat(*self.lbg)
+        self.ubg = ca.vertcat(*self.ubg)
     def solve(self, x0, u_prev, trajectory, P=None):
+        print(x0.shape, u_prev.shape, trajectory.shape)
         if P is None: P = self.default_P
-        p = ca.vertcat(ca.DM(x0.reshape((4, 1))), ca.DM(u_prev.reshape((2, 1))))
-        ca.blockcat([[ca.DM(x0.reshape((4, 1))), trajectory[0:4, :]], [u_prev.reshape((2, 1)), trajectory[4:6, :]]])
+        # p = ca.vertcat(ca.DM(x0.reshape((4, 1))), ca.DM(u_prev.reshape((2, 1))))
+        p = ca.blockcat([[ca.DM(x0.reshape((4, 1))), trajectory[0:4, :-1]], 
+                         [u_prev.reshape((2, 1)), trajectory[4:6, :-1]]])
         P = ca.DM(P)
         p = ca.vertcat(ca.vec(p), ca.vec(P))
-        res = self.solver.solve(p=p, lbg=self.lbg, ubg=self.ubg, **self.warmstart)
+        print("warmstart:")
+        print(self.warmstart)
+        print("p:")
+        print(p)
+        print("lbg, ubg:")
+        print(self.lbg, self.ubg)
+        res = self.solver(p=p, lbg=self.lbg, ubg=self.ubg, **self.warmstart)
         self.warmstart = {
             'x0': res['x'],
             'lam_x0': res['lam_x'],
@@ -139,8 +149,8 @@ class MPCPathFollower:
             xm = x + f(x, u0)*(self.DT/(2*n))
             x = x+f(xm, u0)*(self.DT/n)
 
-        x0 = ca.vertcat(x0, ca.SX.sym('u0_2', 2))
-        x = ca.vertcat(x0, u0)
+        # x0 = ca.vertcat(x0, ca.SX.sym('u0_2', 2))
+        # x = ca.vertcat(x0, u0)
         
         return ca.Function('F', [x0, u0], [x]), f, A, B
 class KinMPCPathFollower():

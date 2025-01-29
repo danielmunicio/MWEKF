@@ -81,10 +81,7 @@ class LocalPath(Node):
         res = self.res
 
         print("ok after solve try/except")
-        if (res is None): 
-            print("RES EMPTY")
-            return
-        states, _ = self.g.to_constant_tgrid(0.02, **res)
+        states, controls = self.g.to_constant_tgrid(0.02, **res)
         print("ok converting to constant tgrid")
         # states = np.zeros((50, 4))
         path_msg = FebPath()
@@ -93,6 +90,8 @@ class LocalPath(Node):
         path_msg.y = states[:, 1].flatten().tolist()
         path_msg.psi = states[:, 2].flatten().tolist()
         path_msg.v = states[:, 3].flatten().tolist()
+        path_msg.a = controls[:, 0].flatten().tolist()
+        path_msg.theta = controls[:, 1].flatten().tolist()
         print('MAP Message About to Publish')
         # with open("sim_data.txt", "a") as f:
         #     print("---------------------------------------")

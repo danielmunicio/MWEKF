@@ -54,3 +54,4 @@ sim_data.txt
 *.csv
 runs/
 *.mtx
+nlp_hess_l.casadi

@@ -46,7 +46,8 @@ class LocalPath(Node):
         # self.g.construct_solver()
         self.g.construct_solver(generate_c=False, compile_c=False, use_c=False)
         print("constructed solver")
-        self.state = [0.,0.,0.,0.]
+        self.state = np.array([0.,0.,0.,0.])
+        print("done")
         self.fails = -1
         self.finished = False
         self.res = None

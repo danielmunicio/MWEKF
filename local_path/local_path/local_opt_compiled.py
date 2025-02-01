@@ -254,6 +254,8 @@ class CompiledLocalOpt:
             'p': currAndCones,
         }
 
+        self.warmstart = None
+
     def _add_constraint(self, name, g, lbg, ubg):
         """utility funciton to add a constraint and keep track of all the indices
 
@@ -353,13 +355,13 @@ class CompiledLocalOpt:
         angles = [self.angle(diffs[0], diffs[i]) for i in range(1, len(diffs))]
         angles.append(angles[-1])
         angles = np.array(angles)
-        # angles = np.cumsum(d_angles)
+        # angles = np.cumsum(angles)
 
         # left = center
         # right = center
 
         print(f"angles shape: {angles.shape}")
-        self.x0 = vec(vertcat(
+        self.x0 = self.warmstart if self.warmstart is not None else vec(vertcat(
             DM([0.5]*self.N), # t
             DM(angles),       # psi
             DM([curr_state[3]]*self.N), # v
@@ -384,9 +386,10 @@ class CompiledLocalOpt:
             ubg=self.ubg,
             p=vertcat(DM(curr_state).T, horzcat(DM(left), DM(right))),
         )
-
-        # if not self.solver.stats()['success']:
-            # raise RuntimeError("Solver failed to converge")
+        self.warmstart = self.soln['x']
+        # print("SOLVE FINISHED")
+        if err_ok and not self.solver.stats()['success']:
+            raise RuntimeError("Solver failed to converge")
         
         self.soln['x'] = np.array(reshape(self.soln['x'][:-1], (self.N, 10)))
         # print("LOCAL OPT OUTPUT")

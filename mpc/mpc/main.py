@@ -4,7 +4,7 @@
 import numpy as np
 from .utils import get_update_dict
 from all_settings.all_settings import MPCSettings as settings
-from .mpc_controller import KinMPCPathFollower, MPCPathFollower
+from .mpc_controller import MPCPathFollower
 
 # ROS Imports
 import rclpy
@@ -115,10 +115,15 @@ class MPC(Node):
         
         if self.path is not None: 
             idx = np.argmin(np.linalg.norm(self.path[:, :2] - pt, axis=1))
-            idxs = (np.arange(idx, idx+10*self.mpc.N, 10)%len(self.path)).tolist()
-            trajectory = self.path[idxs]
+            idxs = (np.arange(idx, idx+10*self.mpc.N, 10))
+            xidxs = ((idxs+10)%len(self.path)).tolist()
+            uidxs = ((idxs)%len(self.path)).tolist()
+            # trajectory = self.path[idxs]
+            x_traj = self.path[xidxs, 0:4]
+            u_traj = self.path[uidxs, 4:6]
+            trajectory = np.hstack([x_traj, u_traj]).T
 
-            self.prev_soln = self.mpc.solve(np.array(curr_state), self.prev_soln, trajectory.T).flatten()
+            self.prev_soln = self.mpc.solve(np.array(curr_state), self.prev_soln, trajectory).flatten()
             print(self.prev_soln)
             # print('drive message:', self.prev_soln['u_control'][0])
             # print('steering message:', self.prev_soln['u_control'][1])
@@ -158,6 +163,7 @@ class MPC(Node):
                 pts[-1].x = x[0]
                 pts[-1].y = x[1]
                 pts[-1].z = 0.0
+            print(trajectory.shape)
             pc_msg.points = pts
             pc_msg.header.frame_id = "map"
             pc_msg.header.stamp = self.get_clock().now().to_msg()

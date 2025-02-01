@@ -169,7 +169,7 @@ class CompiledLocalOpt:
             'dt',
             g = vec(self.dt),
             lbg = DM([0.0]*self.N),
-            ubg = DM([1.0]*self.N)
+            ubg = DM([2.0]*self.N)
         )
         self._add_constraint(
             'df_dot',
@@ -180,8 +180,8 @@ class CompiledLocalOpt:
         self._add_constraint(
             't',
             g = vec(self.t),
-            lbg = DM([0.4]*self.N),
-            ubg = DM([0.6]*self.N)
+            lbg = DM([0.3]*self.N),
+            ubg = DM([0.7]*self.N)
         )
         # Keeps initial heading and velocity unchangeable
         self._add_constraint(

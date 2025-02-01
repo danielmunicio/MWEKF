@@ -50,13 +50,13 @@ class MPCPathFollower:
         self.warmstart = dict()
 
         self.F, self.f, self.A, self.B = self.make_dynamics(n=3)
-        self.fix_angle = ca.Function('fix_angle', [x:=ca.MX.sym("x", 4)], [ca.horzcat(x[0, :], x[1, :], ca.sin(x[2, :]/2), x[3, :])])
+        self.fix_angle = ca.Function('fix_angle', [x:=ca.MX.sym("x", 4)], [ca.horzcat(x[0, :], x[1, :], 2*ca.pi*ca.sin(x[2, :]/2), x[3, :])])
 
         
         
         A = np.array(self.A([0, 0, 0, 10], [0, 0]))
         B = np.array(self.B([0, 0, 0, 10], [0, 0]))
-        print(np.linalg.matrix_rank(ct.ctrb(A, B)))
+        assert 3.9<np.linalg.matrix_rank(ct.ctrb(A, B))<4.1 # it's an integer (mathematically at least)
 
 
 

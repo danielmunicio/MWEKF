@@ -141,7 +141,7 @@ class LocalPath(Node):
 
 
     def state_callback(self, carstate: State):
-        self.state = [0, 0, 0, 0]
+        # self.state = [0, 0, 0, 0]
         self.state[0] = carstate.x # x value
         self.state[1] = carstate.y # y value
         ### MPC Assumes the veloccity and heading are flipped

@@ -13,7 +13,7 @@ from std_msgs.msg import Float64
 
 from sensor_msgs.msg import PointCloud
 from geometry_msgs.msg import Point32
-from feb_msgs.msg import State, FebPath
+from feb_msgs.msg import State, FebPath, Map
 from ackermann_msgs.msg import AckermannDriveStamped
 from eufs_msgs.msg import WheelSpeeds
 
@@ -27,6 +27,7 @@ class MPC(Node):
         self.global_path_sub = self.create_subscription(FebPath, '/path/global', self.global_path_callback, 1)
         self.local_path_sub = self.create_subscription(FebPath, '/path/local', self.local_path_callback, 1)
         self.state_sub = self.create_subscription(State, '/slam/state', self.state_callback, 1)
+        self.map_sub = self.create_subscription(Map, '/slam/map/local', self.map_callback, 1)
         
         # Publishers
         self.throttle_pub = self.create_publisher(Float64, '/control/throttle', 1)
@@ -42,6 +43,19 @@ class MPC(Node):
         self.global_path = None
         self.local_path = None
         self.prev_soln = np.array([0.0, 0.0])
+        self.prev_path = np.array([[0.0, 0.0]]*settings.N)
+        self.cones = np.array([[10.0, 10.0]]*settings.N_CONES).T
+    def map_callback(self, msg: Map):
+        cones = np.array([
+            list(msg.left_cones_x) + list(msg.right_cones_x),
+            list(msg.left_cones_y) + list(msg.right_cones_y),
+        ])
+
+        if cones.shape[1] <= settings.N_CONES:
+            self.cones = np.hstack([cones] + [cones[:, -1:]]*(settings.N_CONES - cones.shape[1]))
+        else:
+            self.cones = np.array(sorted(self.cones.T, lambda cone: np.min(np.linalg.norm(self.prev_path-cone, axis=1))))[0:settings.N_CONES].T
+
         
     def steer_callback(self, msg: WheelSpeeds):
         '''
@@ -123,7 +137,8 @@ class MPC(Node):
             u_traj = self.path[uidxs, 4:6]
             trajectory = np.hstack([x_traj, u_traj]).T
 
-            self.prev_soln = self.mpc.solve(np.array(curr_state), self.prev_soln, trajectory).flatten()
+            self.prev_soln, self.prev_path = self.mpc.solve(np.array(curr_state), self.prev_soln, trajectory, self.cones)
+            self.prev_soln = self.prev_soln.flatten()
             print(self.prev_soln)
             # print('drive message:', self.prev_soln['u_control'][0])
             # print('steering message:', self.prev_soln['u_control'][1])
@@ -163,6 +178,13 @@ class MPC(Node):
                 pts[-1].x = x[0]
                 pts[-1].y = x[1]
                 pts[-1].z = 0.0
+            
+            for x in self.cones.T:
+                pts.append(Point32())
+                pts[-1].x = x[0]
+                pts[-1].y = x[1]
+                pts[-1].z = 2.0
+
             print(trajectory.shape)
             pc_msg.points = pts
             pc_msg.header.frame_id = "map"

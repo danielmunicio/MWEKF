@@ -27,6 +27,8 @@ class MPCPathFollower:
                  Q,
                  R,
                  RUNTIME_FREQUENCY,
+                 N_CONES,
+                 BBOX,
                  **kwargs):
         self.__dict__.update(kwargs)
         for key in list(locals()):
@@ -47,13 +49,12 @@ class MPCPathFollower:
         self.xbar = self.p[0:4, 1:self.N+1] # target states
         self.ubar = self.p[4:6, 1:self.N+1] # target controls (applied one before states)
         self.P = ca.SX.sym('P', 4, 4)
+        self.cones = ca.SX.sym('cones', 2, self.N_CONES)
         self.warmstart = dict()
 
         self.F, self.f, self.A, self.B = self.make_dynamics(n=3)
         self.fix_angle = ca.Function('fix_angle', [x:=ca.MX.sym("x", 4)], [ca.horzcat(x[0, :], x[1, :], 2*ca.pi*ca.sin(x[2, :]/2), x[3, :])])
 
-        
-        
         A = np.array(self.A([0, 0, 0, 10], [0, 0]))
         B = np.array(self.B([0, 0, 0, 10], [0, 0]))
         assert 3.9<np.linalg.matrix_rank(ct.ctrb(A, B))<4.1 # it's an integer (mathematically at least)
@@ -83,6 +84,10 @@ class MPCPathFollower:
             self.ubg.append(ca.vec(ub))
             self.equality.append(lb==ub)
 
+        psi = ca.SX.sym('psi')
+        self.rot = ca.Function('rot', [psi], [ca.reshape(ca.horzcat(ca.cos(psi), ca.sin(psi), -ca.sin(psi), ca.cos(psi)), 2, 2)])
+        self.safe = ca.Function('safespace', [x:=ca.SX.sym('x', 2)], [(ca.DM([1/self.BBOX['w'], 1/self.BBOX['l']])**6).T@x**6])
+
         cost = 0
         for stage in range(self.N):
             if stage < self.N:
@@ -94,7 +99,9 @@ class MPCPathFollower:
             if stage==0:
                 constrain(self.x[0:4, 0]-self.x0, ca.DM([0.0]*4), ca.DM([0.0]*4))
                 constrain(self.x[4:6, 0]-self.u_prev, ca.DM([0.0]*2), ca.DM([0.0]*2))
-
+            
+            if stage>0:
+                constrain((self.safe(self.rot(-self.x[2, stage])@(self.cones - self.x[0:2, stage] + ca.vertcat(self.L_F-self.L_R, 0)))).T, ca.DM.ones(self.N_CONES), ca.DM_inf(self.N_CONES))
             # now add costs!
             if stage<self.N:
                 cost += ca.bilin(self.R, self.u[:, stage]-self.ubar[:, stage])
@@ -106,20 +113,20 @@ class MPCPathFollower:
             'x': ca.vec(self.q),
             'f': cost,
             'g': ca.vertcat(*self.g),
-            'p': ca.vertcat(ca.vec(self.p), ca.vec(self.P)),
+            'p': ca.vertcat(ca.vec(self.p), ca.vec(self.P), ca.vec(self.cones)),
         }
 
         self.options = dict(**self.nlpsolver.opts, equality=np.array(ca.vertcat(*self.equality)).flatten().astype(bool).tolist())
         self.solver = ca.nlpsol('solver', self.nlpsolver.name, nlp, self.options)
         self.lbg = ca.vertcat(*self.lbg)
         self.ubg = ca.vertcat(*self.ubg)
-    def solve(self, x0, u_prev, trajectory, P=None):
+    def solve(self, x0, u_prev, trajectory, cones, P=None):
         print(x0.shape, u_prev.shape, trajectory.shape)
         if P is None: P = self.default_P
         p = ca.blockcat([[ca.DM(x0.reshape((4, 1))), trajectory[0:4, :]], 
                          [u_prev.reshape((2, 1)), trajectory[4:6, :]]])
         P = ca.DM(P)
-        p = ca.vertcat(ca.vec(p), ca.vec(P))
+        p = ca.vertcat(ca.vec(p), ca.vec(P), ca.vec(ca.DM(cones)))
 
         res = self.solver(p=p, lbg=self.lbg, ubg=self.ubg, **self.warmstart)
         self.warmstart = {
@@ -128,7 +135,7 @@ class MPCPathFollower:
             'lam_g0': res['lam_g'],
         }
         self.soln = np.array(ca.reshape(res['x'], (8, self.N+1)))
-        return self.soln[6:8, 0:1]
+        return self.soln[6:8, 0:1], self.soln[0:2, 1:self.N+1].T
 
 
     def make_dynamics(self, n):

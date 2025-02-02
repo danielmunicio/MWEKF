@@ -1,13 +1,59 @@
+import json
+import os
+
 class ConeHistory:
-    def __init__(self, max_size=1000):
+    def __init__(self, max_size=1000, file_name="cone_history.json"):
         self.left_history = []  # Stores history of left cone points
         self.right_history = []  # Stores history of right cone points
+        self.file_name = file_name  # File name to store history
+        self.message_count = 0  # To keep track of message numbers
 
-    def update_history(self, left_points, right_points):
-        """Update the history with new left and right points, trimming if necessary."""
-        self.left_history.extend(left_points)  # Add the new points to the history
-        self.right_history.extend(right_points)  # Add the new points to the history
+    def update_history(self, left_points, right_points, write_to_file=False):
+        """Update the history with new left and right points, optionally writing to file."""
+        # Add the new points to the history
+        self.left_history.extend(left_points)
+        self.right_history.extend(right_points)
+
+        # Increment message count
+        self.message_count += 1
+
+        # Optionally, write to file
+        if write_to_file:
+            self.save_to_file()
 
     def get_history(self):
         """Return the history of left and right cone points."""
         return self.left_history, self.right_history
+
+    def save_to_file(self):
+        """Save the current history to a JSON file with separate sections for each update."""
+        # Create a dictionary to store the update in a structured way
+        data = {
+            f"message_{self.message_count}": {
+                "left_cones": self.left_history,
+                "right_cones": self.right_history
+            }
+        }
+
+        # Check if file exists
+        if os.path.exists(self.file_name):
+            # If file exists, load it and append new data
+            with open(self.file_name, "r") as file:
+                existing_data = json.load(file)
+            existing_data.update(data)
+        else:
+            # If file does not exist, create a new data structure
+            existing_data = data
+
+        # Write the data back to the file
+        with open(self.file_name, "w") as file:
+            json.dump(existing_data, file, indent=4)
+
+    def load_from_file(self):
+        """Load history from a JSON file."""
+        if os.path.exists(self.file_name):
+            with open(self.file_name, "r") as file:
+                return json.load(file)
+        else:
+            print(f"File {self.file_name} not found.")
+            return None

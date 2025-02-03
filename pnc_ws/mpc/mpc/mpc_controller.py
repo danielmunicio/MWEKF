@@ -129,7 +129,7 @@ class KinMPCPathFollower():
         # idk where to get info on worhp options
         self.p_opts = {
             'expand': True, # can only expand to sx if not using interpolant 
-            # 'print_time': 0,
+            'print_time': 0,
         }
         self.s_opts = {
             'max_cpu_time': 0.05, 

@@ -1,7 +1,7 @@
 from typing import Dict, List, Tuple
 import numpy as np
 import matplotlib.pyplot as plt
-from shapely.geometry import Point, LineString, MultiLineString, MultiPoint
+from shapely.geometry import Point, LineString, MultiLineString, MultiPoint, Polygon
 from scipy.spatial import Voronoi, KDTree
 from shapely.ops import nearest_points
 import networkx as nx

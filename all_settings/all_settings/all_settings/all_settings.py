@@ -44,6 +44,7 @@ class LocalOptSettings(metaclass=Settings):
     V_MIN: float = 0.0
     V_MAX: float = 15.0
     FRIC_MAX: Union[float, Function] = 12.0
+    write_to_file = False
 
 
 class MPCSettings(metaclass=Settings):

@@ -1,7 +1,7 @@
 import numpy as np
-from .GraphSLAMSolve import GraphSLAMSolve
-from all_settings.all_settings import GraphSLAMSolverSettings as solver_settings
+from graphslamrs import GraphSLAMSolve
 from all_settings.all_settings import GraphSLAMSettings as settings
+from all_settings.all_settings import GraphSLAMRSSolverSettings as solver_settings
 from time import perf_counter
 import math
 import time
@@ -239,7 +239,8 @@ class GraphSLAM_Global(Node):
             self.slam.update_graph(
                 np.array([self.currentstate.x, self.currentstate.y])-self.last_slam_update if self.last_slam_update[0]<999999999.0 else np.array([0.0, 0.0]), 
                                    cartesian_cones[:, :2], 
-                                   cartesian_cones[:, 2].flatten())
+                                   cartesian_cones[:, 2].flatten().astype(np.uint8).tolist()) # old pre-ros threading
+            # print(cartesian_cones.T.shape)
             self.last_slam_update = np.array([self.currentstate.x, self.currentstate.y])
             self.time = time.time()
             self.slam.solve_graph()
@@ -247,7 +248,7 @@ class GraphSLAM_Global(Node):
             return
     
         
-        x_guess, lm_guess = self.slam.xhat, np.hstack((self.slam.lhat, self.slam.color[:, np.newaxis]))
+        x_guess, lm_guess = np.array(self.slam.get_positions()), np.array(self.slam.get_cones())
 
         # Publish Running Estimate of Car Positions & Cone Positions in respective messages: positionguess & cone_vis_pub
 

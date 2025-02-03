@@ -116,6 +116,18 @@ class GraphSLAMSettings(metaclass=Settings):
     # Hardware Based Settings
     forward_imu_direction: str = 'x' # Which direction is forward for the IMU. Can  be 'x', 'y', or 'z'
 
+class GraphSLAMRSSolverSettings(metaclass=Settings):
+    x0: tuple[float, float] = (0.0, 0.0)
+    max_landmark_distance: float = 0.5
+    dx_weight: float = 1.0
+    z_weight: float = 5.0
+    dclip: dict = {1: 0.4, 2: 0.4, 3: 10.0} # keys are color values
+    max_icp_steps: int = 3 # only used when data_association_strategy=1
+    max_newton_steps: int = 5
+    data_association_strategy: int = 0 # can be 1 (true ICP) or 0 (global optimization thing)
+
+
+
 class CANSettings(metaclass=Settings):
     interface: str = 'socketcan'
     channel: str = 'can0'

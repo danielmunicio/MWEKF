@@ -54,7 +54,7 @@ class MPC(Node):
         if cones.shape[1] <= settings.N_CONES:
             self.cones = np.hstack([cones] + [cones[:, -1:]]*(settings.N_CONES - cones.shape[1]))
         else:
-            self.cones = np.array(sorted(self.cones.T, lambda cone: np.min(np.linalg.norm(self.prev_path-cone, axis=1))))[0:settings.N_CONES].T
+            self.cones = np.array(sorted(self.cones.T, key=lambda cone: np.min(np.linalg.norm(self.prev_path-cone, axis=1))))[0:settings.N_CONES].T
 
         
     def steer_callback(self, msg: WheelSpeeds):
@@ -137,7 +137,7 @@ class MPC(Node):
             u_traj = self.path[uidxs, 4:6]
             trajectory = np.hstack([x_traj, u_traj]).T
 
-            self.prev_soln, self.prev_path = self.mpc.solve(np.array(curr_state), self.prev_soln, trajectory, self.cones)
+            self.prev_soln, self.prev_path = self.mpc.solve(np.array(curr_state), self.prev_soln, trajectory, self.cones, np.eye(4))
             self.prev_soln = self.prev_soln.flatten()
             print(self.prev_soln)
             # print('drive message:', self.prev_soln['u_control'][0])
@@ -179,11 +179,11 @@ class MPC(Node):
                 pts[-1].y = x[1]
                 pts[-1].z = 0.0
             
-            for x in self.cones.T:
-                pts.append(Point32())
-                pts[-1].x = x[0]
-                pts[-1].y = x[1]
-                pts[-1].z = 2.0
+            # for x in self.cones.T:
+            #     pts.append(Point32())
+            #     pts[-1].x = x[0]
+            #     pts[-1].y = x[1]
+            #     pts[-1].z = 2.0
 
             print(trajectory.shape)
             pc_msg.points = pts

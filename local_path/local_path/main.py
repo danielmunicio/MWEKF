@@ -6,6 +6,7 @@ from feb_msgs.msg import FebPath
 from feb_msgs.msg import Map
 from std_msgs.msg import Bool
 from all_settings.all_settings import LocalOptSettings as settings
+from all_settings.all_settings import MPCSettings as mpc_settings
 from sensor_msgs.msg import PointCloud
 from geometry_msgs.msg import Point32
 from .local_opt_compiled import CompiledLocalOpt
@@ -82,7 +83,7 @@ class LocalPath(Node):
         res = self.res
 
         print("ok after solve try/except")
-        states, controls = self.g.to_constant_tgrid(0.02, **res)
+        states, controls = self.g.to_constant_tgrid(mpc_settings.DT*0.1, **res)
         print("ok converting to constant tgrid")
         # states = np.zeros((50, 4))
         path_msg = FebPath()

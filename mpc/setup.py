@@ -21,7 +21,8 @@ setup(
     entry_points={
         'console_scripts': [
             'mpc = mpc.main:main',
-            'keyboard_controller = mpc.keyboard_controller:main'
+            'keyboard_controller = mpc.keyboard_controller:main',
+            'compile_solver = mpc.compile_solver:build_solver',
         ],
     },
 )

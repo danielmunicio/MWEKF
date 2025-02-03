@@ -55,10 +55,18 @@ class FATROPSolver(metaclass=Settings):
     name = 'fatrop'
     opts = {'structure_detection': 'auto', 'expand': False, 'debug': False, 'fatrop.print_level': -1} # 'equality' key must be passed by user!
 
+class RK4Solver(metaclass=Settings):
+    n=1
+    method='rk4'
+
+class MidpointSolver(metaclass=Settings):
+    n=3
+    method='midpoint'
+
 class MPCSettings(metaclass=Settings):
     """settings for CompiledGlobalOpt. All in one place, so it's always synced."""
-    N: int = 50
-    DT: float = 0.2
+    N: int = 20
+    DT: float = 0.1
     L_F: float = 0.76 - 1
     L_R: float = 0.76 + 1 
     V_MIN: float = 0.0
@@ -71,21 +79,11 @@ class MPCSettings(metaclass=Settings):
     A_DOT_MAX: float = 10.0
     DF_DOT_MIN: float = -0.5
     DF_DOT_MAX: float =  0.5
-    DT_MIN: float = 0.1
-    DT_MAX: float = 0.15
-    # Q: list[float] = [1., 1., 10., 0.1]
-    Q: list = [100., 100., 5., 1.]
+    Q: list = [100., 100., 0., 1.]
     R: list = [10., 10.]
-    R_dt: float = 50.0
-    RUNTIME_FREQUENCY: float = 300
-    N_CONES = 20
-    BBOX: dict = {'l': 2.0, 'w': 1.3}
-    # R: list[float] = [0., 0.]
-    F: list = [0., 0., 0., 0.]
-    TRACK_SLACK_WEIGHT: float = 5e5
-    use_rk_dynamics: bool = False
-    # solver: str = 'ipopt'
+    RUNTIME_FREQUENCY: float = 10
     nlpsolver = FATROPSolver
+    ivpsolver = RK4Solver
 
 
 

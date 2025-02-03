@@ -2,6 +2,7 @@ from casadi import *
 import numpy as np
 from time import perf_counter
 from .dynamics import discrete_custom_integrator
+from all_settings.all_settings import MPCSettings as mpc_settings
 import os
 # hsl checking fuckery
 # only works on mac/linux. if you havee windows, I'm willing to bet you have bigger problems.
@@ -194,7 +195,7 @@ class CompiledLocalOpt:
             'final velocity',
             g = self.v[-1],
             lbg=DM([0.5]),
-            ubg=DM([3]),
+            ubg=DM([2]),
         )
         # self._add_constraint(
         #     'curr_heading',
@@ -333,8 +334,8 @@ class CompiledLocalOpt:
                 states[-1][2] = states[-1][-2] + (states[-1][2]-states[-2][2])%(2*pi)
 
             cur += dt
-        # now pad it until it's 150 timsteps, for safety
-        while len(states)<150:
+        # now pad it until it's 1.5x whats needed, for safety
+        while len(states)<mpc_settings.N*10*1.5:
             controls.append(u[-2])
             states.append(np.array(self.dynamics(states[-1].tolist(), u[-2], dt)).flatten())
 
@@ -352,9 +353,9 @@ class CompiledLocalOpt:
         Returns:
             dict: result of solve. keys 'z' (states), 'u' (controls), 't' (timestamps)
         """
-        print(repr(left))
-        print(repr(right))
-        print(repr(curr_state))
+        # print(repr(left))
+        # print(repr(right))
+        # print(repr(curr_state))
         center = (left+right)/2
         diffs = np.diff(center, axis=0)
         diffs = np.concatenate([[[1, 0]], diffs], axis=0)
@@ -366,7 +367,7 @@ class CompiledLocalOpt:
         # left = center
         # right = center
 
-        print(f"angles shape: {angles.shape}")
+        # print(f"angles shape: {angles.shape}")
         self.x0 = self.warmstart if self.warmstart is not None else vec(vertcat(
             DM([0.5]*self.N), # t
             DM(angles),       # psi

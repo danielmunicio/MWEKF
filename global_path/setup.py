@@ -20,7 +20,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'global_path = global_path.main:main'
+            'global_path = global_path.main:main',
+            'compile_solver = global_path.compile_solver:build_solver'
         ],
     },
 )

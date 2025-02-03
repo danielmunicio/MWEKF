@@ -395,7 +395,7 @@ class CompiledLocalOpt:
         self.warmstart = self.soln['x']
         # print("SOLVE FINISHED")
         if err_ok and not self.solver.stats()['success']:
-            raise RuntimeError("Solver failed to converge")
+            raise AssertionError("Solver failed to converge")
         
         self.soln['x'] = np.array(reshape(self.soln['x'][:-1], (self.N, 10)))
         # print("LOCAL OPT OUTPUT")

@@ -138,7 +138,7 @@ class MPCPathFollower:
                                    [-c, a, 0, 0],
                                    [0, 0, det, 0],
                                    [0, 0, 0, det]]).T/det
-                cost += ca.bilin(self.Q, mat@(self.fix_angle(self.x[0:4, stage+1] - self.xbar[:, stage]).T))
+                # cost += ca.bilin(self.Q, mat@(self.fix_angle(self.x[0:4, stage+1] - self.xbar[:, stage]).T))
             if stage==0:
                 constrain(self.x[0:4, 0]-self.x0, ca.DM([0.0]*4), ca.DM([0.0]*4))
                 constrain(self.x[4:6, 0]-self.u_prev, ca.DM([0.0]*2), ca.DM([0.0]*2))
@@ -150,6 +150,7 @@ class MPCPathFollower:
                 cost += ca.bilin(self.R, self.u[:, stage]-self.ubar[:, stage])
                 cost += ca.bilin(self.R_dt, self.dt[:, stage]-self.DT)
             if stage<self.N-1:
+                # ...
                 cost += ca.bilin(self.Q, self.fix_angle(self.x[0:4, stage+1]-self.xbar[:, stage]))
         cost += ca.bilin(self.P, self.fix_angle(self.x[0:4, self.N]-self.xbar[:, self.N-1]))
 

@@ -6,7 +6,16 @@ class ConeHistory:
         self.left_history = []  # Stores history of left cone points
         self.right_history = []  # Stores history of right cone points
         self.file_name = file_name  # File name to store history
-        self.message_count = 0  # To keep track of message numbers
+        self.message_count = 0
+        self.ensure_file_exists()
+
+    def ensure_file_exists(self):
+        """Ensure the history file exists, creating it if necessary."""
+        # Check if the file already exists
+        if not os.path.exists(self.file_name):
+            # If it doesn't exist, create an empty file with an empty structure
+            with open(self.file_name, 'w') as file:
+                json.dump({}, file)
 
     def update_history(self, left_points, right_points, write_to_file=False):
         """Update the history with new left and right points, optionally writing to file."""
@@ -26,26 +35,26 @@ class ConeHistory:
         return self.left_history, self.right_history
 
     def save_to_file(self):
-        """Save the current history to a JSON file with separate sections for each update."""
-        # Create a dictionary to store the update in a structured way
+        """Save the current history to a JSON file."""
+        # Create a dictionary with the new data
         data = {
-            f"message_{self.message_count}": {
-                "left_cones": self.left_history,
-                "right_cones": self.right_history
-            }
+            "left_cones": self.left_history,
+            "right_cones": self.right_history
         }
 
-        # Check if file exists
+        # Check if the file exists
         if os.path.exists(self.file_name):
-            # If file exists, load it and append new data
+            # If file exists, load it and update data
             with open(self.file_name, "r") as file:
                 existing_data = json.load(file)
-            existing_data.update(data)
-        else:
-            # If file does not exist, create a new data structure
-            existing_data = data
 
-        # Write the data back to the file
+            # Append new data to the existing file
+            existing_data[f"message_{self.message_count}"] = data
+        else:
+            # If file does not exist, initialize the data
+            existing_data = {f"message_{self.message_count}": data}
+
+        # Write the updated data to the file
         with open(self.file_name, "w") as file:
             json.dump(existing_data, file, indent=4)
 

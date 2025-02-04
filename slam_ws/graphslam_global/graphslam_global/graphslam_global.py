@@ -326,10 +326,10 @@ class GraphSLAM_Global(Node):
             self.positionguess.publish(position_guess)   
 
             # Publish SLAM Map visual
-            blue_array = np.array([2 for i in range(len(lm_guess[:,2]))])
-            left_cones = lm_guess[np.round(lm_guess[:,2]) == 2][:,:2] # blue
-            right_cones = lm_guess[np.round(lm_guess[:,2]) == 1][:,:2] # yellow
-            print(self.slam.color.shape, self.slam.lhat.shape, left_cones.shape, right_cones.shape, lm_guess, cartesian_cones)
+            # blue_array = np.array([2 for i in range(len(lm_guess[:,2]))])
+            # left_cones = lm_guess[np.round(lm_guess[:,2]) == 2][:,:2] # blue
+            # right_cones = lm_guess[np.round(lm_guess[:,2]) == 1][:,:2] # yellow
+            # print(self.slam.color.shape, self.slam.lhat.shape, left_cones.shape, right_cones.shape, lm_guess, cartesian_cones)
             total_cones = np.vstack((left_cones,right_cones))
             cones_msg = PointCloud()
             cones_to_send = []

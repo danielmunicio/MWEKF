@@ -53,7 +53,7 @@ class LocalOptSettings(metaclass=Settings):
 
 class FATROPSolver(metaclass=Settings):
     name = 'fatrop'
-    opts = {'structure_detection': 'auto', 'expand': False, 'debug': False, 'fatrop.print_level': -1} # 'equality' key must be passed by user!
+    opts = {'structure_detection': 'auto', 'expand': False, 'debug': False, 'fatrop.print_level': -1, 'print_time': False} # 'equality' key must be passed by user!
 
 class RK4Solver(metaclass=Settings):
     n=1
@@ -121,9 +121,9 @@ class GraphSLAMRSSolverSettings(metaclass=Settings):
     max_landmark_distance: float = 0.5
     dx_weight: float = 1.0
     z_weight: float = 5.0
-    dclip: dict = {1: 0.4, 2: 0.4, 3: 10.0} # keys are color values
+    dclip: dict = {1: 0.3, 2: 0.3, 3: 10.0} # keys are color values
     max_icp_steps: int = 3 # only used when data_association_strategy=1
-    max_newton_steps: int = 5
+    max_newton_steps: int = 10
     data_association_strategy: int = 0 # can be 1 (true ICP) or 0 (global optimization thing)
 
 

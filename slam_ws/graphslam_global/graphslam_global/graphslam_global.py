@@ -145,7 +145,7 @@ class GraphSLAM_Global(Node):
         - geometry_msgs/Vector3 linear_acceleration
         - float64[9] linear_acceleration_covariance
         """
-        if self.finished or self.using_ground_truth_state:
+        if self.using_ground_truth_state:
             return
         # process time
         dt = compute_timediff(self, imu.header)
@@ -225,15 +225,24 @@ class GraphSLAM_Global(Node):
             cone_dy = cone_matrix[:,0] * np.sin(cone_matrix[:,1]+self.currentstate.heading) # r * sin(theta) element_wise
             cartesian_cones = np.vstack((cone_dx, cone_dy, cone_matrix[:,2])).T # n x 3 array of n cones and dx, dy, color   -- input for update_graph
 
-        # Dummy function for now, need to update graph and solve graph on each timestep
-        if self.finished:
-            return
         
         distance_solve_condition = np.linalg.norm(self.last_slam_update-np.array([self.currentstate.x, self.currentstate.y])) > 1.0
         time_solve_condition = time.time() - self.time > 0.3
         # Check depending on if ready to solve based on whether you're solving by time or by condition
         ready_to_solve = (self.solve_by_time and time_solve_condition) or (not self.solve_by_time and distance_solve_condition)
 
+        if self.finished:
+            colors = np.array([2]*len(cones.blue_cones) + [1]*len(cones.yellow_cones)).astype(np.uint8)
+            cones = np.array([[i.point.x for i in cones.blue_cones] + [i.point.x for i in cones.yellow_cones],
+                           [i.point.y for i in cones.blue_cones] + [i.point.y for i in cones.yellow_cones]])
+            rot = lambda x: np.array([[np.cos(x), -np.sin(x)], [np.sin(x), np.cos(x)]])
+            cones = rot(-self.currentstate.heading)@cones
+            res = self.slam.pose_from_data_association([self.currentstate.x, self.currentstate.y, 0.0], cones.T, colors)
+            self.currentstate.x = res[0]
+            self.currentstate.y = res[1]
+            self.currentstate.heading += res[2]
+            print(res)
+            return
         if ready_to_solve:
             # last_slam_update initialized to infinity, so set current state x,y to 0 in the case. otherwise, update graph with relative position from last update graph
             self.slam.update_graph(
@@ -246,6 +255,17 @@ class GraphSLAM_Global(Node):
             self.slam.solve_graph()
         else:
             return
+        #if (abs(self.time - time.time()) > 0.3): #NOTE self.time - time.time() should be negative
+        # print("MADE IT HERE")
+        # last_slam_update initialized to infinity, so set current state x,y to 0 in the case. otherwise, update graph with relative position from last update graph
+        self.slam.update_graph(np.array([self.currentstate.x, self.currentstate.y])-self.last_slam_update if self.last_slam_update[0]<999999999.0 else np.array([0.0, 0.0]), 
+                                cartesian_cones[:, :2], 
+                                cartesian_cones[:, 2].flatten().astype(np.uint8).tolist()) # old pre-ros threading
+        # print(cartesian_cones.T.shape)
+        self.last_slam_update = np.array([self.currentstate.x, self.currentstate.y])
+        self.time = time.time()
+        self.slam.solve_graph()
+        # print("UPDATING STATE")
     
         
         x_guess, lm_guess = np.array(self.slam.get_positions()), np.array(self.slam.get_cones())
@@ -260,8 +280,17 @@ class GraphSLAM_Global(Node):
         x_guess = np.array(x_guess)
         lm_guess = np.array(lm_guess)
         
-        left_cones = lm_guess[np.round(lm_guess[:,2]) == 2][:,:2] # blue
-        right_cones = lm_guess[np.round(lm_guess[:,2]) == 1][:,:2] # yellow
+
+        # blue_array = np.array([2 for i in range(len(lm_guess[:,2]))])
+        # left_cones = lm_guess[np.round(lm_guess[:,2]) == 2][:,:2] # blue
+        # right_cones = lm_guess[np.round(lm_guess[:,2]) == 1][:,:2] # yellow
+        left_cones = np.array(self.slam.get_cones(2))
+        right_cones = np.array(self.slam.get_cones(1))
+        # print(left_cones)
+        # print(right_cones)
+        if left_cones.shape==(0,): left_cones = left_cones.reshape((0, 2))
+        if right_cones.shape==(0,): right_cones = right_cones.reshape((0, 2))
+        # print(self.slam.color.shape, self.slam.lhat.shape, left_cones.shape, right_cones.shape, lm_guess, cartesian_cones)
 
         #filter local conesfor sim & publihs in local_map_pub
 

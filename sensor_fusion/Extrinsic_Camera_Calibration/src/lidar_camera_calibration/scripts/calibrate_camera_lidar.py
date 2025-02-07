@@ -158,7 +158,7 @@ def calibrate():
     rotation_matrix = cv2.Rodrigues(rotation_vector)[0]
     
     # Save extrinsics
-    CUR_PATH = "/home/dhruvagarwal/feb-system-integration/sensor_fusion/Extrinsic_Camera_Calibration/src/lidar_camera_calibration/utilities/logitech_extrinsics.npz"
+    CUR_PATH = "/home/dhruvagarwal/feb-system-integration/sensor_fusion/Extrinsic_Camera_Calibration/src/lidar_camera_calibration/utilities/realsense_extrinsics.npz"
     np.savez(CUR_PATH, R=rotation_matrix, T=translation_vector.T)
 
     print('Rotation Matrix:', rotation_matrix)
@@ -190,6 +190,10 @@ def get_dist_angle_classes(self, velodyne, img_msg, model_operator, is_realsense
     points3D = points3D[inrange[0]]
     intensities = intensities[inrange[0]]
     segmentation_outputs, classes, conf = model_operator.predict(img_msg, CV_BRIDGE)
+    if is_realsense:
+        print("REALSENSE MODEL", classes)
+    else:
+        print("LOGITECH MODEL", classes)
     median_distances = []
     center_points = []
     angles = []
@@ -272,37 +276,45 @@ def project_both_point_clouds(self):
     points = np.column_stack((x_combined, y_combined, colors_combined))
 
     # Initialize a list to store filtered points
-    filtered_points = []
+    # filtered_points = []
 
-    # Sort points based on x, y, and colors for easier comparison
-    sorted_points = points[np.lexsort((points[:, 1], points[:, 0]))]
+    # # Sort points based on x, y, and colors for easier comparison
+    # sorted_points = points[np.lexsort((points[:, 1], points[:, 0]))]
 
-    # Iterate through the sorted points and merge close ones
-    for i, point in enumerate(sorted_points):
-        if not filtered_points:
-            filtered_points.append(point)
-        else:
-            last_point = filtered_points[-1]
-            distance = np.linalg.norm(point[:2] - last_point[:2])
-            if distance < 0.8:
-                # Replace the last point with the average of the two (x, y) and maintain a dominant color
-                averaged_point = (last_point[:2] + point[:2]) / 2
-                dominant_color = last_point[2] if last_point[2] == point[2] else point[2]  # Prefer the current point's color if different
-                filtered_points[-1] = np.append(averaged_point, dominant_color)
-            else:
-                filtered_points.append(point)
+    # # Iterate through the sorted points and merge close ones
+    # for i, point in enumerate(sorted_points):
+    #     if not filtered_points:
+    #         filtered_points.append(point)
+    #     else:
+    #         last_point = filtered_points[-1]
+    #         distance = np.linalg.norm(point[:2] - last_point[:2])
+    #         if distance < 0.5:
+    #             # Replace the last point with the average of the two (x, y) and maintain a dominant color
+    #             averaged_point = (last_point[:2] + point[:2]) / 2
+    #             if last_point[2] == point[2]:
+    #                 dominant_color = last_point[2]
+    #             else:
+    #                 print('not the same color?')
+    #                 dominant_color = point[2]
+    #             # dominant_color = last_point[2] if  else point[2]  # Prefer the current point's color if different
+    #             filtered_points[-1] = np.append(averaged_point, dominant_color)
+    #         else:
+    #             filtered_points.append(point)
 
-    # Convert filtered points back to a numpy array
-    filtered_points = np.array(filtered_points)
+    # # Convert filtered points back to a numpy array
+    # filtered_points = np.array(filtered_points)
+
+    # #Debug output
+    # print(f"Original number of points: {len(points)}")
+    # print(f"Number of points after filtering: {len(filtered_points)}")
+
+    if len(points) == 0:
+        return
 
     # Separate the filtered points into x, y components and colors
-    filtered_x = filtered_points[:, 0]
-    filtered_y = filtered_points[:, 1]
-    filtered_colors = filtered_points[:, 2]
-
-    # Debug output
-    print(f"Original number of points: {len(points)}")
-    print(f"Number of points after filtering: {len(filtered_points)}")
+    filtered_x = points[:, 0]
+    filtered_y = points[:, 1]
+    filtered_colors = points[:, 2]
 
     # Convert filtered Cartesian coordinates back to polar
     filtered_r = np.sqrt(filtered_x**2 + filtered_y**2).astype(float)
@@ -339,7 +351,7 @@ def project_point_cloud(self, velodyne, img_msg, image_pub, model_operator, disp
     median_distances, angles, chosen_classes = get_dist_angle_classes(self, velodyne, img_msg, model_operator, realsense)
     if display_projection:
         try:
-            image_pub.publish(CV_BRIDGE.cv2_to_imgmsg(img, "bgr8"))
+            image_pub.publish(CV_BRIDGE.cv2_to_imgmsg(img_msg, "bgr8"))
         except CvBridgeError as e:
             print(e)
     else:
@@ -497,11 +509,11 @@ def main(args=None):
         calibrate_mode = True
         realsense = True
     elif sys.argv[1] == '--projection':
-        display_projection = True
+        display_projection = False
     elif sys.argv[1] == '--projection-realsense':
         camera_info = '/camera/camera/color/camera_info'  # Ignore this one
         image_color = '/camera/camera/color/image_raw'
-        display_projection = True
+        display_projection = False
         realsense = True
     elif sys.argv[1] == '--projection-combined':
         combined = True

@@ -158,6 +158,7 @@ class Ground_Truth_Publisher(Node):
         self.pose_pub.publish(pose_msg)
 
     def publish_global_map(self) -> None:
+        print("Publishing Global Map")
         cones_map = Map()
         cones_map.left_cones_x = blue_cones_global[:, 0].astype(float).tolist()
         cones_map.left_cones_y = blue_cones_global[:, 1].astype(float).tolist()

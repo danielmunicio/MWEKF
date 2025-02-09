@@ -17,6 +17,7 @@ import time
 class GlobalPath(Node):
     def __init__(self):
         super().__init__("global_path")
+        self.cone_history = ConeHistory()
 
         #Publishers
         self.pc_publisher = self.create_publisher(FebPath, '/path/global', 1)
@@ -41,7 +42,8 @@ class GlobalPath(Node):
         # p = PairPath(left, right, 100)
         # left = np.vstack([p.l[-20:], p.l[:-20]])
         # right = np.vstack([p.r[-20:], p.r[:-20]])
-        left, right = ConeOrdering(msg, self.state)
+        # left, right = ConeOrdering(msg, self.state)
+        left, right = ConeOrdering(msg, self.state, self.cone_history)
         
         res = self.g.solve(np.array(left), np.array(right))
         states, _ = self.g.to_constant_tgrid(0.02, **res)

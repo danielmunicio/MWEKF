@@ -6,7 +6,7 @@ from typing import Union, Dict
 
 class GlobalOptSettings(metaclass=Settings):
     """settings for CompiledGlobalOpt. All in one place, so it's always synced."""
-    N: int = 38
+    N: int = 30
     solver: str = 'ipopt'
     car_params: Dict = {'l_r': 0.76, 'l_f':0.76, 'm': 1.}
     bbox: Dict = {'l': 2.7+1, 'w': 1.6+1}
@@ -17,6 +17,7 @@ class GlobalOptSettings(metaclass=Settings):
     V_MIN: float = 0.0
     V_MAX: float = 25.0
     FRIC_MAX = 12.0 # float or function
+    write_to_file = True
 
 
 class LocalOptSettings(metaclass=Settings):
@@ -44,7 +45,7 @@ class LocalOptSettings(metaclass=Settings):
     V_MIN: float = 0.0
     V_MAX: float = 15.0
     FRIC_MAX: Union[float, Function] = 12.0
-    write_to_file = False
+    write_to_file = True
 
 
 class MPCSettings(metaclass=Settings):
@@ -95,7 +96,7 @@ class GraphSLAMSettings(metaclass=Settings):
     using_ground_truth_cones: bool = True
     using_ground_truth_wheelspeeds: bool = True # Whether or not to use the perfect wheel speeds
     bypass_SLAM = True # Bypasses SLAM Entirely, publishes ground truth position
-    instant_global_map = False # Whether or not to instantly publish the global map
+    instant_global_map = True # Whether or not to instantly publish the global map
     # Hardware Based Settings
     forward_imu_direction: str = 'x' # Which direction is forward for the IMU. Can  be 'x', 'y', or 'z'
 

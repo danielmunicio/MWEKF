@@ -2,7 +2,7 @@ import json
 import os
 
 class ConeHistory:
-    def __init__(self, max_size=1000, file_name="cone_history.json"):
+    def __init__(self, max_size=1000, file_name="local_cone_history.json"):
         self.left_history = []  # Stores history of left cone points
         self.right_history = []  # Stores history of right cone points
         self.file_name = file_name  # File name to store history

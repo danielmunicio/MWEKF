@@ -1,2 +1,4 @@
 ultralytics==8.0.228
 setuptools==58.2.0
+control==0.10.1
+casadi==3.6.7

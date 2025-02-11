@@ -30,6 +30,10 @@ venv/
 # No solver created Code
 global_opt.c
 global_opt.so
+local_opt.c
+local_opt.so
+mpc.c
+mpc.so
 
 # simulator
 eufs_msgs/

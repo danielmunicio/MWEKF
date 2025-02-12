@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 from time import sleep
 from .distance_cone_order import distance_cone_order
 from .ConeHistory import ConeHistory
+from .ConeVisualizer import ConeVisualizer
 
 class LocalPath(Node):
     def __init__(self):
@@ -51,7 +52,9 @@ class LocalPath(Node):
         self.destroy_node() # we don't need anymore after we get the global path
         
     def listener_cb(self, msg: Map):
-        if self.finished: return
+        if self.finished: 
+            return
+
         #lists are reversed
         if len(list(msg.left_cones_x))<=1 or len(list(msg.right_cones_x))<=1:
             return
@@ -65,6 +68,10 @@ class LocalPath(Node):
 
         left = np.array(left)#[::-1]
         right = np.array(right)#[::-1]
+
+        cone_visualizer = ConeVisualizer()
+        cone_visualizer.publish_cones_with_colors(leftN_points, rightN_points)
+
         # print("SHAPE:", left.shape, right.shape)
         with open("sim_data.txt", "a") as f:
             print("---------------------------------------------", file = f)

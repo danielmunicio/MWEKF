@@ -70,7 +70,7 @@ class LocalPath(Node):
         right = np.array(right)#[::-1]
 
         cone_visualizer = ConeVisualizer()
-        cone_visualizer.publish_cones_with_colors(leftN_points, rightN_points)
+        cone_visualizer.publish_cones_with_colors(left, right)
 
         # print("SHAPE:", left.shape, right.shape)
         with open("sim_data.txt", "a") as f:

@@ -47,6 +47,6 @@ def ConeOrdering(msg: Map, state: list[float], cone_history: ConeHistory, visual
     if visualizer:
         indices_left = list(range(len(leftN_points)))
         indices_right = list(range(len(rightN_points)))
-        visualizer.update_gif(left, right, leftN_points, rightN_points, indices=indices_left + indices_right)
+        visualizer.update_gif(left_history, right_history, leftN_points, rightN_points, indices=indices_left + indices_right)
 
     return leftN_points, rightN_points

@@ -55,6 +55,10 @@ class GifVisualizer:
     def update_gif(self, left_cones, right_cones, leftN_points, rightN_points, indices=None):
         """Update the GIF with new data."""
         self.frames = []  # Reset previous frames
+        left_cones = np.array(left_cones)
+        right_cones = np.array(right_cones)
+        leftN_points = np.array(leftN_points)
+        rightN_points = np.array(rightN_points)
         self.plot_frame(left_cones, right_cones, leftN_points, rightN_points, indices)
         self.create_gif()
         print("Updated GIF")

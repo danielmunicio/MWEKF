@@ -2,6 +2,7 @@ from sensor_msgs.msg import PointCloud
 from geometry_msgs.msg import Point32
 from std_msgs.msg import Header
 import numpy as np
+from rclpy.node import Node
 
 class ConeVisualizer(Node):
     def __init__(self):

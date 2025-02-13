@@ -5,13 +5,9 @@ import numpy as np
 from .NPointGenerator import N_point_generator
 from .TrackMap import find_racetrack, racetrack_to_multiline
 from .ConeHistory import ConeHistory
+from .GifVisualizer import GifVisualizer
 
-from sensor_msgs.msg import PointCloud
-from geometry_msgs.msg import Point32
-import rclpy
-from rclpy.node import Node
-
-def ConeOrdering(msg: Map, state: list[float], cone_history: ConeHistory):
+def ConeOrdering(msg: Map, state: list[float], cone_history: ConeHistory, visualizer=None: GifVisualizer):
     """get cones from message and call the cone ordering algorithm and return the results
 
     Args:
@@ -47,5 +43,8 @@ def ConeOrdering(msg: Map, state: list[float], cone_history: ConeHistory):
 
     leftN_points = leftN_points[::int(bigN/N)]
     rightN_points = rightN_points[::int(bigN/N)]
+
+    if visualizer:
+        visualizer.update_gif(left, right, leftN_points, rightN_points, indices=indices_left + indices_right)
 
     return leftN_points, rightN_points

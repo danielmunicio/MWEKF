@@ -96,7 +96,7 @@ class GraphSLAMSettings(metaclass=Settings):
     using_ground_truth_cones: bool = True
     using_ground_truth_wheelspeeds: bool = True # Whether or not to use the perfect wheel speeds
     bypass_SLAM = True # Bypasses SLAM Entirely, publishes ground truth position
-    instant_global_map = True # Whether or not to instantly publish the global map
+    instant_global_map = False # Whether or not to instantly publish the global map
     # Hardware Based Settings
     forward_imu_direction: str = 'x' # Which direction is forward for the IMU. Can  be 'x', 'y', or 'z'
 

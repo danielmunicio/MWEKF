@@ -19,11 +19,13 @@ from time import sleep
 from .distance_cone_order import distance_cone_order
 from .ConeHistory import ConeHistory
 from .ConeVisualizer import ConeVisualizer
+from .GifVisualizer import GifVisualizer
 
 class LocalPath(Node):
     def __init__(self):
         super().__init__("local_path")
         self.cone_history = ConeHistory()
+        self.GifVisualizer = GifVisualizer(gif_filename="local_cone_ordering.gif", fps=10)
 
         #Publishers
         self.pc_publisher = self.create_publisher(FebPath, '/path/local', 1)
@@ -59,7 +61,7 @@ class LocalPath(Node):
         if len(list(msg.left_cones_x))<=1 or len(list(msg.right_cones_x))<=1:
             return
         
-        left, right = ConeOrdering(msg, self.state, self.cone_history)
+        left, right = ConeOrdering(msg, self.state, self.cone_history, self.GifVisualizer)
 
         # reverse_left = np.vstack(sorted(np.array(reverse_left), key = lambda x: np.linalg.norm(x-self.state[:2])))
         # reverse_right = np.vstack(sorted(np.array(reverse_right), key = lambda x: np.linalg.norm(x-self.state[:2])))
@@ -69,8 +71,8 @@ class LocalPath(Node):
         left = np.array(left)#[::-1]
         right = np.array(right)#[::-1]
 
-        cone_visualizer = ConeVisualizer()
-        cone_visualizer.publish_cones_with_colors(left, right)
+        # cone_visualizer = ConeVisualizer()
+        # cone_visualizer.publish_cones_with_colors(left, right)
 
         # print("SHAPE:", left.shape, right.shape)
         with open("sim_data.txt", "a") as f:

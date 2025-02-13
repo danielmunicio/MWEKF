@@ -57,3 +57,4 @@ class GifVisualizer:
         self.frames = []  # Reset previous frames
         self.plot_frame(left_cones, right_cones, leftN_points, rightN_points, indices)
         self.create_gif()
+        print("Updated GIF")

@@ -7,7 +7,7 @@ from .TrackMap import find_racetrack, racetrack_to_multiline
 from .ConeHistory import ConeHistory
 from .GifVisualizer import GifVisualizer
 
-def ConeOrdering(msg: Map, state: list[float], cone_history: ConeHistory, visualizer=None: GifVisualizer):
+def ConeOrdering(msg: Map, state: list[float], cone_history: ConeHistory, visualizer: GifVisualizer=None):
     """get cones from message and call the cone ordering algorithm and return the results
 
     Args:

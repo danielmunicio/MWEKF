@@ -46,6 +46,7 @@ class LocalOptSettings(metaclass=Settings):
     V_MAX: float = 15.0
     FRIC_MAX: Union[float, Function] = 12.0
     write_to_file = True
+    save_to_gif = True
 
 
 class MPCSettings(metaclass=Settings):

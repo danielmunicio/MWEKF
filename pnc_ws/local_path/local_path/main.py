@@ -25,7 +25,9 @@ class LocalPath(Node):
     def __init__(self):
         super().__init__("local_path")
         self.cone_history = ConeHistory()
-        self.GifVisualizer = GifVisualizer(gif_filename="local_cone_ordering.gif", fps=10)
+        self.GifVisualizer = None
+        if save_to_gif:
+            self.GifVisualizer = GifVisualizer(gif_filename="local_cone_ordering.gif", fps=10)
 
         #Publishers
         self.pc_publisher = self.create_publisher(FebPath, '/path/local', 1)

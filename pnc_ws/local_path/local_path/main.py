@@ -44,7 +44,7 @@ class LocalPath(Node):
         self.g = CompiledLocalOpt(**settings)
         print("inited local opt")
         # self.g.construct_solver()
-        self.g.construct_solver(generate_c=False, compile_c=False, use_c=True)
+        self.g.construct_solver(generate_c=False, compile_c=False, use_c=False)
         print("constructed solver")
         self.state = [0.,0.,0.,0.]
         print("done")

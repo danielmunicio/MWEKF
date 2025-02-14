@@ -6,6 +6,7 @@ from .NPointGenerator import N_point_generator
 from .TrackMap import find_racetrack, racetrack_to_multiline
 from .ConeHistory import ConeHistory
 from .GifVisualizer import GifVisualizer
+from .Filtering import nearest_neighbor_outlier_removal, filter_cross_boundary_outliers
 
 def ConeOrdering(msg: Map, state: list[float], cone_history: ConeHistory, visualizer: GifVisualizer=None):
     """get cones from message and call the cone ordering algorithm and return the results

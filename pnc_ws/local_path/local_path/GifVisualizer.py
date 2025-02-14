@@ -14,12 +14,12 @@ class GifVisualizer:
         fig, ax = plt.subplots(figsize=(8, 6))
         
         # Plot the left and right cones (raw data)
-        ax.scatter(left_cones[:, 0], left_cones[:, 1], c='red', label='Left Cones')
-        ax.scatter(right_cones[:, 0], right_cones[:, 1], c='blue', label='Right Cones')
+        ax.scatter(left_cones[:, 0], left_cones[:, 1], c='darkorange', label='Left Cones')
+        ax.scatter(right_cones[:, 0], right_cones[:, 1], c='skyblue', label='Right Cones')
         
         # Plot the ordered cones (lighter colors)
-        ax.scatter(leftN_points[:, 0], leftN_points[:, 1], c='lightcoral', label='Ordered Left Cones')
-        ax.scatter(rightN_points[:, 0], rightN_points[:, 1], c='lightblue', label='Ordered Right Cones')
+        ax.scatter(leftN_points[:, 0], leftN_points[:, 1], c='red', label='Ordered Left Cones')
+        ax.scatter(rightN_points[:, 0], rightN_points[:, 1], c='blue', label='Ordered Right Cones')
         
         # Annotate the ordered cones with their indices
         if indices is not None:

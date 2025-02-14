@@ -6,7 +6,7 @@ from typing import Union, Dict
 
 class GlobalOptSettings(metaclass=Settings):
     """settings for CompiledGlobalOpt. All in one place, so it's always synced."""
-    N: int = 30
+    N: int = 50
     solver: str = 'ipopt'
     car_params: Dict = {'l_r': 0.76, 'l_f':0.76, 'm': 1.}
     bbox: Dict = {'l': 2.7+1, 'w': 1.6+1}
@@ -22,7 +22,7 @@ class GlobalOptSettings(metaclass=Settings):
 
 class LocalOptSettings(metaclass=Settings):
     """settings for LocalOpt. All in one place, so it's always synced."""
-    N: int = 10 # for testing, input 10 pairs of cones to test
+    N: int = 50 # for testing, input 10 pairs of cones to test
     solver: str = 'ipopt'
     solver_opts: Dict = {
         # set linear solver
@@ -51,7 +51,7 @@ class LocalOptSettings(metaclass=Settings):
 
 class MPCSettings(metaclass=Settings):
     """settings for CompiledGlobalOpt. All in one place, so it's always synced."""
-    N: int = 10
+    N: int = 50
     DT: float = 0.2
     L_F: float = 0.76
     L_R: float = 0.76

@@ -26,14 +26,14 @@ def ConeOrdering(msg: Map, state: list[float], cone_history: ConeHistory, visual
     )
 
     cone_history.update_history(left, right, write_to_file=LocalOptSettings.write_to_file)
-    left_history, right_history = cone_history.get_history()
-    print("length of left history: ", len(left_history))
-    print("length of right history: ", len(right_history))
+    left_h, right_h = cone_history.get_history()
+    print("length of left history: ", len(left_h))
+    print("length of right history: ", len(right_h))
 
     # filter points
-    test_k = int(0.05*len(left_history))
+    test_k = int(0.05*len(left_h))
     test_t = int(0.4*test_k)
-    left_history, right_history = nearest_neighbor_outlier_removal(left_history, right_history, k=test_k, threshold=test_t, plot=False)
+    left_history, right_history = nearest_neighbor_outlier_removal(left_h, right_h, k=test_k, threshold=test_t, plot=False)
     print("used nn removal outlier removal")
 
     # left_history, right_history = filter_cross_boundary_outliers(left_history, right_history, threshold=3.0, plot=False)
@@ -59,7 +59,6 @@ def ConeOrdering(msg: Map, state: list[float], cone_history: ConeHistory, visual
     if visualizer:
         indices_left = list(range(len(leftN_points)))
         indices_right = list(range(len(rightN_points)))
-        left_history, right_history = cone_history.get_history()
-        visualizer.update_gif(left_history, right_history, leftN_points, rightN_points, indices=indices_left + indices_right)
+        visualizer.update_gif(left_h, right_h, leftN_points, rightN_points, indices=indices_left + indices_right)
 
     return leftN_points, rightN_points

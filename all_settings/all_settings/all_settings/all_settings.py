@@ -8,8 +8,8 @@ class GlobalOptSettings(metaclass=Settings):
     """settings for CompiledGlobalOpt. All in one place, so it's always synced."""
     N: int = 50
     solver: str = 'ipopt'
-    car_params: Dict = {'l_r': 0.76, 'l_f':0.76, 'm': 1.}
-    bbox: Dict = {'l': 2.7+1, 'w': 1.6+1}
+    car_params: dict = {'l_r': 0.79, 'l_f':0.79, 'm': 1.}
+    bbox: dict = {'l': 2.7+1, 'w': 1.6+1}
     DF_MAX: float  =  0.5
     ACC_MIN: float = -5.0
     ACC_MAX_FN: Union[float, Function] = 2.0
@@ -36,7 +36,7 @@ class LocalOptSettings(metaclass=Settings):
         'print_time': 0,
     }
     # car_params: dict[str:float] = {'l_r': 1.4987, 'l_f':1.5213, 'm': 1.}1.201
-    car_params: dict = {'l_r': 0.76, 'l_f':0.76, 'm': 1.0}
+    car_params: dict = {'l_r': 0.79, 'l_f':0.79, 'm': 1.}
     bbox: dict = {'l': 2.7, 'w': 1.6}
     DF_MAX: float  =  0.5
     ACC_MIN: float = -5.0
@@ -53,7 +53,10 @@ class LocalOptSettings(metaclass=Settings):
 
 class FATROPSolver(metaclass=Settings):
     name = 'fatrop'
-    opts = {'structure_detection': 'auto', 'expand': False, 'debug': False, 'fatrop.print_level': -1, 'print_time': False} # 'equality' key must be passed by user!
+    opts = {'structure_detection': 'auto', 'expand': False, 'debug': False, 'fatrop.print_level': 5, 'print_time': False} # 'equality' key must be passed by user!
+class IPOPTSolver(metaclass=Settings):
+    name = 'ipopt'
+    opts = {'expand': False, 'ipopt.linear_solver': 'MA27', 'print_time': False} # 'equality' key must be passed by user!
 
 class RK4Solver(metaclass=Settings):
     n=1
@@ -82,7 +85,7 @@ class MPCSettings(metaclass=Settings):
     Q: list = [100., 100., 0., 1.]
     R: list = [10., 10.]
     RUNTIME_FREQUENCY: float = 10
-    nlpsolver = FATROPSolver
+    nlpsolver = IPOPTSolver
     ivpsolver = RK4Solver
 
 
@@ -92,8 +95,12 @@ class GraphSLAMSolverSettings(metaclass=Settings):
     initial_rows: int = int(1e4)
     initial_cols: int = int(1e4)
     local_radius: int = int(1e5)
+<<<<<<< HEAD
     
     max_landmark_distance: float = 1.5
+=======
+    max_landmark_distance: float = 1.0
+>>>>>>> 399db00 ([reid] checkpoint)
     dx_weight: float = 1.0
     z_weight: float = 5.0
 
@@ -120,10 +127,10 @@ class GraphSLAMRSSolverSettings(metaclass=Settings):
     x0: tuple[float, float] = (0.0, 0.0)
     max_landmark_distance: float = 0.5
     dx_weight: float = 1.0
-    z_weight: float = 5.0
-    dclip: dict = {1: 0.3, 2: 0.3, 3: 10.0} # keys are color values
-    max_icp_steps: int = 3 # only used when data_association_strategy=1
-    max_newton_steps: int = 10
+    z_weight: float = 1.0
+    dclip: dict = {1: 0.5, 2: 0.5, 3: 10.0} # keys are color values
+    max_icp_steps: int = 0 # only used when data_association_strategy=1
+    max_newton_steps: int = 0
     data_association_strategy: int = 0 # can be 1 (true ICP) or 0 (global optimization thing)
 
 

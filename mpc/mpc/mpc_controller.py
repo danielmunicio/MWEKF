@@ -107,7 +107,7 @@ class MPCPathFollower:
             q = self.Q, 
             r = self.R,
         )/self.DT
-
+        self.default_P = self.Q
         # formulate dynamics constraint using map, which helps the expression graph be more compact        
         dynamics_constr = self.x[:, 1:] - self.F.map(self.N)(self.x[:, :-1], self.u[:, :-1])
         # formulate differential of u, which we can use to constrain rate of change.
@@ -145,9 +145,9 @@ class MPCPathFollower:
                 # dynamics (gap-closing constraints)
                 constrain(dynamics_constr[:, stage], ca.DM([0.0]*6), ca.DM([0.0]*6))
                 # drive jerk limit
-                constrain(du[0:1, stage]*(1/self.DT), ca.DM([self.A_DOT_MIN]), ca.DM([self.A_DOT_MAX]))
+                constrain(du[0:1, stage]*(self.RUNTIME_FREQUENCY if stage==0 else 1/self.DT), ca.DM([self.A_DOT_MIN]), ca.DM([self.A_DOT_MAX]))
                 # steering velocity limit
-                constrain(du[1:2, stage]*(1/self.DT), ca.DM([self.DF_DOT_MIN]), ca.DM([self.DF_DOT_MAX]))
+                constrain(du[1:2, stage]*(self.RUNTIME_FREQUENCY if stage==0 else 1/self.DT), ca.DM([self.DF_DOT_MIN]), ca.DM([self.DF_DOT_MAX]))
                 # control bounds
                 constrain(self.u[0:1, stage], ca.DM([self.A_MIN]), ca.DM([self.A_MAX]))
                 constrain(self.u[1:2, stage], ca.DM([self.DF_MIN]), ca.DM([self.DF_MAX]))

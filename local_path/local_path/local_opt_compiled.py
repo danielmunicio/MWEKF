@@ -335,7 +335,7 @@ class CompiledLocalOpt:
 
             cur += dt
         # now pad it until it's 1.5x whats needed, for safety
-        while len(states)<mpc_settings.N*10*1.5:
+        while len(states)<mpc_settings.N*10*2:
             controls.append(u[-2])
             states.append(np.array(self.dynamics(states[-1].tolist(), u[-2], dt)).flatten())
 

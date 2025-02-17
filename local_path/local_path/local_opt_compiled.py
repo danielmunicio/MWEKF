@@ -195,7 +195,7 @@ class CompiledLocalOpt:
             'final velocity',
             g = self.v[-1],
             lbg=DM([0.5]),
-            ubg=DM([2]),
+            ubg=DM([1.0]),
         )
         # self._add_constraint(
         #     'curr_heading',

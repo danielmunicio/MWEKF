@@ -15,7 +15,7 @@ class GlobalOptSettings(metaclass=Settings):
     ACC_MAX_FN: Union[float, Function] = 2.0
     DF_DOT_MAX: float =  0.5
     V_MIN: float = 0.0
-    V_MAX: float = 10.0
+    V_MAX: float = 8.0
     FRIC_MAX = 12.0 # float or function
     write_to_file = True
 
@@ -43,7 +43,7 @@ class LocalOptSettings(metaclass=Settings):
     ACC_MAX_FN: Union[float, Function] = 2.0
     DF_DOT_MAX: float =  0.5
     V_MIN: float = 0.0
-    V_MAX: float = 15.0
+    V_MAX: float = 10.0
     FRIC_MAX: Union[float, Function] = 12.0
     write_to_file = True
     save_to_gif = True
@@ -53,7 +53,7 @@ class LocalOptSettings(metaclass=Settings):
 
 class FATROPSolver(metaclass=Settings):
     name = 'fatrop'
-    opts = {'structure_detection': 'auto', 'expand': False, 'debug': False, 'fatrop.print_level': 5, 'print_time': False} # 'equality' key must be passed by user!
+    opts = {'structure_detection': 'auto', 'expand': False, 'debug': False, 'fatrop.print_level': -1, 'print_time': False} # 'equality' key must be passed by user!
 class IPOPTSolver(metaclass=Settings):
     name = 'ipopt'
     opts = {'expand': False, 'ipopt.linear_solver': 'MA27', 'print_time': False} # 'equality' key must be passed by user!
@@ -81,11 +81,11 @@ class MPCSettings(metaclass=Settings):
     A_DOT_MIN: float = -10.0
     A_DOT_MAX: float = 10.0
     DF_DOT_MIN: float = -0.5
-    DF_DOT_MAX: float =  0.5
-    Q: list = [100., 100., 0., 1.]
-    R: list = [10., 10.]
+    DF_DOT_MAX: float = 0.5
+    Q: list = [5., 5., 0., 0.]
+    R: list = [10., 100.]
     RUNTIME_FREQUENCY: float = 10
-    nlpsolver = IPOPTSolver
+    nlpsolver = FATROPSolver
     ivpsolver = RK4Solver
 
 
@@ -95,12 +95,7 @@ class GraphSLAMSolverSettings(metaclass=Settings):
     initial_rows: int = int(1e4)
     initial_cols: int = int(1e4)
     local_radius: int = int(1e5)
-<<<<<<< HEAD
-    
-    max_landmark_distance: float = 1.5
-=======
     max_landmark_distance: float = 1.0
->>>>>>> 399db00 ([reid] checkpoint)
     dx_weight: float = 1.0
     z_weight: float = 5.0
 
@@ -130,8 +125,7 @@ class GraphSLAMRSSolverSettings(metaclass=Settings):
     z_weight: float = 1.0
     dclip: dict = {1: 0.5, 2: 0.5, 3: 10.0} # keys are color values
     max_icp_steps: int = 0 # only used when data_association_strategy=1
-    max_newton_steps: int = 0
-    data_association_strategy: int = 0 # can be 1 (true ICP) or 0 (global optimization thing)
+    max_newton_steps: int = 5
 
 
 

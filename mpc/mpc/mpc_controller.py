@@ -151,6 +151,7 @@ class MPCPathFollower:
                 # control bounds
                 constrain(self.u[0:1, stage], ca.DM([self.A_MIN]), ca.DM([self.A_MAX]))
                 constrain(self.u[1:2, stage], ca.DM([self.DF_MIN]), ca.DM([self.DF_MAX]))
+                constrain(self.x[3, stage], lb=ca.DM([self.V_MIN]), ub=ca.DM([self.V_MAX]))
             if stage==0:
                 # initial states
                 constrain(self.x[0:4, 0]-self.x0, ca.DM([0.0]*4), ca.DM([0.0]*4))
@@ -159,7 +160,7 @@ class MPCPathFollower:
 
             if stage<self.N:
                 # control cost
-                cost += ca.bilin(self.R, self.u[:, stage]-self.ubar[:, stage])
+                cost += ca.bilin(self.R, self.u[:, stage] - self.ubar[:, stage])
             if stage<self.N-1:
                 segment = dx[stage]/ca.norm_2(dx[stage])
                 a, c, b, d = segment[0], segment[1], -segment[1], segment[0]

@@ -20,7 +20,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'mpc = mpc.main:main'
+            'mpc = mpc.main:main',
+            'keyboard_controller = mpc.keyboard_controller:main'
         ],
     },
 )

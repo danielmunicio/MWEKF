@@ -184,6 +184,18 @@ class CompiledLocalOpt:
             lbg = DM([0.4]*self.N),
             ubg = DM([0.6]*self.N)
         )
+        self._add_constraint(
+            't0',
+            g = self.t[0],
+            lbg = DM([0.5]),
+            ubg = DM([0.5]),
+        )
+        self._add_constraint(
+            'tf',
+            g = self.t[-1],
+            lbg = DM([0.5]),
+            ubg = DM([0.5]),
+        )
         # Keeps initial heading and velocity unchangeable
         self._add_constraint(
             'curr_velocity',
@@ -196,6 +208,12 @@ class CompiledLocalOpt:
             g = self.v[-1],
             lbg=DM([0.5]),
             ubg=DM([1.0]),
+        )
+        self._add_constraint(
+            'final control',
+            g = self.u[-1,0],
+            lbg=DM([0.0]),
+            ubg=DM([0.0]),
         )
         # self._add_constraint(
         #     'curr_heading',
@@ -337,6 +355,8 @@ class CompiledLocalOpt:
         # now pad it until it's 1.5x whats needed, for safety
         while len(states)<mpc_settings.N*10*2:
             controls.append(u[-2])
+            controls[-1][0]=0.0
+
             states.append(np.array(self.dynamics(states[-1].tolist(), u[-2], dt)).flatten())
 
         return np.array(states), np.array(controls)

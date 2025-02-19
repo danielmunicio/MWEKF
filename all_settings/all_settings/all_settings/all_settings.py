@@ -87,6 +87,7 @@ class MPCSettings(metaclass=Settings):
     RUNTIME_FREQUENCY: float = 10
     nlpsolver = FATROPSolver
     ivpsolver = RK4Solver
+    PUBLISH: bool = True
 
 
 
@@ -128,7 +129,31 @@ class GraphSLAMRSSolverSettings(metaclass=Settings):
     max_newton_steps: int = 5
 
 
-
+class MPC2Settings(metaclass=Settings):
+    """settings for CompiledGlobalOpt. All in one place, so it's always synced."""
+    N: int = 10
+    DT: float = 0.1
+    L_F: float = 0.76
+    L_R: float = 0.76
+    V_MIN: float = 0.0
+    V_MAX: float = 15.0
+    A_MIN: float = -3.0
+    A_MAX: float = 2.0
+    DF_MIN: float = -0.6
+    DF_MAX: float = 0.6
+    A_DOT_MIN: float = -5.0
+    A_DOT_MAX: float = 5.0
+    DF_DOT_MIN: float = -0.5
+    DF_DOT_MAX: float =  0.5
+    # Q: list[float] = [1., 1., 10., 0.1]
+    Q: list = [5., 5., 0., 0.]
+    R: list = [10., 100.]
+    # R: list[float] = [0., 0.]
+    F: list = [0., 0., 0., 0.]
+    TRACK_SLACK_WEIGHT: float = 5e5
+    use_rk_dynamics: bool = False
+    solver: str = 'ipopt'
+    PUBLISH: bool = False
 class CANSettings(metaclass=Settings):
     interface: str = 'socketcan'
     channel: str = 'can0'

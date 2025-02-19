@@ -147,6 +147,11 @@ class MPC(Node):
             trajectory = np.hstack([x_traj, u_traj]).T
 
             self.prev_soln = self.mpc.solve(np.array(curr_state), self.prev_soln, trajectory).flatten()
+            if not settings.PUBLISH: 
+                print("skipping!")
+                return 
+            else: print("publishing!")
+
             # print(self.prev_soln)
             # print('drive message:', self.prev_soln['u_control'][0])
             # print('steering message:', self.prev_soln['u_control'][1])

@@ -45,10 +45,7 @@ class GraphSLAM_Global(Node):
             self.using_ground_truth_cones = settings.using_ground_truth_cones
             self.using_ground_truth_wheelspeeds = settings.using_ground_truth_wheelspeeds
             self.using_ground_truth_state = settings.bypass_SLAM
-        # used to calculate the state of the vehicle
-        self.currentstate_simulator = State()
-        self.currentstate_simulator.x = 0.0
-        self.currentstate_simulator.y = 0.0
+
         self.statetimestamp = 0.0
         self.currentstate = State()
         self.currentstate.x = 0.0 
@@ -56,14 +53,9 @@ class GraphSLAM_Global(Node):
         self.currentstate.velocity = 0.0
         self.currentstate.heading = 0.0
         self.currentstate.lap_count = 0
-        self.state_seq = 0.0
-        self.cone_seq = 0.0
         self.global_map = Map()
         self.local_map = Map()
-        self.lap_counter = 1
-        self.is_clear_of_lap_count_radius = False
         self.time = time.time()
-        self.LPKRDSM = 1.0
         
         # how far into periphery of robot heading on each side to include local cones (robot has tunnel vision if this is small) (radians)
         # for handling new messages during the solve step
@@ -76,108 +68,43 @@ class GraphSLAM_Global(Node):
         # SIMULATOR SPECIFIC SUBSCRIBERS 
         if (self.using_simulator):
             if (self.using_ground_truth_cones):
-                self.cones_sub = self.create_subscription(
-                    ConeArrayWithCovariance,
-                    '/ground_truth/cones',
-                    self.cones_callback,
-                    1
-                )
+                self.cones_sub = self.create_subscription(ConeArrayWithCovariance, '/ground_truth/cones', self.cones_callback, 1)
             else: 
-                self.cones_sub = self.create_subscription(
-                    ConeArrayWithCovariance,
-                    '/fusion/cones', 
-                    self.cones_callback,
-                    1
-                )   
+                self.cones_sub = self.create_subscription(ConeArrayWithCovariance, '/fusion/cones', self.cones_callback, 1)   
             if (self.using_wheelspeeds):
                 if (self.using_ground_truth_wheelspeeds):
-                    self.wheelspeeds_sub = self.create_subscription(
-                        WheelSpeedsStamped,
-                        '/ground_truth/wheel_speeds',
-                        self.wheelspeed_sub,
-                        1
-                    )
+                    self.wheelspeeds_sub = self.create_subscription(WheelSpeedsStamped, '/ground_truth/wheel_speeds', self.wheelspeed_sub_sim, 1)
                 else: 
-                    self.wheelspeeds_sub = self.create_subscription(
-                        WheelSpeedsStamped,
-                        '/ros_can/wheel_speeds',
-                        1
-                    )
+                    self.wheelspeeds_sub = self.create_subscription(WheelSpeedsStamped, '/ros_can/wheel_speeds', 1)
             
-            self.state_subby = self.create_subscription(
-                CarState,
-                '/ground_truth/state',
-                self.state_sub,
-                1,
-            )
+            self.state_subby = self.create_subscription(CarState, '/ground_truth/state', self.state_sub, 1,)
         else: 
-            self.cones_sub = self.create_subscription(
-                Cones,
-                '/perception_cones', 
-                self.cones_callback,
-                1
-            )
+            self.cones_sub = self.create_subscription(Cones, '/perception_cones', self.cones_callback, 1)
             if (self.using_wheelspeeds):
-                self.wheelspeeds = self.create_subscription(
-                    Float64,
-                    '/odometry/wheelspeeds',
-                    self.wheelspeed_sub,
-                    1
-                )
+                self.wheelspeeds = self.create_subscription(Float64, '/odometry/wheelspeeds', self.wheelspeed_sub, 1)
 
         # IMU subscriber the same for both car and sim
-        self.imu_sub = self.create_subscription(
-            Imu,
-            '/imu',
-            self.imu_callback,
-            1
-        )
+        self.imu_sub = self.create_subscription(Imu, '/imu', self.imu_callback, 1)
 
         # PUBLISHERS
         # Publish the current vehicle's state: X, Y, Velo, Theta
-        self.state_pub = self.create_publisher(
-            State,
-            '/slam/state',
-            1
-        )
+        self.state_pub = self.create_publisher(State, '/slam/state', 1)
 
         # Publish the current map (GLOBAL_NODE, so this will send the whole map)
-        self.global_map_pub = self.create_publisher(
-            Map, 
-            '/slam/map/global',
-            1
-        )
+        self.global_map_pub = self.create_publisher(Map, '/slam/map/global', 1)
 
-        self.local_map_pub = self.create_publisher(
-            Map, 
-            '/slam/map/local',
-            1
-        )
+        self.local_map_pub = self.create_publisher(Map, '/slam/map/local', 1)
 
         if (self.publish_to_rviz):
             ##These are for Visuals in the SIM 
-            self.cones_vis_pub = self.create_publisher(
-                PointCloud,
-                '/slam/conemap',
-                1
-            )
-            self.positionguess = self.create_publisher(
-                PointCloud,
-                '/slam/guessed_positions',
-                1
-            )
-            self.pose_pub = self.create_publisher(
-                PoseStamped,
-                '/slam/pose',
-                1
-            )
+            self.cones_vis_pub = self.create_publisher(PointCloud, '/slam/conemap', 1)
+            self.positionguess = self.create_publisher(PointCloud, '/slam/guessed_positions', 1)
+            self.pose_pub = self.create_publisher(PoseStamped, '/slam/pose', 1)
 
     def state_sub(self, state: CarState):
         """ This is a callback function for the SIMULATORS ground truth carstate. 
             Currently being used to get the cars position so we can calculate the cones R, theta properly.
         """
-        self.currentstate_simulator.x = state.pose.pose.position.x
-        self.currentstate_simulator.y = state.pose.pose.position.y
         if self.using_ground_truth_state: 
             self.currenstate.x = state.pose.pose.position.x
             self.currentstate.y = state.pose.pose.position.y
@@ -185,8 +112,11 @@ class GraphSLAM_Global(Node):
             self.currentstate.velocity = np.sqrt(state.twist.twist.linear.x**2 + state.twist.twist.linear.y**2)
         return
 
-    def wheelspeed_sub(self, msg: WheelSpeedsStamped):
+    def wheelspeed_sub_sim(self, msg: WheelSpeedsStamped):
         self.currentstate.velocity = ((msg.speeds.lb_speed + msg.speeds.rb_speed)/2)*np.pi*0.505/60
+
+    def wheelspeed_sub(self, msg: Float64): 
+        self.velocity = msg.data
 
     def update_state(self, dx: np.array, yaw: float, velocity: float) -> None:
         """
@@ -198,24 +128,11 @@ class GraphSLAM_Global(Node):
         Outputs: None
         """
         # All carstates should be float #'s 
-        if self.currentstate.x**2 + self.currentstate.y**2 < self.LPKRDSM**2:
-            if self.is_clear_of_lap_count_radius:
-                if self.currentstate.lap_count == 0:
-                    self.global_map_pub.publish(self.local_map)
-
-                self.currentstate.lap_count += 1
-                self.is_clear_of_lap_count_radius = False
-        else:
-            self.is_clear_of_lap_count_radius = True
-
-
         self.currentstate.x += dx[0]
         self.currentstate.y += dx[1]
         self.currentstate.velocity = velocity
         self.currentstate.heading = yaw
-        self.state_seq += 1
         self.currentstate.header.stamp = self.get_clock().now().to_msg()
-        self.currentstate.header.frame_id = "map"
 
 
 
@@ -349,7 +266,7 @@ class GraphSLAM_Global(Node):
 
         #filter local conesfor sim & publihs in local_map_pub
 
-        local_left, local_right = self.localCones(self.local_radius*0 + 20, left_cones, right_cones)
+        local_left, local_right = self.localCones(self.local_radius, left_cones, right_cones)
         if (len(np.array(local_left)) == 0 or len(np.array(local_right)) == 0):
             return
         #update map message with new map data 
@@ -451,7 +368,6 @@ class GraphSLAM_Global(Node):
             cones_msg.header.frame_id = "map"
             cones_msg.header.stamp = self.get_clock().now().to_msg()
             self.cones_vis_pub.publish(cones_msg)
-            print("local cones done!!")
 
 
 

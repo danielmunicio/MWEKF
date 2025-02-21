@@ -177,6 +177,8 @@ class GraphSLAM_Global(Node):
     Output: timediff: float
     """
     def compute_timediff(self, header: Header) -> float:
+        print("Seconds: ", header.stamp.sec)
+        print("NanoSeconds: ", header.stamp.nanosec)
         newtime = header.stamp.sec + 1e-9 * header.stamp.nanosec
         timediff = newtime - self.statetimestamp
         self.statetimestamp = newtime
@@ -222,6 +224,8 @@ class GraphSLAM_Global(Node):
         longitudinal_acc = acc.x
         # lateral_acc = acc.y # May be needed in the future if  
         #                       straightline model is not accurate enough
+        print("Acceleration: ", longitudinal_acc)
+        print("dt: ", dt)
         linear_velocity = longitudinal_acc * dt
         return linear_velocity
 
@@ -314,6 +318,7 @@ class GraphSLAM_Global(Node):
  
         pose_msg.header.frame_id = "map"
         pose_msg.header.stamp = self.get_clock().now().to_msg()
+        print("Velocity!", self.currentstate.velocity)
         self.pose_pub.publish(pose_msg)
 
         ## Show Estimated Pose END 

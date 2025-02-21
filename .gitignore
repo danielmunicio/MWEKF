@@ -36,3 +36,5 @@ eufs_msgs/
 eufs_sim/
 
 delta_and_heading
+
+*.DS_Store

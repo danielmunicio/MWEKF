@@ -39,3 +39,6 @@ eufs_sim/
 delta_and_heading
 *.csv
 runs/
+
+sim_data.txt
+*.casadi

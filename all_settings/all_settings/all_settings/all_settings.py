@@ -35,7 +35,7 @@ class LocalOptSettings(metaclass=Settings):
         'print_time': 0,
     }
     # car_params: dict[str:float] = {'l_r': 1.4987, 'l_f':1.5213, 'm': 1.}1.201
-    car_params: dict = {'l_r': 0.76, 'l_f':0.76, 'm': 1.}
+    car_params: dict = {'l_r': 0.76, 'l_f':0.76, 'm': 1.0}
     bbox: dict = {'l': 2.7, 'w': 1.6}
     DF_MAX: float  =  0.5
     ACC_MIN: float = -3.0
@@ -50,14 +50,14 @@ class MPCSettings(metaclass=Settings):
     """settings for CompiledGlobalOpt. All in one place, so it's always synced."""
     N: int = 10
     DT: float = 0.2
-    L_F: float = 0.76
-    L_R: float = 0.76
+    L_F: float = 0.76 - 1
+    L_R: float = 0.76 + 1 
     V_MIN: float = 0.0
     V_MAX: float = 15.0
     A_MIN: float = -3.0
-    A_MAX: float = 2.0
-    DF_MIN: float = -0.6
-    DF_MAX: float = 0.6
+    A_MAX: float = 3.0
+    DF_MIN: float = -1 * np.pi/10
+    DF_MAX: float = 1 * np.pi/10
     A_DOT_MIN: float = -5.0
     A_DOT_MAX: float = 5.0
     DF_DOT_MIN: float = -0.5
@@ -75,8 +75,10 @@ class GraphSLAMSolverSettings(metaclass=Settings):
     x0: np.ndarray = np.array([0.0, 0.0])
     initial_rows: int = int(1e4)
     initial_cols: int = int(1e4)
-    max_landmark_distance: float = 1.5
-    dx_weight: float = 1.0
+    local_radius: int = int(10)
+    
+    max_landmark_distance: float = 0.7
+    dx_weight: float = 1e-4
     z_weight: float = 5.0
 
 class GraphSLAMSettings(metaclass=Settings):

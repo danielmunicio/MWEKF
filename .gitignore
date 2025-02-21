@@ -42,3 +42,6 @@ runs/
 
 sim_data.txt
 *.casadi
+
+# YOLO Created Images
+runs/

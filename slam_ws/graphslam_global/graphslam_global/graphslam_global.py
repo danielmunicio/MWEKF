@@ -23,7 +23,7 @@ from eufs_msgs.msg import ConeArrayWithCovariance, ConeWithCovariance
 
 class GraphSLAM_Global(Node):
     def __init__(self):
-
+        print("SLAM INIT")
         # ROS2 INTEGRATIONS
         super().__init__('graphslam_global_node')
         

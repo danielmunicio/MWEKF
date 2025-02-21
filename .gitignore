@@ -7,7 +7,8 @@ install/
 log/
 
 # Don't push YOLO models!!
-*.pt
+#*.pt
+# YOLO models will be forgiven 
 
 # Don't push pycaches
 __pycache__/
@@ -26,6 +27,7 @@ casadi_src/*
 # No Virtual Environements
 venv/
 
+# No solver created Code
 global_opt.c
 global_opt.so
 
@@ -33,8 +35,6 @@ global_opt.so
 eufs_msgs/
 eufs_sim/
 
-*.txt
-
 delta_and_heading
 
-src/
+*.DS_Store

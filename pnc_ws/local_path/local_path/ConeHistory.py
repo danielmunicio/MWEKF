@@ -2,7 +2,7 @@ import json
 import os
 
 class ConeHistory:
-    def __init__(self, max_size=1000, file_name="cone_history.json"):
+    def __init__(self, max_size=1000, file_name="local_cone_history.json"):
         self.left_history = []  # Stores history of left cone points
         self.right_history = []  # Stores history of right cone points
         self.file_name = file_name  # File name to store history
@@ -35,18 +35,18 @@ class ConeHistory:
         # Optionally, write to file
         if write_to_file:
             print("writing to file")
-            self.save_to_file()
+            self.save_to_file(left_points, right_points)
 
     def get_history(self):
         """Return the history of left and right cone points."""
         return self.left_history, self.right_history
 
-    def save_to_file(self):
+    def save_to_file(self, left_points, right_points):
         """Save the current history to a JSON file."""
         # Create a dictionary with the new data
         data = {
-            "left_cones": self.left_history,
-            "right_cones": self.right_history
+            "left_cones": left_points,
+            "right_cones": right_points
         }
 
         # Check if the file exists
@@ -66,6 +66,7 @@ class ConeHistory:
         # Write the updated data to the file
         with open(self.file_name, "w") as file:
             json.dump(existing_data, file, indent=4)
+        print("updated file")
 
     def load_from_file(self):
         """Load history from a JSON file."""

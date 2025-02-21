@@ -18,11 +18,17 @@ import matplotlib.pyplot as plt
 from time import sleep
 from .distance_cone_order import distance_cone_order
 from .ConeHistory import ConeHistory
+from .ConeVisualizer import ConeVisualizer
+from .GifVisualizer import GifVisualizer
 
 class LocalPath(Node):
     def __init__(self):
         super().__init__("local_path")
         self.cone_history = ConeHistory()
+        self.GifVisualizer = None
+        # if LocalOptSettings.save_to_gif:
+        if True:
+            self.GifVisualizer = GifVisualizer(gif_filename="local_cone_ordering.gif", fps=10)
 
         #Publishers
         self.pc_publisher = self.create_publisher(FebPath, '/path/local', 1)
@@ -38,7 +44,7 @@ class LocalPath(Node):
         self.g = CompiledLocalOpt(**settings)
         print("inited local opt")
         # self.g.construct_solver()
-        self.g.construct_solver(generate_c=False, compile_c=False, use_c=True)
+        self.g.construct_solver(generate_c=False, compile_c=False, use_c=False)
         print("constructed solver")
         self.state = [0.,0.,0.,0.]
         print("done")
@@ -51,12 +57,14 @@ class LocalPath(Node):
         self.destroy_node() # we don't need anymore after we get the global path
         
     def listener_cb(self, msg: Map):
-        if self.finished: return
+        if self.finished: 
+            return
+
         #lists are reversed
         if len(list(msg.left_cones_x))<=1 or len(list(msg.right_cones_x))<=1:
             return
         
-        left, right = ConeOrdering(msg, self.state, self.cone_history)
+        left, right = ConeOrdering(msg, self.state, self.cone_history, self.GifVisualizer)
 
         # reverse_left = np.vstack(sorted(np.array(reverse_left), key = lambda x: np.linalg.norm(x-self.state[:2])))
         # reverse_right = np.vstack(sorted(np.array(reverse_right), key = lambda x: np.linalg.norm(x-self.state[:2])))
@@ -65,6 +73,10 @@ class LocalPath(Node):
 
         left = np.array(left)#[::-1]
         right = np.array(right)#[::-1]
+
+        # cone_visualizer = ConeVisualizer()
+        # cone_visualizer.publish_cones_with_colors(left, right)
+
         # print("SHAPE:", left.shape, right.shape)
         with open("sim_data.txt", "a") as f:
             print("---------------------------------------------", file = f)

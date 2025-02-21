@@ -5,10 +5,10 @@ import numpy as np
 from .NPointGenerator import N_point_generator
 from .TrackMap import find_racetrack, racetrack_to_multiline
 from .ConeHistory import ConeHistory
+from .GifVisualizer import GifVisualizer
+from .Filtering import nearest_neighbor_outlier_removal, filter_cross_boundary_outliers
 
-# cone_history = ConeHistory()
-
-def ConeOrdering(msg: Map, state: list[float], cone_history: ConeHistory):
+def ConeOrdering(msg: Map, state: list[float], cone_history: ConeHistory, visualizer: GifVisualizer=None):
     """get cones from message and call the cone ordering algorithm and return the results
 
     Args:
@@ -26,9 +26,20 @@ def ConeOrdering(msg: Map, state: list[float], cone_history: ConeHistory):
     )
 
     cone_history.update_history(left, right, write_to_file=LocalOptSettings.write_to_file)
-    left_history, right_history = cone_history.get_history()
-    print("length of left history: ", len(left_history))
-    print("length of right history: ", len(right_history))
+    left_h, right_h = cone_history.get_history()
+    print("length of left history: ", len(left_h))
+    print("length of right history: ", len(right_h))
+
+    # filter points
+    test_k = int(0.05*len(left_h))
+    test_t = int(0.4*test_k)
+    left_history, right_history = nearest_neighbor_outlier_removal(left_h, right_h, k=test_k, threshold=test_t, plot=False)
+    print("used nn removal outlier removal")
+
+    # left_history, right_history = filter_cross_boundary_outliers(left_history, right_history, threshold=3.0, plot=False)
+    # left_history = left_history.tolist()
+    # right_history = right_history.tolist()
+    # print("used cross boundary method")
 
     yellow_edges, blue_edges = find_racetrack(left_history, right_history)
     yellow_multiline, blue_multiline = racetrack_to_multiline(yellow_edges, blue_edges)
@@ -44,5 +55,10 @@ def ConeOrdering(msg: Map, state: list[float], cone_history: ConeHistory):
 
     leftN_points = leftN_points[::int(bigN/N)]
     rightN_points = rightN_points[::int(bigN/N)]
+
+    if visualizer:
+        indices_left = list(range(len(leftN_points)))
+        indices_right = list(range(len(rightN_points)))
+        visualizer.update_gif(left_h, right_h, leftN_points, rightN_points, indices=indices_left + indices_right)
 
     return leftN_points, rightN_points

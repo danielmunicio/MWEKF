@@ -31,15 +31,19 @@ def ConeOrdering(msg: Map, state: list[float], cone_history: ConeHistory, visual
     print("length of right history: ", len(right_h))
 
     # filter points
-    test_k = int(0.05*len(left_h))
-    test_t = int(0.4*test_k)
-    left_history, right_history = nearest_neighbor_outlier_removal(left_h, right_h, k=test_k, threshold=test_t, plot=False)
-    print("used nn removal outlier removal")
-
-    # left_history, right_history = filter_cross_boundary_outliers(left_history, right_history, threshold=3.0, plot=False)
-    # left_history = left_history.tolist()
-    # right_history = right_history.tolist()
-    # print("used cross boundary method")
+    if LocalOptSettings.filtering_method == 1:
+        test_k = int(0.05*len(left_h))
+        test_t = int(0.4*test_k)
+        left_history, right_history = nearest_neighbor_outlier_removal(left_h, right_h, k=test_k, threshold=test_t, plot=False)
+        print("used nn removal outlier removal")
+    elif LocalOptSettings.filtering_method == 2:
+        left_history, right_history = filter_cross_boundary_outliers(left_history, right_history, threshold=3.0, plot=False)
+        left_history = left_history.tolist()
+        right_history = right_history.tolist()
+        print("used cross boundary method")
+    else:
+        left_history, right_history = left_h, right_h
+        print("no filtering applied")
 
     yellow_edges, blue_edges = find_racetrack(left_history, right_history)
     yellow_multiline, blue_multiline = racetrack_to_multiline(yellow_edges, blue_edges)

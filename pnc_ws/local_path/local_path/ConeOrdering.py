@@ -30,6 +30,8 @@ def ConeOrdering(msg: Map, state: list[float], cone_history: ConeHistory, visual
     print("length of left history: ", len(left_h))
     print("length of right history: ", len(right_h))
 
+    left_history = None
+    right_history = None
     # filter points
     if LocalOptSettings.filtering_method == 1:
         test_k = int(0.05*len(left_h))
@@ -37,7 +39,7 @@ def ConeOrdering(msg: Map, state: list[float], cone_history: ConeHistory, visual
         left_history, right_history = nearest_neighbor_outlier_removal(left_h, right_h, k=test_k, threshold=test_t, plot=False)
         print("used nn removal outlier removal")
     elif LocalOptSettings.filtering_method == 2:
-        left_history, right_history = filter_cross_boundary_outliers(left_history, right_history, threshold=3.0, plot=False)
+        left_history, right_history = filter_cross_boundary_outliers(left_h, right_h, threshold=3.0, plot=False)
         left_history = left_history.tolist()
         right_history = right_history.tolist()
         print("used cross boundary method")

@@ -47,8 +47,8 @@ class LocalOptSettings(metaclass=Settings):
     FRIC_MAX: Union[float, Function] = 12.0
     write_to_file = True
     save_to_gif = True
+    use_history = True
     filtering_method = 0
-
 
 class MPCSettings(metaclass=Settings):
     """settings for CompiledGlobalOpt. All in one place, so it's always synced."""

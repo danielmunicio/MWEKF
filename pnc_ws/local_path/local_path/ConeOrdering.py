@@ -66,6 +66,12 @@ def ConeOrdering(msg: Map, state: list[float], cone_history: ConeHistory, visual
     leftN_points = leftN_points[::int(bigN/N)]
     rightN_points = rightN_points[::int(bigN/N)]
 
+    leftN_points = np.array(leftN_points)
+    rightN_points = np.array(rightN_points)
+    car_start_position = np.array((2, 0))
+    car_start_direction = np.array([1, 0])
+    leftN_points, rightN_points = correct_cone_order(leftN_points, rightN_points, car_start_position, direction=car_start_direction)
+
     if visualizer:
         indices_left = list(range(len(leftN_points)))
         indices_right = list(range(len(rightN_points)))
@@ -73,73 +79,95 @@ def ConeOrdering(msg: Map, state: list[float], cone_history: ConeHistory, visual
 
     return leftN_points, rightN_points
 
-
-def adjust_cone_order_with_start_position(left_cones, right_cones, car_position, direction=np.array([1, 0])):
+def correct_cone_order(left_cones, right_cones, car_position, direction=np.array([1, 0]), radius_check=None):
     """
     Adjusts the order of the left and right cones based on the car's starting position and its direction.
-    
-    Keyword Arguments:
+
+    Arguments:
         left_cones (np.ndarray): A numpy array of shape (n, 2) representing the ordered (x, y) positions of the left cones.
         right_cones (np.ndarray): A numpy array of shape (n, 2) representing the ordered (x, y) positions of the right cones.
         car_position (np.ndarray): The (x, y) position of the car.
         direction (np.ndarray or float): The direction the vehicle is facing.
             - If a vector: A 2D unit vector representing the car's direction (e.g., np.array([dx, dy])).
             - If an angle: A scalar representing the direction in radians or degrees.
-    
+
     Returns:
-        tuple: A tuple containing the potentially reordered left_cones and right_cones (both numpy arrays).
+        tuple: A tuple containing the properly ordered left_cones and right_cones (both numpy arrays).
     """
+
+    # Find the closest left and right cones
+    left_distances = np.linalg.norm(left_cones - car_position, axis=1)
+    right_distances = np.linalg.norm(right_cones - car_position, axis=1)
     
-    # Find the closest left cone to the car's position
-    left_to_car_distance = np.linalg.norm(left_cones - car_position, axis=1)
-    closest_left_idx = np.argmin(left_to_car_distance)
+    closest_left_idx = np.argmin(left_distances)
+    closest_right_idx = np.argmin(right_distances)
     
-    # Find the corresponding right cone for the closest left cone
-    start_left_cone = left_cones[closest_left_idx]
-    start_right_cone = right_cones[closest_left_idx]
-    start_cone_type = 'left'
-    other_cones = right_cones
-    other_cone_type = 'right'
+    next_index = (closest_left_idx + 1) % len(left_cones)
+    prev_index = (closest_left_idx - 1) % len(left_cones)
     
-    # Alternatively, find the closest right cone to the car's position in case it's closer
-    right_to_car_distance = np.linalg.norm(right_cones - car_position, axis=1)
-    closest_right_idx = np.argmin(right_to_car_distance)
+    starting_left_cone = left_cones[closest_left_idx]
+    next_left_cone = left_cones[next_index]
+    prev_left_cone = left_cones[prev_index]
     
-    # If the closest cone to the car's position is the right cone, swap the order
-    if right_to_car_distance[closest_right_idx] < left_to_car_distance[closest_left_idx]:
-        start_left_cone = left_cones[closest_right_idx]
-        start_right_cone = right_cones[closest_right_idx]
-        start_cone_type = 'right'
-        other_cones = left_cones
-        other_cone_type = 'left'
+    starting_right_cone = left_cones[closest_left_idx]
+    next_right_cone = left_cones[next_index]
+    prev_right_cone = left_cones[prev_index]
     
-    # Step 1: Determine the vehicle's orientation
-    if isinstance(direction, np.ndarray):
-        forward_vec = direction  # Direction is a vector
-    else:
-        forward_vec = np.array([np.cos(direction), np.sin(direction)])  # Convert angle to a unit vector
     
-    # Step 2: Calculate vectors to the next and previous cones
-    next_cone = other_cones[(closest_left_idx + 1) % len(other_cones)]  # Next cone after the starting cone
-    prev_cone = other_cones[(closest_left_idx - 1) % len(other_cones)]  # Previous cone before the starting cone
+    if radius_check is None:
+        avg_spacing = np.mean(np.linalg.norm(np.diff(left_cones, axis=0), axis=1))
+        radius_check = 2 * avg_spacing
     
-    vector_to_next_cone = next_cone - start_left_cone
-    vector_to_prev_cone = prev_cone - start_left_cone
+    # WITHIN RADIUS CHECK
+    next_within_radius = np.linalg.norm(next_left_cone - starting_left_cone) <= radius_check
+    prev_within_radius = np.linalg.norm(prev_left_cone - starting_left_cone) <= radius_check
     
-    plt.quiver(car_position[0], car_position[1], vector_to_next_cone[0], vector_to_next_cone[1], angles='xy', scale_units='xy', scale=1, color='forestgreen')
-    plt.quiver(car_position[0], car_position[1], vector_to_prev_cone[0], vector_to_prev_cone[1], angles='xy', scale_units='xy', scale=1, color='forestgreen')
+    order = np.arange(len(left_cones))
     
-    # Normalize the vectors to compare directions
-    vector_to_next_cone = vector_to_next_cone / np.linalg.norm(vector_to_next_cone)
-    vector_to_prev_cone = vector_to_prev_cone / np.linalg.norm(vector_to_prev_cone)
+    print("closest_left_index = ", closest_left_idx)
+    print("next index = ", next_index)
+    print("prev index = ", prev_index)
     
-    # Step 3: Compare the vehicle's direction with the directions of the cones
-    next_dot_product = np.dot(forward_vec, vector_to_next_cone)
-    prev_dot_product = np.dot(forward_vec, vector_to_prev_cone)
-    
-    # Step 4: If the next cone is more aligned with the vehicle's direction, keep the order
-    if next_dot_product > prev_dot_product:
-        return left_cones, right_cones
-    else:
-        # Step 5: Reverse the order of the cones if necessary
-        return left_cones[::-1], right_cones[::-1]
+    if next_within_radius or prev_within_radius:
+
+        # DOT PRODUCT CHECK
+        if next_within_radius and prev_within_radius:
+            print("DOT PRODUCT CHECK")
+            if isinstance(direction, (int, float)):
+                forward_vec = np.array([np.cos(direction), np.sin(direction)])
+            else:
+                forward_vec = direction / np.linalg.norm(direction)
+
+            vector_next = next_left_cone - starting_left_cone
+            vector_prev = prev_left_cone - starting_left_cone
+            dot_next = np.dot(vector_next, forward_vec)
+            dot_prev = np.dot(vector_prev, forward_vec)
+            
+            print("dot_next: ", dot_next)
+            print("dot_prev: ", dot_prev)
+            
+            if dot_next > dot_prev:
+                print("should be forward order")
+            else:
+                print("shoudl be in reverse order")
+                
+            if dot_next > dot_prev:
+                start_idx = closest_left_idx
+                order = np.arange(len(left_cones))
+            else:
+                start_idx = closest_left_idx
+                order = np.arange(len(left_cones))[::-1]
+            
+            
+        elif next_within_radius:
+            print("RADIUS CHECK FORWARD")
+            order = np.arange(len(left_cones))  # Forward order
+        else:
+            print("RADIUS CHECK REVERSE")
+            order = np.arange(len(left_cones))[::-1]  # Reverse order
+        
+    start_pos = np.where(order == closest_left_idx)[0][0]
+    left_cones = np.roll(left_cones[order], -start_pos, axis=0)
+    right_cones = np.roll(right_cones[order], -start_pos, axis=0)
+
+    return left_cones, right_cones

@@ -68,7 +68,7 @@ def ConeOrdering(msg: Map, state: list[float], cone_history: ConeHistory, visual
 
     leftN_points = np.array(leftN_points)
     rightN_points = np.array(rightN_points)
-    car_start_position = np.array((2, 0))
+    car_start_position = np.array((0, 0))
     car_start_direction = np.array([1, 0])
     leftN_points, rightN_points = correct_cone_order(leftN_points, rightN_points, car_start_position, direction=car_start_direction)
 

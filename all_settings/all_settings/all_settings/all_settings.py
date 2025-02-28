@@ -68,7 +68,7 @@ class MidpointSolver(metaclass=Settings):
 
 class MPCSettings(metaclass=Settings):
     """settings for CompiledGlobalOpt. All in one place, so it's always synced."""
-    N: int = 20
+    N: int = 10
     DT: float = 0.1
     L_F: float = 0.76 - 1
     L_R: float = 0.76 + 1 
@@ -85,8 +85,8 @@ class MPCSettings(metaclass=Settings):
     Q: list = [5., 5., 0., 0.]
     R: list = [10., 100.]
     RUNTIME_FREQUENCY: float = 10
-    nlpsolver = FATROPSolver
-    ivpsolver = RK4Solver
+    nlpsolver = IPOPTSolver
+    ivpsolver = MidpointSolver
     PUBLISH: bool = True
 
 
@@ -112,8 +112,8 @@ class GraphSLAMSettings(metaclass=Settings):
     # Simulator Based Settings
     using_simulator: bool = True
     # Whether or not to use ground truth (perfectly accurate) measurements or not 
-    using_ground_truth_cones: bool = True
-    using_ground_truth_wheelspeeds: bool = True # Whether or not to use the perfect wheel speeds
+    using_ground_truth_cones: bool = False
+    using_ground_truth_wheelspeeds: bool = False # Whether or not to use the perfect wheel speeds
     bypass_SLAM = False # Bypasses SLAM Entirely, publishes ground truth position
     instant_global_map = False # Whether or not to instantly publish the global map
     # Hardware Based Settings
@@ -126,7 +126,8 @@ class GraphSLAMRSSolverSettings(metaclass=Settings):
     z_weight: float = 1.0
     dclip: dict = {1: 0.5, 2: 0.5, 3: 10.0} # keys are color values
     max_icp_steps: int = 0 # only used when data_association_strategy=1
-    max_newton_steps: int = 5
+    max_newton_steps: int = 0
+    data_association_strategy: int = 0 # can be 1 (true ICP) or 0 (global optimization thing)
 
 
 class MPC2Settings(metaclass=Settings):

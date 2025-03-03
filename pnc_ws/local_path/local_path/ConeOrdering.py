@@ -87,7 +87,7 @@ def ConeOrdering(msg: Map, state: list[float], cone_history: ConeHistory, visual
     gif_time = time.time()
 
     print(f"JSON writing time: {json_time - start_time} seconds")
-    print(f"JSON writing time: {algo_time - json_time} seconds")
+    print(f"Algorithm Solve time: {algo_time - json_time} seconds")
     print(f"GIF time: {gif_time - algo_time} seconds")
 
     return leftN_points, rightN_points

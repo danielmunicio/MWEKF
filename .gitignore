@@ -37,3 +37,11 @@ eufs_sim/
 .DS_Store
 
 delta_and_heading
+*.csv
+runs/
+
+sim_data.txt
+*.casadi
+
+# YOLO Created Images
+runs/

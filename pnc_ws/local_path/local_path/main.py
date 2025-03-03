@@ -9,7 +9,7 @@ from all_settings.all_settings import LocalOptSettings as settings
 from sensor_msgs.msg import PointCloud
 from geometry_msgs.msg import Point32
 from .local_opt_compiled import CompiledLocalOpt
-from .ConeOrdering import ConeOrdering
+from .distance_cone_order import distance_cone_order
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import Pose
@@ -50,6 +50,7 @@ class LocalPath(Node):
         print("done")
         self.fails = -1
         self.finished = False
+        
     def finished_cb(self, msg: Bool):
         self.finished = True
 
@@ -62,6 +63,7 @@ class LocalPath(Node):
 
         #lists are reversed
         if len(list(msg.left_cones_x))<=1 or len(list(msg.right_cones_x))<=1:
+            print("Cop out")
             return
         
         left, right = ConeOrdering(msg, self.state, self.cone_history, self.GifVisualizer)
@@ -98,6 +100,9 @@ class LocalPath(Node):
             return
         res = self.res
         print("ok after solve try/except")
+        if (res is None): 
+            print("RES EMPTY")
+            return
         states, _ = self.g.to_constant_tgrid(0.02, **res)
         print("ok converting to constant tgrid")
         # states = np.zeros((50, 4))

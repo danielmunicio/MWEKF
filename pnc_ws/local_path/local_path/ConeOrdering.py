@@ -64,9 +64,6 @@ def ConeOrdering(msg: Map, state: list[float], cone_history: ConeHistory, visual
     # then check if it needs to be reversed
 
     leftN_points, rightN_points = list(map(lambda p: [p[0], p[1]], leftN_points)), list(map(lambda p: [p[0], p[1]], rightN_points))
-    if (np.linalg.norm((np.array(leftN_points[0])+np.array(rightN_points[0]))/2 - np.array(state[0:2]))
-      > np.linalg.norm((np.array(leftN_points[-1])+np.array(rightN_points[-1]))/2 - np.array(state[0:2]))):
-        leftN_points, rightN_points = leftN_points[::-1], rightN_points[::-1]
 
     leftN_points = leftN_points[::int(bigN/N)]
     rightN_points = rightN_points[::int(bigN/N)]

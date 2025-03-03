@@ -19,7 +19,7 @@ class GifVisualizer:
 
         if state:
             x, y = state[0], state[1]
-            plt.scatter(x, y, color='orange') 
+            plt.scatter(x, y, color='black') 
         
         # Plot the ordered cones (lighter colors)
         ax.scatter(leftN_points[:, 0], leftN_points[:, 1], c='red', label='Ordered Left Cones')

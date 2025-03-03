@@ -186,8 +186,8 @@ class GraphSLAMSolve:
         # first we try to rotate and translate z
         # so that it best lines up with the cones
         # we've already seen
-        zprime = self.data_association(z+self.xhat[-1, :], color)
-        # zprime = z+self.xhat[-1, :]
+        #zprime = self.data_association(z+self.xhat[-1, :], color)
+        zprime = z+self.xhat[-1, :]
         # then we can check which cones are closest and which are within/outside
         # of the max landmark distance
         
@@ -202,7 +202,7 @@ class GraphSLAMSolve:
                 dists = np.linalg.norm(z_c[:, np.newaxis, :] - self.lhat[self.color==c], axis=2)
                 l_idxs = np.argmin(dists, axis=1)
                 l_dists = np.min(dists, axis=1)
-            
+                print("L DISTANCES: ", l_dists)
             for i in range(len(z_c)):
                 # if we haven't seen thihs landmark before, add it
                 if l_dists[i] > self.max_landmark_distance:

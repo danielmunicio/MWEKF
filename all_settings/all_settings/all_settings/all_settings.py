@@ -35,9 +35,9 @@ class LocalOptSettings(metaclass=Settings):
         'ipopt.ma57_automatic_scaling': 'no',
         'print_time': 0,
     }
-    # car_params: Dict[str:float] = {'l_r': 1.4987, 'l_f':1.5213, 'm': 1.}1.201
-    car_params: Dict = {'l_r': 0.76, 'l_f':0.76, 'm': 1.}
-    bbox: Dict = {'l': 2.7, 'w': 1.6}
+    # car_params: dict[str:float] = {'l_r': 1.4987, 'l_f':1.5213, 'm': 1.}1.201
+    car_params: dict = {'l_r': 0.76, 'l_f':0.76, 'm': 1.0}
+    bbox: dict = {'l': 2.7, 'w': 1.6}
     DF_MAX: float  =  0.5
     ACC_MIN: float = -3.0
     ACC_MAX_FN: Union[float, Function] = 2.0
@@ -54,14 +54,14 @@ class MPCSettings(metaclass=Settings):
     """settings for CompiledGlobalOpt. All in one place, so it's always synced."""
     N: int = 50
     DT: float = 0.2
-    L_F: float = 0.76
-    L_R: float = 0.76
+    L_F: float = 0.76 - 1
+    L_R: float = 0.76 + 1 
     V_MIN: float = 0.0
     V_MAX: float = 15.0
     A_MIN: float = -3.0
-    A_MAX: float = 2.0
-    DF_MIN: float = -0.6
-    DF_MAX: float = 0.6
+    A_MAX: float = 3.0
+    DF_MIN: float = -1 * np.pi/10
+    DF_MAX: float = 1 * np.pi/10
     A_DOT_MIN: float = -5.0
     A_DOT_MAX: float = 5.0
     DF_DOT_MIN: float = -0.5
@@ -79,8 +79,10 @@ class GraphSLAMSolverSettings(metaclass=Settings):
     x0: np.ndarray = np.array([0.0, 0.0])
     initial_rows: int = int(1e4)
     initial_cols: int = int(1e4)
-    max_landmark_distance: float = 1.5
-    dx_weight: float = 1.0
+    local_radius: int = int(10)
+    
+    max_landmark_distance: float = 0.7
+    dx_weight: float = 1e-4
     z_weight: float = 5.0
 
 class GraphSLAMSettings(metaclass=Settings):
@@ -97,7 +99,7 @@ class GraphSLAMSettings(metaclass=Settings):
     # Whether or not to use ground truth (perfectly accurate) measurements or not 
     using_ground_truth_cones: bool = True
     using_ground_truth_wheelspeeds: bool = True # Whether or not to use the perfect wheel speeds
-    bypass_SLAM = True # Bypasses SLAM Entirely, publishes ground truth position
+    bypass_SLAM = False # Bypasses SLAM Entirely, publishes ground truth position
     instant_global_map = False # Whether or not to instantly publish the global map
     # Hardware Based Settings
     forward_imu_direction: str = 'x' # Which direction is forward for the IMU. Can  be 'x', 'y', or 'z'

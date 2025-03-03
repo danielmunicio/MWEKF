@@ -39,3 +39,11 @@ eufs_sim/
 delta_and_heading
 
 *.gif
+*.csv
+runs/
+
+sim_data.txt
+*.casadi
+
+# YOLO Created Images
+runs/

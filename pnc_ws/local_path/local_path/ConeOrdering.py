@@ -7,6 +7,7 @@ from .TrackMap import find_racetrack, racetrack_to_multiline
 from .ConeHistory import ConeHistory
 from .GifVisualizer import GifVisualizer
 from .Filtering import nearest_neighbor_outlier_removal, filter_cross_boundary_outliers
+import time
 
 def ConeOrdering(msg: Map, state: list[float], cone_history: ConeHistory, visualizer: GifVisualizer=None):
     """get cones from message and call the cone ordering algorithm and return the results
@@ -17,6 +18,8 @@ def ConeOrdering(msg: Map, state: list[float], cone_history: ConeHistory, visual
     Returns:
         tuple[ndarray(2, N), ndarray(2, N)]: pairs of points on the track boundary
     """
+    start_time = time.time()
+
     N = LocalOptSettings.N # get size
     bigN = 300
     
@@ -33,6 +36,8 @@ def ConeOrdering(msg: Map, state: list[float], cone_history: ConeHistory, visual
         print("length of right history: ", len(right_h))
     else:
         left_h, right_h = left, right
+
+    json_time = time.time()
 
     left_history = None
     right_history = None
@@ -72,10 +77,18 @@ def ConeOrdering(msg: Map, state: list[float], cone_history: ConeHistory, visual
     car_start_direction = np.array([1, 0])
     leftN_points, rightN_points = correct_cone_order(leftN_points, rightN_points, car_start_position, direction=car_start_direction)
 
+    algo_time = time.time()
+
     if visualizer:
         indices_left = list(range(len(leftN_points)))
         indices_right = list(range(len(rightN_points)))
-        visualizer.update_gif(left_h, right_h, leftN_points, rightN_points, indices=indices_left + indices_right)
+        visualizer.update_gif(left_h, right_h, leftN_points, rightN_points, indices=indices_left + indices_right, state=state)
+
+    gif_time = time.time()
+
+    print(f"JSON writing time: {json_time - start_time} seconds")
+    print(f"JSON writing time: {algo_time - json_time} seconds")
+    print(f"GIF time: {gif_time - algo_time} seconds")
 
     return leftN_points, rightN_points
 

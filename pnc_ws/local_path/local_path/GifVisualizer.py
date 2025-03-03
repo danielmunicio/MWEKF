@@ -9,13 +9,17 @@ class GifVisualizer:
         self.fps = fps
         self.frames = []
         
-    def plot_frame(self, left_cones, right_cones, leftN_points, rightN_points, indices=None):
+    def plot_frame(self, left_cones, right_cones, leftN_points, rightN_points, indices=None, state=None):
         """Plot one frame showing the cones and their indices."""
         fig, ax = plt.subplots(figsize=(8, 6))
         
         # Plot the left and right cones (raw data)
         ax.scatter(left_cones[:, 0], left_cones[:, 1], c='darkorange', label='Left Cones')
         ax.scatter(right_cones[:, 0], right_cones[:, 1], c='skyblue', label='Right Cones')
+
+        if state:
+            x, y = state[0], state[1]
+            plt.scatter(x, y, color='orange') 
         
         # Plot the ordered cones (lighter colors)
         ax.scatter(leftN_points[:, 0], leftN_points[:, 1], c='red', label='Ordered Left Cones')
@@ -52,12 +56,12 @@ class GifVisualizer:
         """Create and save the GIF using the captured frames."""
         imageio.mimsave(self.gif_filename, self.frames, fps=self.fps)
     
-    def update_gif(self, left_cones, right_cones, leftN_points, rightN_points, indices=None):
+    def update_gif(self, left_cones, right_cones, leftN_points, rightN_points, indices=None, state=None):
         """Update the GIF with new data."""
         left_cones = np.array(left_cones)
         right_cones = np.array(right_cones)
         leftN_points = np.array(leftN_points)
         rightN_points = np.array(rightN_points)
-        self.plot_frame(left_cones, right_cones, leftN_points, rightN_points, indices)
+        self.plot_frame(left_cones, right_cones, leftN_points, rightN_points, indices, state=state)
         self.create_gif()
         print("Updated GIF")

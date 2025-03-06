@@ -2,14 +2,14 @@ from .Settings import Settings
 from casadi import Function
 import numpy as np
 from numpy import pi
-from typing import Union
+from typing import Union, Dict
 
 class GlobalOptSettings(metaclass=Settings):
     """settings for CompiledGlobalOpt. All in one place, so it's always synced."""
-    N: int = 38
+    N: int = 50
     solver: str = 'ipopt'
-    car_params: dict = {'l_r': 0.76, 'l_f':0.76, 'm': 1.}
-    bbox: dict = {'l': 2.7+1, 'w': 1.6+1}
+    car_params: Dict = {'l_r': 0.76, 'l_f':0.76, 'm': 1.}
+    bbox: Dict = {'l': 2.7+1, 'w': 1.6+1}
     DF_MAX: float  =  0.5
     ACC_MIN: float = -3.0
     ACC_MAX_FN: Union[float, Function] = 2.0
@@ -17,13 +17,14 @@ class GlobalOptSettings(metaclass=Settings):
     V_MIN: float = 0.0
     V_MAX: float = 25.0
     FRIC_MAX = 12.0 # float or function
+    write_to_file = True
 
 
 class LocalOptSettings(metaclass=Settings):
     """settings for LocalOpt. All in one place, so it's always synced."""
-    N: int = 10 # for testing, input 10 pairs of cones to test
+    N: int = 50 # for testing, input 10 pairs of cones to test
     solver: str = 'ipopt'
-    solver_opts: dict[str:any] = {
+    solver_opts: Dict = {
         # set linear solver
         'ipopt.linear_solver': 'ma57',
         # expand MX expressions to SX
@@ -44,11 +45,14 @@ class LocalOptSettings(metaclass=Settings):
     V_MIN: float = 0.0
     V_MAX: float = 15.0
     FRIC_MAX: Union[float, Function] = 12.0
-
+    write_to_file = True
+    save_to_gif = True
+    use_history = True
+    filtering_method = 0
 
 class MPCSettings(metaclass=Settings):
     """settings for CompiledGlobalOpt. All in one place, so it's always synced."""
-    N: int = 10
+    N: int = 50
     DT: float = 0.2
     L_F: float = 0.76 - 1
     L_R: float = 0.76 + 1 
@@ -108,7 +112,9 @@ class CANSettings(metaclass=Settings):
 class SteeringSettings(metaclass=Settings):
     CAN_SETTINGS: Settings = CANSettings
     MOTOR_TO_WHEELS_RATIO: float = 1.0 # amount motor spins/amount wheels turn
-    MAX_MOTOR_SPEED: float = 10.0 # positive, radians/second
+    MAX_MOTOR_POS: float = 1.35 # positive radians, furthest distance from zero (max travel/2)
+    MAX_MOTOR_SPEED: float = 50.0 # positive, radians/second
+    MAX_MOTOR_ACC: float = 1000.0 # positive, radians/second/second
     MOTOR_TICKS_PER_RAD: float = 18000/pi # ticks of motor encoder per radian of motor turn
 
 class BBWSerialSettings(metaclass=Settings):

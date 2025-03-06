@@ -94,7 +94,7 @@ class Ground_Truth_Publisher(Node):
                     break
             if new_cone:
                 self.blue_cones = np.vstack([self.blue_cones, [cone[0], cone[1]]])
-                print("Blue Cone Map: ", self.blue_cones)
+                # print("Blue Cone Map: ", self.blue_cones)
 
         for cone in yellow.T:
             new_cone = True
@@ -104,7 +104,7 @@ class Ground_Truth_Publisher(Node):
                     break
             if new_cone:
                 self.yellow_cones = np.vstack([self.yellow_cones, [cone[0], cone[1]]])
-                print("Yellow Cone Map: ", self.yellow_cones)
+                # print("Yellow Cone Map: ", self.yellow_cones)
 
 
         cones_map = Map()
@@ -158,6 +158,7 @@ class Ground_Truth_Publisher(Node):
         self.pose_pub.publish(pose_msg)
 
     def publish_global_map(self) -> None:
+        print("Publishing Global Map")
         cones_map = Map()
         cones_map.left_cones_x = blue_cones_global[:, 0].astype(float).tolist()
         cones_map.left_cones_y = blue_cones_global[:, 1].astype(float).tolist()

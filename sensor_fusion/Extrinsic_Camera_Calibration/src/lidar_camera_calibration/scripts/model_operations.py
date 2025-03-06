@@ -18,7 +18,7 @@ class ModelOperations:
         conf = results[0].boxes.conf.tolist()
         segmentation_outputs = []
         scale_x, scale_y = img.shape[:2]
-        print("scales")
+        # print("scales")
         print(scale_x)
         print(scale_y)
         scale_x = 1

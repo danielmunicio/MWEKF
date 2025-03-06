@@ -37,6 +37,8 @@ eufs_sim/
 .DS_Store
 
 delta_and_heading
+
+*.gif
 *.csv
 runs/
 

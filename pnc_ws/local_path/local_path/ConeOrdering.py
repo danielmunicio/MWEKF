@@ -2,16 +2,14 @@ from all_settings.all_settings import LocalOptSettings
 import numpy as np
 from feb_msgs.msg import Map
 import numpy as np
-import scipy as sp
-from scipy.spatial import Voronoi
-import math
-from scipy.spatial import KDTree
-from shapely.geometry import Polygon, Point, LineString, MultiLineString
-from shapely.ops import linemerge
-from .MapPolygon import find_polygons_from_points
-from .Graph import Graph
+from .NPointGenerator import N_point_generator
+from .TrackMap import find_racetrack, racetrack_to_multiline
+from .ConeHistory import ConeHistory
+from .GifVisualizer import GifVisualizer
+from .Filtering import nearest_neighbor_outlier_removal, filter_cross_boundary_outliers
+import time
 
-def ConeOrdering(msg: Map, state: list[float]):
+def ConeOrdering(msg: Map, state: list[float], cone_history: ConeHistory, visualizer: GifVisualizer=None):
     """get cones from message and call the cone ordering algorithm and return the results
 
     Args:
@@ -20,340 +18,166 @@ def ConeOrdering(msg: Map, state: list[float]):
     Returns:
         tuple[ndarray(2, N), ndarray(2, N)]: pairs of points on the track boundary
     """
+    start_time = time.time()
+
     N = LocalOptSettings.N # get size
+    bigN = 300
     
     left, right = (
         np.array([list(msg.left_cones_x), list(msg.left_cones_y)]).T.tolist(),
         np.array([list(msg.right_cones_x), list(msg.right_cones_y)]).T.tolist(),
     )
-    print(f"Received state {state}")
-    # fix the case if there is not enough points
-    if len(left) <= 5 or len(right) <= 5:
 
-        print(left)
-        yellow_line = LineString(left)
-        blue_line = LineString(right)
-        yellow_more = generate_N_points(yellow_line, 8)
-        yellow_more = [(p.x, p.y) for p in yellow_more]
-        blue_more = generate_N_points(blue_line, 8)
-        blue_more = [(p.x, p.y) for p in blue_more]
-        left, right = N_point_generator(yellow_more, blue_more, [state[:2]], N)
+    left_h, right_h = None, None
+    if LocalOptSettings.use_history:
+        cone_history.update_history(left, right, write_to_file=LocalOptSettings.write_to_file)
+        left_h, right_h = cone_history.get_history()
+        print("length of left history: ", len(left_h))
+        print("length of right history: ", len(right_h))
     else:
-        left, right = N_point_generator(left, right, [state[:2]], N)
-    return np.array(left), np.array(right)
+        left_h, right_h = left, right
 
-def N_point_generator(left, right, traveled, N):
-    # have a list of all_cones for refence
-    all_cones = left.copy()
-    all_cones.extend(right.copy())
-    # figure out polygons
-    # yellow_polygon, blue_polygon = find_local_polygons(all_cones, traveled, left)
-    yellow_polygon, blue_polygon = find_local_polygons(all_cones, traveled, left, right)
-    # figure out local paths
-    local_yellow_path = remove_longest_edge_from_polygon(yellow_polygon)
-    local_blue_path = remove_longest_edge_from_polygon(blue_polygon)
-    # N point local paths
-    N_local_yellow_path = LineString(generate_N_points(local_yellow_path, N))
-    N_local_blue_path = LineString(generate_N_points(local_blue_path, N))
-    outer_boundary_vertices = list(N_local_yellow_path.coords)
-    inner_boundary_vertices = list(N_local_blue_path.coords)
-    all_vertices = outer_boundary_vertices + inner_boundary_vertices
-    # Voronoi diagram
-    vor = Voronoi(all_vertices)
-    # figure out medial line
-    green_edges = get_medial_axis(N_local_yellow_path, N_local_blue_path, vor)
-    new_green_edges = filter_medial_line_further(green_edges)
-    # figure out closest points
-    total_green_linestring = linemerge(new_green_edges)
-    cpoml = closest_points_on_medial_line(outer_boundary_vertices, inner_boundary_vertices)
-    cpoml_2 = closest_points_on_medial_line(cpoml, N_local_blue_path)
-    # return stuff
-    blue_boundary_vertices = [(point.x, point.y) for point in cpoml_2]
-    return outer_boundary_vertices, blue_boundary_vertices
+    json_time = time.time()
 
-def closest_points_on_medial_line(points, medial_line):
+    left_history = None
+    right_history = None
+    # filter points
+    if LocalOptSettings.filtering_method == 1:
+        test_k = int(0.05*len(left_h))
+        test_t = int(0.4*test_k)
+        left_history, right_history = nearest_neighbor_outlier_removal(left_h, right_h, k=test_k, threshold=test_t, plot=False)
+        print("used nn removal outlier removal")
+    elif LocalOptSettings.filtering_method == 2:
+        left_history, right_history = filter_cross_boundary_outliers(left_h, right_h, threshold=3.0, plot=False)
+        left_history = left_history.tolist()
+        right_history = right_history.tolist()
+        print("used cross boundary method")
+    else:
+        left_history, right_history = left_h, right_h
+        print("no filtering applied")
 
-    closest_points = []
-    # Iterate over each point on the outer boundary
-    for p in points:
+    yellow_edges, blue_edges = find_racetrack(left_history, right_history)
+    yellow_multiline, blue_multiline = racetrack_to_multiline(yellow_edges, blue_edges)
+    leftN_points, rightN_points = N_point_generator(yellow_multiline, blue_multiline, bigN)
+
+    # convert to lists of lists instead of Point objects
+    # then check if it needs to be reversed
+
+    leftN_points, rightN_points = list(map(lambda p: [p[0], p[1]], leftN_points)), list(map(lambda p: [p[0], p[1]], rightN_points))
+
+    leftN_points = leftN_points[::int(bigN/N)]
+    rightN_points = rightN_points[::int(bigN/N)]
+
+    leftN_points = np.array(leftN_points)
+    rightN_points = np.array(rightN_points)
+    car_start_position = np.array((0, 0))
+    car_start_direction = np.array([1, 0])
+    leftN_points, rightN_points = correct_cone_order(leftN_points, rightN_points, car_start_position, direction=car_start_direction)
+
+    algo_time = time.time()
+
+    if visualizer:
+        indices_left = list(range(len(leftN_points)))
+        indices_right = list(range(len(rightN_points)))
+        visualizer.update_gif(left_h, right_h, leftN_points, rightN_points, indices=indices_left + indices_right, state=state)
+
+    gif_time = time.time()
+
+    print(f"JSON writing time: {json_time - start_time} seconds")
+    print(f"Algorithm Solve time: {algo_time - json_time} seconds")
+    print(f"GIF time: {gif_time - algo_time} seconds")
+
+    return leftN_points, rightN_points
+
+def correct_cone_order(left_cones, right_cones, car_position, direction=np.array([1, 0]), radius_check=None):
+    """
+    Adjusts the order of the left and right cones based on the car's starting position and its direction.
+
+    Arguments:
+        left_cones (np.ndarray): A numpy array of shape (n, 2) representing the ordered (x, y) positions of the left cones.
+        right_cones (np.ndarray): A numpy array of shape (n, 2) representing the ordered (x, y) positions of the right cones.
+        car_position (np.ndarray): The (x, y) position of the car.
+        direction (np.ndarray or float): The direction the vehicle is facing.
+            - If a vector: A 2D unit vector representing the car's direction (e.g., np.array([dx, dy])).
+            - If an angle: A scalar representing the direction in radians or degrees.
+
+    Returns:
+        tuple: A tuple containing the properly ordered left_cones and right_cones (both numpy arrays).
+    """
+
+    # Find the closest left and right cones
+    left_distances = np.linalg.norm(left_cones - car_position, axis=1)
+    right_distances = np.linalg.norm(right_cones - car_position, axis=1)
     
-        if isinstance(medial_line, MultiLineString):
-            closest_points_on_multiline = []
-            for line in medial_line.geoms:
-                closest_point_on_line = line.interpolate(line.project(Point(p)))
-                closest_points_on_multiline.append(closest_point_on_line)
-
-            closest_point = min(closest_points_on_multiline, key=lambda t: (Point(p)).distance(t))
-            closest_points.append(closest_point)
-        else:
-            medial_linestring = LineString(medial_line)
-            closest_point_on_line = medial_linestring.interpolate(medial_linestring.project(Point(p)))
-            closest_points.append(closest_point_on_line)
+    closest_left_idx = np.argmin(left_distances)
+    closest_right_idx = np.argmin(right_distances)
     
-    return closest_points
-
-def linestring_to_edges(linestring):
-    edges = []
-    coords = list(linestring.coords)
-    num_coords = len(coords)
-    for i in range(num_coords - 1):
-        edges.append((coords[i], coords[i+1]))
-    if linestring.is_closed:
-        edges.append((coords[-1], coords[0]))
-    return edges
-
-def filter_medial_line_further(medial_edges):
+    next_index = (closest_left_idx + 1) % len(left_cones)
+    prev_index = (closest_left_idx - 1) % len(left_cones)
     
-    medial_points = list(set(extract_points_from_linestrings(medial_edges)))
+    starting_left_cone = left_cones[closest_left_idx]
+    next_left_cone = left_cones[next_index]
+    prev_left_cone = left_cones[prev_index]
     
-    medial_dict = {}
-    idx = 0
-
-    for point in medial_points:
-        medial_dict[point] = idx
-        idx += 1
-
-    middle_edges = []
-    for lstring in medial_edges:
-        middle_edges.extend(linestring_to_edges(lstring))
+    starting_right_cone = left_cones[closest_left_idx]
+    next_right_cone = left_cones[next_index]
+    prev_right_cone = left_cones[prev_index]
     
-    graph = Graph(len(medial_points))
-    for e in middle_edges:
-        index_of_e0 = medial_dict[e[0]]
-        index_of_e1 = medial_dict[e[1]]
-        graph.add_edge(index_of_e0, index_of_e1)
-    vertices = [i for i in range(0, len(medial_points))]
-    degrees_of_vertices = graph.degrees(vertices)
     
-    # figure out stuff to delete
-    stuff_to_delete = []
+    if radius_check is None:
+        avg_spacing = np.mean(np.linalg.norm(np.diff(left_cones, axis=0), axis=1))
+        radius_check = 2 * avg_spacing
     
-    for key in degrees_of_vertices:
-        if degrees_of_vertices[key] == 1:
-            stuff_to_delete.append(key)
+    # WITHIN RADIUS CHECK
+    next_within_radius = np.linalg.norm(next_left_cone - starting_left_cone) <= radius_check
+    prev_within_radius = np.linalg.norm(prev_left_cone - starting_left_cone) <= radius_check
     
-    final_edges = []
+    order = np.arange(len(left_cones))
     
-    for e in graph.get_edges():
-        if not (e[0] in stuff_to_delete or e[1] in stuff_to_delete):
-            first = medial_points[e[0]]
-            second = medial_points[e[1]]
-            final_edges.append((first, second))
-        
-    return final_edges
+    print("closest_left_index = ", closest_left_idx)
+    print("next index = ", next_index)
+    print("prev index = ", prev_index)
     
+    if next_within_radius or prev_within_radius:
 
-
-def get_medial_axis(yellow_line, blue_line, vor):
-    
-    # filter edges
-    non_boundary_edges = []
-    for edge in vor.ridge_vertices:
-
-        # Both indices are valid
-        if edge[0] >= 0 and edge[1] >= 0:
-            edge_line = LineString([vor.vertices[edge[0]], vor.vertices[edge[1]]])
-            if not edge_line.intersects(blue_line) and not edge_line.intersects(yellow_line):
-                non_boundary_edges.append(edge_line) 
-                
-    all_cones = list(yellow_line.coords).copy()
-    all_cones.extend(list(blue_line.coords).copy())
-    cone_polygon = LineString(all_cones).convex_hull
-
-
-    medial_edges = []
-    for edge in vor.ridge_vertices:
-
-        # Both indices are valid
-        if edge[0] >= 0 and edge[1] >= 0:
-            edge_line = LineString([vor.vertices[edge[0]], vor.vertices[edge[1]]])
-            if not edge_line.intersects(blue_line) and not edge_line.intersects(yellow_line):
-                endpoint1 = Point(vor.vertices[edge[0]])
-                endpoint2 = Point(vor.vertices[edge[1]])
-                if cone_polygon.contains(endpoint1) and cone_polygon.contains(endpoint2):
-                    medial_edges.append(edge_line)
-                    
-    # filter some more medial edges depending on if they are truly inside the path
-    buffer_amount = yellow_line.distance(blue_line)
-    polygon1 = yellow_line.buffer(buffer_amount)
-    polygon2 = blue_line.buffer(buffer_amount)
-    merged_polygon = polygon1.union(polygon2)
-
-    medial_vertices = extract_points_from_linestrings(medial_edges)
-    vertices_contained = []
-    for point in medial_vertices:
-        if merged_polygon.contains(Point(point)):
-            vertices_contained.append(point)
-    # filter edges that match points contained between liens
-    true_medial_edges = []
-    for edge in medial_edges:
-        list_edge = list(edge.coords)
-        first = list_edge[0]
-        second = list_edge[1]
-        if first in vertices_contained or second in vertices_contained:
-            true_medial_edges.append(edge)
-    
-    return true_medial_edges
-
-
-def distance_between_points(point1, point2):
-    return np.sqrt(np.sum((np.array(point2) - np.array(point1)) ** 2))
-
-
-def find_local_polygons(all_cones, traveled_points, yellow_points, blue_points):
-        
-    yellow_polygon = None
-    blue_polygon = None
-    
-    current_diff_range = float('inf')
-    
-    for percentile_threshold in range(1, 100, 5):
-        
-        near_cones = find_near_cones(all_cones, traveled_points, percentile_threshold)
-        
-        filtered_yellow_points = []
-        filtered_blue_points = []
-        filtered_yellow_polygon = None
-        filtered_blue_polygon = None
-        
-        for point in near_cones:
-            if point in yellow_points:
-                filtered_yellow_points.append(point)
+        # DOT PRODUCT CHECK
+        if next_within_radius and prev_within_radius:
+            print("DOT PRODUCT CHECK")
+            if isinstance(direction, (int, float)):
+                forward_vec = np.array([np.cos(direction), np.sin(direction)])
             else:
-                filtered_blue_points.append(point)
+                forward_vec = direction / np.linalg.norm(direction)
+
+            vector_next = next_left_cone - starting_left_cone
+            vector_prev = prev_left_cone - starting_left_cone
+            dot_next = np.dot(vector_next, forward_vec)
+            dot_prev = np.dot(vector_prev, forward_vec)
+            
+            print("dot_next: ", dot_next)
+            print("dot_prev: ", dot_prev)
+            
+            if dot_next > dot_prev:
+                print("should be forward order")
+            else:
+                print("shoudl be in reverse order")
                 
-        if len(filtered_yellow_points) >= 4 and len(filtered_blue_points) >= 4:
-            filtered_yellow_polygon, filtered_blue_polygon = find_polygons_from_points(yellow_points, blue_points)    
+            if dot_next > dot_prev:
+                start_idx = closest_left_idx
+                order = np.arange(len(left_cones))
+            else:
+                start_idx = closest_left_idx
+                order = np.arange(len(left_cones))[::-1]
+            
+            
+        elif next_within_radius:
+            print("RADIUS CHECK FORWARD")
+            order = np.arange(len(left_cones))  # Forward order
+        else:
+            print("RADIUS CHECK REVERSE")
+            order = np.arange(len(left_cones))[::-1]  # Reverse order
         
-#         if yellow_polygon is None and filtered_yellow_polygon is not None and filtered_yellow_polygon.is_valid:
-            
-        if yellow_polygon is None and filtered_yellow_polygon is not None:
-            
-            all_traveled_contained = True
-            for point in traveled_points:
-                shapely_point = Point(point[0], point[1])
-                if not shapely_point.within(filtered_yellow_polygon):
-                    all_traveled_contained = False
-                    break
-                
-            if all_traveled_contained:
-                yellow_polygon = filtered_yellow_polygon
-            
-        if yellow_polygon is not None:
-            min_x, min_y, max_x, max_y = yellow_polygon.bounds
-            x_range = max_x - min_x
-            y_range = max_y - min_y
-            
-#             if filtered_blue_polygon is not None and filtered_blue_polygon.is_valid:
-            if filtered_blue_polygon is not None:
-                
-                bmin_x, bmin_y, bmax_x, bmax_y = filtered_blue_polygon.bounds
-                blue_x_range = abs(bmax_x - bmin_x)
-                blue_y_range = abs(bmax_y - bmin_y)
-                
-                new_diff = abs(x_range - blue_x_range) + abs(y_range - blue_y_range)
-                
-#                 if new_diff < current_diff_range and filtered_blue_polygon.is_valid:
-                if new_diff < current_diff_range:
-                    current_diff_range = new_diff
-                    blue_polygon = filtered_blue_polygon
-                
-            elif filtered_blue_polygon is not None and (not filtered_blue_polygon.is_valid):
-                break
-    
-    if yellow_polygon is None:
-        yellow_polygon = filtered_yellow_polygon
-        
-    if blue_polygon is None:
-        blue_polygon = filtered_blue_polygon
-            
-    return yellow_polygon, blue_polygon
-            
+    start_pos = np.where(order == closest_left_idx)[0][0]
+    left_cones = np.roll(left_cones[order], -start_pos, axis=0)
+    right_cones = np.roll(right_cones[order], -start_pos, axis=0)
 
-
-def find_near_cones(cones, traveled_points, threshold_percentile=90):
-    # Build KD-tree for traveled pointsy
-    print("traveled_points: ", traveled_points)
-    traveled_tree = KDTree(traveled_points)
-    
-    distances = []
-    for cone in cones:
-        _, idx = traveled_tree.query(cone)
-        closest_traveled_point = traveled_points[idx]
-        distances.append(distance_between_points(cone, closest_traveled_point))
-    
-    threshold_distance = np.percentile(distances, threshold_percentile)
-    
-    near_cones = []
-    for i, cone in enumerate(cones):
-        if distances[i] < threshold_distance:
-            near_cones.append(cone)
-    return near_cones
-
-
-def remove_longest_edge_from_polygon(polygon):
-    exterior_ring = polygon.exterior
-    edges = LineString(exterior_ring).coords
-    
-    new_points = []
-    longest_edge = None
-    longest_edge_length = 0
-    
-    for i in range(len(edges) - 1):
-        edge_start = edges[i]
-        edge_end = edges[i + 1]
-        edge_length = LineString([edge_start, edge_end]).length
-        
-        if edge_length > longest_edge_length:
-            longest_edge_length = edge_length
-            longest_edge = [edge_start, edge_end]
-        
-        new_points.append(edge_start)
-
-    new_track = LineString(new_points)
-    edge_to_remove = LineString(longest_edge)
-    
-    removal_i = -1
-    
-    for i in range(len(new_points)):
-        if i == len(new_points) - 1:
-            if new_points[i] == longest_edge[0] and new_points[0] == longest_edge[1]:
-                removal_i = i
-                break
-        elif new_points[i] == longest_edge[0] and new_points[i + 1] == longest_edge[1]:
-            removal_i = i
-            break
-    
-    if removal_i == len(new_points) - 1:
-        print(f"STUFFFFFF HEREEEE {new_points}")
-
-        return LineString(new_points[0:-1])
-    else:
-        last_point = new_points[-1]
-        first_point = new_points[0]
-
-        stuff = [new_points[i+1:], [last_point, first_point], new_points[:i]]
-        if len(new_points[i+1:]) == 0:
-            stuff.remove(new_points[i+1:])
-        if first_point == last_point:
-            stuff.remove([last_point, first_point])
-        if len(new_points[:i]) == 0:
-            stuff.remove(new_points[:i])
-        print(f"STUFFFFFF {stuff}")
-        return LineString(sum(stuff, start=[]))
-
-def generate_N_points(line, N):
-
-    total_length = line.length
-
-    step = total_length / (N - 1)
-    equidistant_points = [line.interpolate(step * i) for i in range(N)]
-
-    return equidistant_points
-
-def extract_points_from_linestrings(linestrings):
-    points = []
-    for linestring in linestrings:
-        coords = list(linestring.coords)
-        points.extend(coords)
-    return points
+    return left_cones, right_cones

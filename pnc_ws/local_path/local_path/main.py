@@ -20,7 +20,7 @@ from .distance_cone_order import distance_cone_order
 from .ConeHistory import ConeHistory
 from .ConeVisualizer import ConeVisualizer
 from .GifVisualizer import GifVisualizer
-
+from .ConeOrdering import ConeOrdering
 class LocalPath(Node):
     def __init__(self):
         super().__init__("local_path")

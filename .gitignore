@@ -40,6 +40,7 @@ delta_and_heading
 
 *.gif
 *.csv
+cone_history.json
 runs/
 
 sim_data.txt

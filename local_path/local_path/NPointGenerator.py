@@ -41,7 +41,16 @@ def are_boundaries_closed(yellow_multiline: MultiLineString, blue_multiline: Mul
             return False
 
         counter = 0
-        for cycle in nx.simple_cycles(boundary_graph):
+
+        cycles = []
+        if boundary_graph.is_directed():
+            cycles = nx.simple_cycles(boundary_graph)
+            print("using directed graph yay")
+        else:
+            cycles = nx.cycle_basis(boundary_graph)
+            print("using undirected hmm??")
+
+        for cycle in cycles:
             counter += 1
             
         if counter == 1 and not one_is_one:

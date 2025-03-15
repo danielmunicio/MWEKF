@@ -458,10 +458,87 @@ def find_longest_simple_path(graph: nx.Graph) -> List[int]:
 
         # Unmark the current node as visited (backtrack)
         visited.remove(node)
+    
+    def calc_tree_longest_path():
+        nonlocal longest_path
+        visited = set()
+        best_next_2 = {}
+        best_contained = {}
 
-    # Perform DFS from each node to find the longest path
-    for node in graph.nodes():
-        dfs_longest_path(node, set(), [])
+        def dfs(n):
+            # Returns (best self contained's length, best single line's length)
+            visited.add(n)
+            best_next_2[n] = [None, None]
+            best_contained[n] = n
+            best_next_2_len = [0, 0]
+            best_contained_len = 1
+
+            for neighbor in graph.neighbors(n):
+                if neighbor not in visited:
+                    contained, line = dfs(neighbor)
+                    if contained > best_contained_len:
+                        best_contained[n] = neighbor
+                        best_contained_len = contained
+                    if line + 1 > best_next_2_len[1]:
+                        best_next_2_len[1] = line + 1
+                        best_next_2[n][1] = neighbor
+                    if best_next_2_len[1] > best_next_2_len[0]:
+                        best_next_2_len[0], best_next_2_len[1] = best_next_2_len[1], best_next_2_len[0]
+                        best_next_2[n][0], best_next_2[n][1] = best_next_2[n][1], best_next_2[n][0]
+            
+            if best_next_2[n][0] is None:
+                best_next_2[n] = []
+            elif best_next_2[n][1] is None:
+                best_next_2[n] = [best_next_2[n][0]]
+                if best_next_2_len[0] > best_contained_len:
+                    best_contained_len = best_next_2_len[0]
+                    best_contained[n] = n
+            else:
+                if sum(best_next_2_len) - 1 > best_contained_len:
+                    best_contained_len = sum(best_next_2_len) - 1
+                    best_contained[n] = n
+            return best_contained_len, best_next_2_len[0]
+
+        n = None
+        for node in graph.nodes():
+            if node not in visited:
+                n = node
+                dfs(n)
+                while best_contained[n] is not n:
+                    n = best_contained[n]
+                # now we just iterate down both chains
+                path = []
+                if len(best_next_2[n]) > 1:
+                    n1 = best_next_2[n][1]
+                    while best_next_2[n1]:
+                        path.append(n1)
+                        n1 = best_next_2[n1][0]
+                    path.reverse()
+                while best_next_2[n]:
+                    path.append(n)
+                    n = best_next_2[n][0]
+                if len(path) > len(longest_path):
+                    longest_path = path
+        return path
+
+
+    visited = set()
+    def calc_connected_components(n):
+        visited.add(n)
+        for a in graph.neighbors(n):
+            if a not in visited:
+                calc_connected_components(a)
+    connected_comps = 0
+    for n in graph.nodes():
+        if n not in visited:
+            connected_comps += 1
+            calc_connected_components(n)
+    if connected_comps == graph.number_of_nodes() - graph.number_of_edges():
+        calc_tree_longest_path()
+    else:
+        # Perform DFS from each node to find the longest path
+        for node in graph.nodes():
+            dfs_longest_path(node, set(), [])
 
     return longest_path
 

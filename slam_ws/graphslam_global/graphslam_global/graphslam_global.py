@@ -59,9 +59,7 @@ class GraphSLAM_Global(Node):
         
         # how far into periphery of robot heading on each side to include local cones (robot has tunnel vision if this is small) (radians)
         # for handling new messages during the solve step
-        self.solving = False
         self.finished = False
-        self.usefastslam = False
         self.last_slam_update = np.array([np.Inf, np.Inf])
         # SUBSCRIBERS
 

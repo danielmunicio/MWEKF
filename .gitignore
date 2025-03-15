@@ -48,3 +48,4 @@ sim_data.txt
 
 # YOLO Created Images
 runs/
+*.json

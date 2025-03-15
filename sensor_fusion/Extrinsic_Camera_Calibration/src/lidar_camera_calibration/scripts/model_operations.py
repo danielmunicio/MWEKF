@@ -4,9 +4,9 @@ import os
 class ModelOperations:
 
     def __init__(self, root_dir):
-        #self.model_path = os.path.join(root_dir, "segment_bounding_box_cones.pt")
+        self.model_path = '/home/daniel/segment_bounding_box_cones.pt'
         #print(self.model_path)
-        self.model_path = "/home/daniel/testing_model_new.pt"
+        # self.model_path = "/home/daniel/testing_model_new.pt"
         self.model = YOLO(self.model_path)
         self.model.fuse()
     
@@ -18,7 +18,7 @@ class ModelOperations:
         conf = results[0].boxes.conf.tolist()
         segmentation_outputs = []
         scale_x, scale_y = img.shape[:2]
-        print("scales")
+        # print("scales")
         print(scale_x)
         print(scale_y)
         scale_x = 1

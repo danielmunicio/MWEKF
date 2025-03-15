@@ -35,6 +35,18 @@ global_opt.so
 eufs_msgs/
 eufs_sim/
 
+.DS_Store
+
 delta_and_heading
 
-*.DS_Store
+*.gif
+*.csv
+cone_history.json
+run1/
+
+sim_data.txt
+*.casadi
+
+# YOLO Created Images
+**/runs/
+*.json

@@ -7,7 +7,8 @@ install/
 log/
 
 # Don't push YOLO models!!
-*.pt
+#*.pt
+# YOLO models will be forgiven 
 
 # Don't push pycaches
 __pycache__/
@@ -41,11 +42,11 @@ delta_and_heading
 *.gif
 *.csv
 cone_history.json
-runs/
+run1/
 
 sim_data.txt
 *.casadi
 
 # YOLO Created Images
-runs/
+**/runs/
 *.json

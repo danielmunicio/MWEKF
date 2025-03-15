@@ -49,7 +49,7 @@ class LocalOptSettings(metaclass=Settings):
     save_to_gif = True
     use_history = True
     filtering_method = 0
-    distance_cone_order: bool = True
+    distance_cone_order: bool = False
 
 class MPCSettings(metaclass=Settings):
     """settings for CompiledGlobalOpt. All in one place, so it's always synced."""

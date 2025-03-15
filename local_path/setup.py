@@ -1,0 +1,27 @@
+from setuptools import find_packages, setup
+
+package_name = 'local_path'
+
+setup(
+    name=package_name,
+    version='0.0.0',
+    packages=find_packages(exclude=['test']),
+    data_files=[
+        ('share/ament_index/resource_index/packages',
+            ['resource/' + package_name]),
+        ('share/' + package_name, ['package.xml']),
+    ],
+    install_requires=['setuptools'],
+    zip_safe=True,
+    maintainer='reid',
+    maintainer_email='reid@xz.ax',
+    description='TODO: Package description',
+    license='TODO: License declaration',
+    tests_require=['pytest'],
+    entry_points={
+        'console_scripts': [
+            'local_path = local_path.main:main',
+            'compile_solver = local_path.compile_solver:build_solver'
+        ],
+    },
+)

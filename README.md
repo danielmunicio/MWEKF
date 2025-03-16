@@ -1,5 +1,19 @@
-# Welcome to the FEB (soon to be) official GitHub Repo!
+# Welcome to the Autonomous GitHub Repo!
 
+## Table of Contents
+1. [Installation](#installation)
+    - [Required Environment](#required-environment)
+    - [SSH Keys](#ssh-keys)
+    - [Install CasADi, HSL Solvers, and Other Libraries](#install-casadi-hsl-solvers-and-other-libraries)
+    - [Clone Repo to Your Machine](#clone-repo-to-your-machine)
+    - [Install and Set Up Camera and LiDAR Drivers](#install-and-set-up-camera-and-lidar-drivers)
+2. [Launching the Sensor Nodes](#launching-the-sensor-nodes)
+    - [RoboSense M1 LiDAR](#robosense-m1-lidar)
+    - [Intel Realsense Camera](#intel-realsense-camera)
+3. [Table of Nodes](#table-of-nodes)
+4. [Launchfiles](#launchfiles)
+
+---
 ## Installation
 Here, we will cover everything you will need to get going with coding for FEB Autonomous.
 
@@ -86,30 +100,19 @@ ros2 run <package-name> <node-name>
 ```
 where `<package-name>` is the package where the node is located. All nodes, their packages, and workspaces are presented in the table below.
 
-| Workspace `<ws-name>` | Package `<package-name>`  | Node `<node-name>`|
-|---                    |---                        |---                |
-|`perception_ws`        |`auto_calibration`         |`main`             |
-|`perception_ws`        |`camera_perception`        |`yolov8_node`      |
-|`perception_ws`        |`lidar_perception_cpp`     |`lidar_node_cpp`   |
-|`perception_ws`        |`sensor_fusion`            |`fusion_node`      |
+| Package `<package-name>`  | Node `<node-name>`     |
+| ---                       |---                     |
+|`mpc`                      |`mpc`                   |
+|`local_path`               |`local_path`            |
+|`global_path`              |`global_path`           |
+|`graphslam_global`         |`graphslam_global`      |
+|`microcontroller`          |`arduino_node`          |
 
 ## Launchfiles
 A launchfile allows you to launch multiple nodes at the same time. The launch files we have are
 
+* `ros2 launch racecar_bringup p131mks.launch.py` - Launches all nodes needed to run the sim (MPC, Local/Global Path, GraphSLAM). Will eventually have yaml file with sim configurations
+
 * `perception_launch.py` - Launches the perception pipeline, i.e. camera, LiDAR and sensor fusion nodes. No sensor nodes are launched.
 
-To launch, the terminal you are running from first has to be sourced properly. Make sure all workspaces
-where the nodes you will use are located are built with `colcon`. Then, source the terminal first by sourcing `comm_ws` to create an underlay (all our lauchfiles require this).
-```bash
-source ~/feb-system-integration/comm_ws/install/setup.bash
-```
-Repeat this with all required workspaces, i.e.
-```bash
-source ~/feb-system-integration/<required_ws>/install/setup.bash
-```
-where `<required_ws>` is a required workspace. Now, you can go into the `launch` folder and use `ros2 launch`, e.g.
-``` bash
-cd ~/feb-system-integration/launch
-ros2 launch <file-name>
-```
-where `<file-name>` is one of the launchfiles listed above.
+* `Full hardware launch` - to be added

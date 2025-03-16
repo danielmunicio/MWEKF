@@ -171,14 +171,8 @@ class MPCPathFollower:
         # we update the options dict from settings with the equality list
         # which tells the solver which constraints are equality vs inequality constraints
         if self.nlpsolver.name=='fatrop':
-            self.nlpsolver.opts.withopt(equality=np.array(ca.vertcat(*self.equality)).flatten().astype(bool).tolist())
-        self.options = dict(**(
-                self.nlpsolver.opts 
-            if self.nlpsolver.name!='fatrop' else 
-                self.nlpsolver.opts.withopt(
-                    equality=np.array(ca.vertcat(*self.equality)).flatten().astype(bool).tolist()
-                )
-        ))
+            self.nlpsolver.opts['equality'] = np.array(ca.vertcat(*self.equality)).flatten().astype(bool).tolist()
+        self.options = dict(**(self.nlpsolver.opts))
 
         # now construct the solver and the constraints!
         self.solver = ca.nlpsol('solver', self.nlpsolver.name, self.nlp, self.options)

@@ -85,7 +85,7 @@ class MPCSettings(metaclass=Settings):
     Q: list = [5., 5., 0., 0., 0.]
     R: list = [10., 0.]
     RUNTIME_FREQUENCY: float = 100
-    nlpsolver = IPOPTSolver
+    nlpsolver = FATROPSolver
     ivpsolver = MidpointSolver
     PUBLISH: bool = True
 

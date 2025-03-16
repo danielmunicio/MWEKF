@@ -80,8 +80,8 @@ class CompiledGlobalOpt:
 
         ####* utility functions ####
         # easy way to account for angle wrapping
-        x = MX.sym('x', 4)
-        self.fix_angle = Function('fix_angle', [x], [horzcat(x[0, :], x[1, :], sin(x[2, :]/2), x[3, :])])
+        x = MX.sym('x', 5)
+        self.fix_angle = Function('fix_angle', [x], [horzcat(x[0, :], x[1, :], sin(x[2, :]/2), x[3, :], x[4, :])])
         # generate 2x2 rotation matrices
         psi = MX.sym('psi')
         self.rot = Function('rot', [psi], [horzcat(vertcat(cos(psi), sin(psi)), vertcat(-sin(psi), cos(psi)))])
@@ -94,19 +94,21 @@ class CompiledGlobalOpt:
         self.bound_pairs = MX.sym('bound_pairs', self.N, 4)
 
         #* opt variables
-        self.x = MX.sym('x', self.N, 10)
+        self.x = MX.sym('x', self.N, 7)
         self.t = self.x[:, 0]
         self.psi = self.x[:, 1]
         self.v = self.x[:, 2]
-        self.u = self.x[:, 3:5]
-        self.dt = self.x[:, 5:6]
-        self.sl_dyn = self.x[:, 6:10]
+        self.theta = self.x[:, 3]
+        self.u = self.x[:, 4:6]
+        self.dt = self.x[:, 6:7]
+        # self.sl_dyn = self.x[:, 7:11]
 
         #* this represents the full state at each discretization point
         self.z = horzcat(
             self.bound_pairs[:, :2]*(1-self.t)+self.bound_pairs[:, 2:4]*self.t, # LERP between pairs of points on track bounds
             self.psi,
-            self.v
+            self.v,
+            self.theta
         )
         
         #* this is the same thing but shifted by one index. Allows us to take diffs.
@@ -135,14 +137,25 @@ class CompiledGlobalOpt:
         self.glen = 0
 
         #* Dynamics constraints: # Math: F(z_i, u_i, \Delta t_i) == z_{i+1}
-        for i in range(-1, self.N-1):
-            self._add_constraint(
-                f'dynamics{i}',
-                g = vec(self.fix_angle(
-                    self.dynamics(self.z[i, :], self.u[i, :], self.dt[i, :]).T-self.z[i+1, :]) + self.sl_dyn[i, :]),
-                lbg = DM([0.0]*4),
-                ubg = DM([0.0]*4)
-            )
+        dynamics = self.fix_angle.map(self.N)(
+                        self.dynamics.map(self.N, 'thread', 19)(
+                            self.z.T, self.u.T, self.dt.T
+                        ) - self.z_i.T
+                    )
+        # for i in range(-1, self.N-1):
+        #     self._add_constraint(
+        #         f'dynamics{i}',
+        #         g = vec(self.fix_angle(
+        #             self.dynamics(self.z[i, :], self.u[i, :], self.dt[i, :]).T-self.z[i+1, :])),# + self.sl_dyn[i, :]),
+        #         lbg = DM([0.0]*5),
+        #         ubg = DM([0.0]*5)
+        #     )
+        self._add_constraint(
+            'dynamics',
+            vec(dynamics),
+            vec(DM.zeros(dynamics.shape)),
+            vec(DM.zeros(dynamics.shape))
+        )
         #* other constraints. all follow the same pattern.
         self._add_constraint(
             'vel',
@@ -171,7 +184,7 @@ class CompiledGlobalOpt:
         )
         self._add_constraint(
             'steering',
-            g = vec(self.u[:, 1]),
+            g = vec(self.theta),
             lbg = DM([-self.DF_MAX]*self.N),
             ubg = DM([self.DF_MAX]*self.N)
         )
@@ -183,7 +196,7 @@ class CompiledGlobalOpt:
         )
         self._add_constraint(
             'df_dot',
-            g = vec(self.dt * (self.u[:, 1] - vertcat(self.u[-1:, 1], self.u[:-1, 1]))),
+            g = vec(self.u[:, 1]),
             lbg = DM([-self.DF_DOT_MAX]*self.N),
             ubg = DM([self.DF_DOT_MAX]*self.N)
         )
@@ -194,7 +207,7 @@ class CompiledGlobalOpt:
             ubg = DM([1.0]*self.N)
         )
         # centripetal acceleration: # Math: \frac{v^2}{r}=\frac{v^2}{\frac{v}{\dot{\theta}}}=\frac{v^2\dot{\theta}}{v}=v\dot{\theta}
-        ac = (self.v**2 / self.car_params['l_r']) * sin(arctan(self.car_params['l_r']/(self.car_params['l_f'] + self.car_params['l_r']) * tan(self.u[:, 1])))
+        ac = (self.v**2 / self.car_params['l_r']) * sin(arctan(self.car_params['l_r']/(self.car_params['l_f'] + self.car_params['l_r']) * tan(self.z[:, 4])))
         fric_max = self.FRIC_MAX(self.v)**2
         self._add_constraint(
             'centripetal_acc',
@@ -202,7 +215,7 @@ class CompiledGlobalOpt:
             lbg = DM([-inf]*self.N),
             ubg = DM([0.0]*self.N)
         )
-        ac2 = (self.v**2 / self.car_params['l_r']) * sin(arctan(self.car_params['l_r']/(self.car_params['l_f'] + self.car_params['l_r']) * tan(self.u_i[:, 1])))
+        ac2 = (self.v**2 / self.car_params['l_r']) * sin(arctan(self.car_params['l_r']/(self.car_params['l_f'] + self.car_params['l_r']) * tan(self.z_i[:, 4])))
         self._add_constraint(
             'centripetal_acc',
             g = ac2**2 + self.u_i[:, 0]**2-fric_max,
@@ -219,7 +232,7 @@ class CompiledGlobalOpt:
         self.cones = vertcat(self.bound_pairs[:, :2], self.bound_pairs[:, 2:4]).T
         left = self.bound_pairs[:, :2].T
         right = self.bound_pairs[:, 2:4].T
-        self.nc = 5 #* number of cones to consider (ahead of and behind the current cone, on each side)
+        self.nc = 3 #* number of cones to consider (ahead of and behind the current cone, on each side)
         for i in range(self.N):
             if i<self.nc:
                 considered = horzcat(left[:, ((i-self.nc)%self.N):self.N], left[:, :i+self.nc],
@@ -248,7 +261,7 @@ class CompiledGlobalOpt:
 
         #* COST FUNCITON: # Math: \sum_{i=1}^N\left[ \Delta t_i + 10^5\cdot\sum(\text{sl}_\text{dyn})^2\right]
         #* slack vars aren't really neccessary for dynamics but I'm too lazy to remove them. Really they should be on the cone constraints but it's ok.
-        self.f = sum1(self.dt) + 1e5*sumsqr(self.sl_dyn)
+        self.f = sum1(self.dt)# + 1e5*sumsqr(self.sl_dyn)
 
         #* construct the NLP dictionary to be passed into casadi.nlpsol
         self.nlp = {
@@ -328,6 +341,7 @@ class CompiledGlobalOpt:
             controls.append(u[idx])
             states.append(np.array(self.dynamics(z[idx], u[idx], extra)).flatten())
             cur += dt
+        
         return np.array(states), np.array(controls)
 
         
@@ -351,10 +365,11 @@ class CompiledGlobalOpt:
             DM([0.5]*self.N), # t
             DM(angles),       # psi
             DM([1.0]*self.N), # v
+            DM([0.0]*self.N), # theta
             DM([0.0]*self.N), # a
             DM([0.0]*self.N), # theta
             DM([0.5]*self.N), # dt
-            DM([0.0]*self.N*4)# track slack vars
+            # DM([0.0]*self.N*4)# track slack vars
         ))
         # self.solver.print_options()
         self.soln = self.solver(
@@ -363,17 +378,17 @@ class CompiledGlobalOpt:
             ubg=self.ubg,
             p=horzcat(DM(left), DM(right)),
         )
-        self.soln['x'] = np.array(reshape(self.soln['x'], (self.N, 10)))
+        self.soln['x'] = np.array(reshape(self.soln['x'], (self.N, 7)))
         self.soln['xy'] = (left.T*(1-self.soln['x'][:, 0])+right.T*self.soln['x'][:, 0]).T
 
         res=dict()
         res['z'] = np.hstack([
             self.soln['xy'],
-            self.soln['x'][:, 1:3],
+            self.soln['x'][:, 1:4],
         ])
         # print('silly:',res['z'].shape)
         res['z'] = np.concatenate([res['z'], res['z'][:1]], axis=0)
-        res['u'] = np.concatenate([self.soln['x'][:, 3:5], self.soln['x'][:1, 3:5]], axis=0)
-        res['t'] = np.concatenate([[0.], np.cumsum(self.soln['x'][:, 5])])
+        res['u'] = np.concatenate([self.soln['x'][:, 4:6], self.soln['x'][:1, 4:6]], axis=0)
+        res['t'] = np.concatenate([[0.], np.cumsum(self.soln['x'][:, 6:7])])
         
         return res

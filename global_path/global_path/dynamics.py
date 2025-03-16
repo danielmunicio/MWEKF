@@ -13,13 +13,14 @@ def continuous_dynamics_fixed_x_order(x, u, l_r=0.5, l_f=0.5, m=1.0):
     # m    mass of the car
 
     # set parameters
-    beta = ca.arctan(l_r/(l_f + l_r) * ca.tan(u[1]))
+    beta = ca.arctan(l_r/(l_f + l_r) * ca.tan(x[4]))
 
     # calculate dx/dt
     return ca.vertcat(x[3] * ca.cos(x[2] + beta),  # dxPos/dt = v*cos(theta+beta)
                       x[3] * ca.sin(x[2] + beta),  # dyPos/dt = v*sin(theta+beta)
                       x[3] / l_r * ca.sin(beta),   # dtheta/dt = v/l_r*sin(beta)
-                      u[0] / m)                    # dv/dt = F/m
+                      u[0] / m,                    # dv/dt = F/m
+                      u[1])                        # dphi/dt
 
 def discrete_custom_integrator(n = 3, l_r=0.5, l_f=0.5, m=1.0):
     """makes a discrete dynamics function using the bicycle model with the given parameters. uses the midpoint method for integration.
@@ -33,7 +34,7 @@ def discrete_custom_integrator(n = 3, l_r=0.5, l_f=0.5, m=1.0):
     Returns:
         casadi.Function: integrator which takes in (x0: initial state, u: control input, dt: time to integrate forward)
     """
-    x0 = MX.sym('x0', 4)
+    x0 = MX.sym('x0', 5)
     u = MX.sym('u', 2)
     dt = MX.sym('t')
     xdot = continuous_dynamics_fixed_x_order(x0, u, l_r, l_f, m)

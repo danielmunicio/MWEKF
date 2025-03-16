@@ -53,6 +53,9 @@ class MPC(Node):
         self.global_path = None
         self.local_path = None
         self.prev_soln = np.array([0.0, 0.0])
+        self.DT = settings.DT/10.0
+        self.curr_state = np.zeros(5)
+        self.create_timer(self.DT, self.run_control)
 
         
     def steer_callback(self, msg: WheelSpeeds):
@@ -78,9 +81,10 @@ class MPC(Node):
         y = np.array(msg.y)
         v = np.array(msg.v)
         psi = np.array(msg.psi)
+        th = np.array(msg.th)
         a = np.array(msg.a)
-        theta = np.array(msg.theta)
-        path = np.column_stack((x, y, psi, v, a, theta))
+        thdot = np.array(msg.thdot)
+        path = np.column_stack((x, y, psi, v, th, a, thdot))
         self.global_path = path
         self.path = self.global_path if self.global_path is not None else self.local_path
         # self.update_term_cost_mats()
@@ -112,9 +116,10 @@ class MPC(Node):
         y = np.array(msg.y)
         psi = np.array(msg.psi)
         v = np.array(msg.v)
+        th = np.array(msg.th)
         a = np.array(msg.a)
-        theta = np.array(msg.theta)
-        path = np.column_stack((x, y, psi, v, a, theta))
+        thdot = np.array(msg.thdot)
+        path = np.column_stack((x, y, psi, v, th, a, thdot))
         self.local_path = path
         self.path = self.global_path if self.global_path is not None else self.local_path
         # self.update_term_cost_mats()
@@ -128,29 +133,32 @@ class MPC(Node):
         '''
         # returns the current state as an np array with these values in this order: x,y,velocity,heading
         #curr_state = msg.carstate
-        curr_state = [0., 0., 0., 0.]
-        curr_state[0] = carstate.x # x value
-        curr_state[1] = carstate.y # y value
-        curr_state[2] = carstate.heading
-        curr_state[3] = carstate.velocity
-
-        pt = np.array(curr_state[0:2])
+        self.curr_state[0] = carstate.x # x value
+        self.curr_state[1] = carstate.y # y value
+        self.curr_state[2] = carstate.heading
+        self.curr_state[3] = carstate.velocity
+        self.curr_state[4] = carstate.theta
+    
+    def run_control(self):
+        curr_state = self.curr_state
         
+        pt = np.array(curr_state[0:2])
+        self.curr_state[4] += self.DT*self.prev_soln[1]
         if self.path is not None: 
             idx = np.argmin(np.linalg.norm(self.path[:, :2] - pt, axis=1))
             idxs = (np.arange(idx, idx+10*self.mpc.N, 10))
             xidxs = ((idxs+10)%len(self.path)).tolist()
             uidxs = ((idxs)%len(self.path)).tolist()
             # trajectory = self.path[idxs]
-            x_traj = self.path[xidxs, 0:4]
-            u_traj = self.path[uidxs, 4:6]
+            x_traj = self.path[xidxs, 0:5]
+            u_traj = self.path[uidxs, 5:7]
             trajectory = np.hstack([x_traj, u_traj]).T
 
             self.prev_soln = self.mpc.solve(np.array(curr_state), self.prev_soln, trajectory).flatten()
             if not settings.PUBLISH: 
-                print("skipping!")
+                # print("skipping!")
                 return 
-            else: print("publishing!")
+            # else: print("publishing!")
 
             # print(self.prev_soln)
             # print('drive message:', self.prev_soln['u_control'][0])
@@ -159,7 +167,7 @@ class MPC(Node):
             msg = AckermannDriveStamped()
             msg.header.stamp = self.get_clock().now().to_msg()
             msg.drive.acceleration = self.prev_soln[0]  
-            msg.drive.steering_angle = self.prev_soln[1]
+            msg.drive.steering_angle = self.curr_state[4]
 
             # with open("sim_data.txt", "a") as f:
             #     print("------------------------------------------------", file=f)
@@ -173,7 +181,7 @@ class MPC(Node):
             throttle_msg = Float64()
             steer_msg = Float64()
             throttle_msg.data = self.prev_soln[0]
-            steer_msg.data = self.prev_soln[1]
+            steer_msg.data = self.curr_state[4]
 
             self.throttle_pub.publish(throttle_msg)
             self.steer_pub.publish(steer_msg)

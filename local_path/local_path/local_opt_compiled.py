@@ -80,9 +80,9 @@ class CompiledLocalOpt:
 
         ####* utility functions ####
         # easy way to account for angle wrapping
-        x = MX.sym('x', 4)
+        x = MX.sym('x', 5)
         # self.fix_angle = Function('fix_angle', [x], [horzcat(x[0, :], x[1, :], sin(2*x[2, :]), x[3, :])])
-        self.fix_angle = Function('fix_angle', [x], [horzcat(x[0, :], x[1, :], sin(x[2, :]/2), x[3, :])])
+        self.fix_angle = Function('fix_angle', [x], [horzcat(x[0, :], x[1, :], sin(x[2, :]/2), x[3, :], x[4, :])])
         # generate 2x2 rotation matrices
         psi = MX.sym('psi')
         self.rot = Function('rot', [psi], [reshape(horzcat(cos(psi), sin(psi), -sin(psi), cos(psi)), 2, 2)])
@@ -92,24 +92,27 @@ class CompiledLocalOpt:
         ###########################################*
 
         #* Track parameters
-        currAndCones = MX.sym('bound_pairs', self.N + 1, 4)
-        self.curr_state = currAndCones[0, :]
-        self.bound_pairs = currAndCones[1:, :]
+        self.bound_pairs = MX.sym('bound_pairs', self.N, 4)
+        self.curr_state = MX.sym('curr_state', 1, 5)
+        # self.curr_state = currAndCones[0, :]
+        # self.bound_pairs = currAndCones[1:, :]
 
         #* opt variables
-        self.x = MX.sym('x', self.N, 10)
+        self.x = MX.sym('x', self.N, 7)
         self.t = self.x[:, 0]
         self.psi = self.x[:, 1]
         self.v = self.x[:, 2]
-        self.u = self.x[:, 3:5]
-        self.dt = self.x[:, 5:6]
-        self.sl_dyn = self.x[:, 6:10]
+        self.theta = self.x[:, 3]
+        self.u = self.x[:, 4:6]
+        self.dt = self.x[:, 6:7]
+        # self.sl_dyn = self.x[:, 7:11]
 
         #* this represents the full state at each discretization point
         self.z = horzcat(
             self.bound_pairs[:, :2]*(1-self.t)+self.bound_pairs[:, 2:4]*self.t, # LERP between pairs of points on track bounds
             self.psi,
-            self.v
+            self.v,
+            self.theta,
         )
         
         #* this is the same thing but shifted by one index. Allows us to take diffs.
@@ -138,8 +141,8 @@ class CompiledLocalOpt:
                 f'dynamics{i}',
                 g = vec(self.fix_angle(
                     self.dynamics(self.z[i, :], self.u[i, :], self.dt[i, :]).T-self.z[i+1, :])),# + self.sl_dyn[i, :]),
-                lbg = DM([0.0]*4),
-                ubg = DM([0.0]*4)
+                lbg = DM([0.0]*5),
+                ubg = DM([0.0]*5)
             )
         #* other constraints. all follow the same pattern.
         self._add_constraint(
@@ -162,7 +165,7 @@ class CompiledLocalOpt:
         )
         self._add_constraint(
             'steering',
-            g = vec(self.u[:, 1]),
+            g = vec(self.x[:, 4]),
             lbg = DM([-self.DF_MAX]*self.N),
             ubg = DM([self.DF_MAX]*self.N)
         )
@@ -174,9 +177,9 @@ class CompiledLocalOpt:
         )
         self._add_constraint(
             'df_dot',
-            g = vec(self.dt[:-1] * (self.u[:-1, 1] - self.u[-1:, 1])),
-            lbg = DM([-self.DF_DOT_MAX]*(self.N-1)),
-            ubg = DM([self.DF_DOT_MAX]*(self.N-1))
+            g = vec(self.u[:, 1]),
+            lbg = DM([-self.DF_DOT_MAX]*(self.N)),
+            ubg = DM([self.DF_DOT_MAX]*(self.N))
         )
         self._add_constraint(
             't',
@@ -211,9 +214,9 @@ class CompiledLocalOpt:
         )
         self._add_constraint(
             'final control',
-            g = self.u[-1,0],
-            lbg=DM([0.0]),
-            ubg=DM([0.0]),
+            g = self.u[-1,:].T,
+            lbg=DM([0.0, 0.0]),
+            ubg=DM([0.0, 0.0]),
         )
         # self._add_constraint(
         #     'curr_heading',
@@ -222,7 +225,7 @@ class CompiledLocalOpt:
         #     ubg = DM(pi/6)
         # )
         # Makes it so that the time to run is at minimum 2 (soft constraint, scalar included)
-        self.scalar = MX.sym("scalar")
+        # self.scalar = MX.sym("scalar")
         # self._add_constraint(
         #     'min_time',
         #     g = sum1(self.dt) + self.scalar,
@@ -230,14 +233,13 @@ class CompiledLocalOpt:
         #     ubg = DM(float('inf'))
         # )
         # centripetal acceleration: # Math: \frac{v^2}{r}=\frac{v^2}{\frac{v}{\dot{\theta}}}=\frac{v^2\dot{\theta}}{v}=v\dot{\theta}
-        ac = (self.v**2 / self.car_params['l_r']) * sin(arctan(self.car_params['l_r']/(self.car_params['l_f'] + self.car_params['l_r']) * tan(self.u[:, 1])))
+        ac = (self.v**2 / self.car_params['l_r']) * sin(arctan(self.car_params['l_r']/(self.car_params['l_f'] + self.car_params['l_r']) * tan(self.theta)))
         self._add_constraint(
             'centripetal_acc',
             g = ac**2 + self.u[:, 0]**2-self.FRIC_MAX(self.v)**2,
             lbg = DM([-inf]*self.N),
             ubg = DM([0.0]*self.N)
         )
-
         #* Cone Constraints: stop the car from hitting any cones
         # TODO: allow the cone locations to be different from the track side points
 
@@ -261,6 +263,7 @@ class CompiledLocalOpt:
 
         #* YAY we're done adding constraints. Now concatenate all the constraints into one big vector.
         #* note that while vertcat is typically slower than horzcat, since these are all vectors, it's the exact same memory operation
+        print([i.shape for i in self.g])
         self.g = vertcat(*self.g)
         self.lbg = vertcat(*self.lbg)
         self.ubg = vertcat(*self.ubg)
@@ -268,15 +271,15 @@ class CompiledLocalOpt:
         #* COST FUNCITON: # Math: \sum_{i=1}^N\left[ \Delta t_i + 10^5\cdot\sum(\text{sl}_\text{dyn})^2\right]
         #* slack vars aren't really neccessary for dynamics but I'm too lazy to remove them. Really they should be on the cone constraints but it's ok.
         # adding the scalar portion will penalize having to use the scalar (i.e. giving too short a path)
-        self.f = sum1(self.dt) + 1e12*sumsqr(self.sl_dyn)**2 + 1e2*(self.scalar)**2
+        self.f = sum1(self.dt)# + 1e12*sumsqr(self.sl_dyn)**2 + 1e2*(self.scalar)**2
 
         #* construct the NLP dictionary to be passed into casadi.
         # make sure you add the self.scalar to x so the nlp can modify it!
         self.nlp = {
-            'x': vertcat(vec(self.x), self.scalar),
+            'x': vertcat(vec(self.x)),# self.scalar),
             'f': self.f,
             'g': self.g,
-            'p': currAndCones,
+            'p': vertcat(vec(self.curr_state), vec(self.bound_pairs)),
         }
 
         self.warmstart = None
@@ -392,11 +395,12 @@ class CompiledLocalOpt:
             DM([0.5]*self.N), # t
             DM(angles),       # psi
             DM([curr_state[3]]*self.N), # v
+            DM([curr_state[4]]*self.N), # th
             DM([0.0]*self.N), # a
-            DM([0.0]*self.N),
+            DM([0.0]*self.N), # thdot
             DM([0.1]*self.N), # dt
-            DM([0.0]*self.N*4),
-            DM([0.0])         # scalar
+            # DM([0.0]*self.N*4),
+            # DM([0.0])         # scalar
         ))
         # print(self.x0, self.x0.shape())
         # print("leo is mean!!!!!")
@@ -411,14 +415,14 @@ class CompiledLocalOpt:
             x0=self.x0,
             lbg=self.lbg,
             ubg=self.ubg,
-            p=vertcat(DM(curr_state).T, horzcat(DM(left), DM(right))),
+            p=vertcat(vec(DM(curr_state).T), vec(horzcat(DM(left), DM(right)))),
         )
         self.warmstart = self.soln['x']
         # print("SOLVE FINISHED")
         if err_ok and not self.solver.stats()['success']:
             raise AssertionError("Solver failed to converge")
         
-        self.soln['x'] = np.array(reshape(self.soln['x'][:-1], (self.N, 10)))
+        self.soln['x'] = np.array(reshape(self.soln['x'], (self.N, 7)))
         # print("LOCAL OPT OUTPUT")
         # print(self.soln)
         self.soln['xy'] = (left.T*(1-self.soln['x'][:, 0])+right.T*self.soln['x'][:, 0]).T
@@ -426,11 +430,11 @@ class CompiledLocalOpt:
         res=dict()
         res['z'] = np.hstack([
             self.soln['xy'],
-            self.soln['x'][:, 1:3],
+            self.soln['x'][:, 1:4],
         ])
         # print('silly:',res['z'].shape)
-        res['u'] = self.soln['x'][:, 3:5]
-        res['t'] = np.concatenate([[0.], np.cumsum(self.soln['x'][:, 5])[:-1]])
+        res['u'] = self.soln['x'][:, 4:6]
+        res['t'] = np.concatenate([[0.], np.cumsum(self.soln['x'][:, 6])[:-1]])
         
 
         ## if the solved solution doesn't fill all 2 seconds

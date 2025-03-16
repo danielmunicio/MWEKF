@@ -92,6 +92,7 @@ class GraphSLAM_Global(Node):
         self.global_map_pub = self.create_publisher(Map, '/slam/map/global', 1)
 
         self.local_map_pub = self.create_publisher(Map, '/slam/map/local', 1)
+        self.steering_sub = self.create_subscription(Float64, '/control/steer', self.cmd_callback, 1)
 
         if (self.publish_to_rviz):
             ##These are for Visuals in the SIM 
@@ -99,6 +100,9 @@ class GraphSLAM_Global(Node):
             self.positionguess = self.create_publisher(PointCloud, '/slam/guessed_positions', 1)
             self.pose_pub = self.create_publisher(PoseStamped, '/slam/pose', 1)
 
+
+    def cmd_callback(self, cmd: Float64):
+        self.currentstate.theta = cmd.data
     def state_sub(self, state: CarState):
         """ This is a callback function for the SIMULATORS ground truth carstate. 
             Currently being used to get the cars position so we can calculate the cones R, theta properly.

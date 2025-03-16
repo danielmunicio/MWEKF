@@ -47,36 +47,35 @@ class MPCPathFollower:
         # x = [x, y, psi, v, acc_prev, theta_prev]
         # u = [acc, theta]
 
-        self.q = ca.SX.sym('q', 8, self.N+1)
-        self.x = self.q[0:6, :]
-        self.u = self.q[6:8, :]
+        self.q = ca.SX.sym('q', 7, self.N+1)
+        self.x = self.q[0:5, :]
+        self.u = self.q[5:7, :]
 
         ### Initialize parameters
         # this is the target trajectory in the (non-augmented) state and controls
         # plus the initial state in the first column
-        self.p = ca.SX.sym('p', 6, self.N+1)
-        self.x0 = self.p[0:4, 0:1]
-        self.u_prev = self.p[4:6, 0:1]
-        self.xbar = self.p[0:4, 1:self.N+1] # target states
-        self.ubar = self.p[4:6, 1:self.N+1] # target controls (applied one timestep before target states)
+        self.p = ca.SX.sym('p', 7, self.N+1)
+        self.x0 = self.p[0:5, 0:1]
+        self.xbar = self.p[0:5, 1:self.N+1] # target states
+        self.ubar = self.p[5:7, 0:self.N] # target controls (applied one timestep before target states)
 
         ##### q (opt vars) if n=3
         # | t = 0         | t = 1             | t = 2             | t = 3             |
         # |---------------|-------------------|-------------------|-------------------|
-        # | initial x (x0)| predicted  x 1    | predicted x 2     | predicted x     3 | (6 rows)
+        # | initial x (x0)| predicted  x 1    | predicted x 2     | predicted x     3 | (5 rows)
         # | u(0)          | u(1)              | u(2)              | (unused)          | (2 rows)
 
         ##### p (parameters) if n=3
         # | t = 0         | t = 1             | t = 2             | t = 3             |
         # |---------------|-------------------|-------------------|-------------------|
-        # | initial x (x0)| xbar(1)           | xbar(2)           | xbar(3)           | (4 rows)
-        # | prev u (u(-1))| ubar(0)           | ubar(1)           | ubar(2)           | (2 rows)
+        # | initial x (x0)| xbar(1)           | xbar(2)           | xbar(3)           | (5 rows)
+        # | ubar(0)       | ubar(1)           | ubar(2)           | (unused)          | (2 rows)
 
 
         # Additional parameter: terminal cost matrix
         # technically doesn't need to be 16 params since it's symmetric but issok
         # doesn't really impact performance
-        self.P = ca.SX.sym('P', 4, 4)
+        self.P = ca.SX.sym('P', 5, 5)
 
 
         # dictionary to hold warmstart keyword arguments.
@@ -92,26 +91,25 @@ class MPCPathFollower:
         self.F, self.f, self.A, self.B = self.make_dynamics(**self.ivpsolver)
 
         # hack for angle wrapping
-        self.fix_angle = ca.Function('fix_angle', [x:=ca.MX.sym("x", 4)], [ca.horzcat(x[0, :], x[1, :], 2*ca.pi*ca.sin(x[2, :]/2), x[3, :])])
+        self.fix_angle = ca.Function('fix_angle', [x:=ca.MX.sym("x", 5)], [ca.horzcat(x[0, :], x[1, :], 2*ca.pi*ca.sin(x[2, :]/2), x[3, :], x[4, :])])
 
 
         #### compute default terminal cost that assumes we're traveling forward at 10 m/s
         # first compute linearized system and check controllability
-        A = np.array(self.A([0, 0, 0, 10], [0, 0]))
-        B = np.array(self.B([0, 0, 0, 10], [0, 0]))
-        assert 3.9<np.linalg.matrix_rank(ct.ctrb(A, B))<4.1 # it's an integer (mathematically at least)
-        # then solve the CARE to get a lyapunov terminal cost
-        self.default_P = sp.linalg.solve_continuous_are(
-            a = A, 
-            b = B, 
-            q = self.Q, 
-            r = self.R,
-        )/self.DT
+        # A = np.array(self.A([0, 0, 0, 10], [0, 0]))
+        # B = np.array(self.B([0, 0, 0, 10], [0, 0]))
+        # assert 3.9<np.linalg.matrix_rank(ct.ctrb(A, B))<4.1 # it's an integer (mathematically at least)
+        # # then solve the CARE to get a lyapunov terminal cost
+        # self.default_P = sp.linalg.solve_continuous_are(
+        #     a = A, 
+        #     b = B, 
+        #     q = self.Q, 
+        #     r = self.R,
+        # )/self.DT
         self.default_P = self.Q
         # formulate dynamics constraint using map, which helps the expression graph be more compact        
         dynamics_constr = self.x[:, 1:] - self.F.map(self.N)(self.x[:, :-1], self.u[:, :-1])
         # formulate differential of u, which we can use to constrain rate of change.
-        du = (self.x[4:6, :] - self.u)
 
         self.g = []
         self.lbg = []
@@ -127,55 +125,39 @@ class MPCPathFollower:
             # we must keep track of which constraints are equalities bc fatrop needs this info
             self.equality.append(lb==ub) 
 
-        # utility function for 2d rotation matrices
-        # psi = ca.SX.sym('psi')
-        # self.rot = ca.Function('rot', [psi], [ca.reshape(ca.horzcat(ca.cos(psi), ca.sin(psi), -ca.sin(psi), ca.cos(psi)), 2, 2)])
-
-        # find direction of target path. used for path-basis cost
-        dx = ca.horzsplit(ca.diff(self.xbar[:2, :], 1, 1))
-        dx.append(dx[-1])
-        # dx = [dx[0]] + dx 
-
         # now we actually add all the constraints!
         # we must do this all in a big loop so that each stage's constraints are grouped together.
         # the order of the constraints here is important; we must match the structure FATROP expects.
         cost = 0
-        for stage in range(self.N):
+        for stage in range(self.N+1):
             if stage < self.N:
                 # dynamics (gap-closing constraints)
-                constrain(dynamics_constr[:, stage], ca.DM([0.0]*6), ca.DM([0.0]*6))
+                constrain(dynamics_constr[:, stage], ca.DM([0.0]*5), ca.DM([0.0]*5))
                 # drive jerk limit
-                constrain(du[0:1, stage]*(self.RUNTIME_FREQUENCY if stage==0 else 1/self.DT), ca.DM([self.A_DOT_MIN]), ca.DM([self.A_DOT_MAX]))
+                # constrain(du[0:1, stage]*(self.RUNTIME_FREQUENCY if stage==0 else 1/self.DT), ca.DM([self.A_DOT_MIN]), ca.DM([self.A_DOT_MAX]))
                 # steering velocity limit
-                constrain(du[1:2, stage]*(self.RUNTIME_FREQUENCY if stage==0 else 1/self.DT), ca.DM([self.DF_DOT_MIN]), ca.DM([self.DF_DOT_MAX]))
+                # constrain(du[1:2, stage]*(self.RUNTIME_FREQUENCY if stage==0 else 1/self.DT), ca.DM([self.DF_DOT_MIN]), ca.DM([self.DF_DOT_MAX]))
                 # control bounds
                 constrain(self.u[0:1, stage], ca.DM([self.A_MIN]), ca.DM([self.A_MAX]))
-                constrain(self.u[1:2, stage], ca.DM([self.DF_MIN]), ca.DM([self.DF_MAX]))
-                constrain(self.x[3, stage], lb=ca.DM([self.V_MIN]), ub=ca.DM([self.V_MAX]))
+                constrain(self.u[1:2, stage], ca.DM([self.DF_DOT_MIN]), ca.DM([self.DF_DOT_MAX]))
             if stage==0:
                 # initial states
-                constrain(self.x[0:4, 0]-self.x0, ca.DM([0.0]*4), ca.DM([0.0]*4))
-                constrain(self.x[4:6, 0]-self.u_prev, ca.DM([0.0]*2), ca.DM([0.0]*2))
+                constrain(self.x[0:5, 0]-self.x0, ca.DM([0.0]*5), ca.DM([0.0]*5))
+                # constrain(self.x[5:7, 0]-self.u_prev, ca.DM([0.0]*2), ca.DM([0.0]*2))
+            else:
+                constrain(self.x[3, stage], ca.DM([self.V_MIN]), ca.DM([self.V_MAX]))
+                constrain(self.x[4, stage], ca.DM([self.DF_MIN]), ca.DM([self.DF_MAX]))
+
             
 
             if stage<self.N:
                 # control cost
                 cost += ca.bilin(self.R, self.u[:, stage] - self.ubar[:, stage])
-            if stage<self.N-1:
-                segment = dx[stage]/ca.norm_2(dx[stage])
-                a, c, b, d = segment[0], segment[1], -segment[1], segment[0]
-                # [x -y] [a b]
-                # [y  x] [c d]
-                mat = ca.blockcat([[a, b, 0, 0],
-                                   [c, d, 0, 0],
-                                   [0, 0, 1, 0],
-                                   [0, 0, 0, 1]]).T # Transpose = inverse since orthonormal
-
-                # state cost
-                cost += ca.bilin(self.Q, mat@(self.fix_angle(self.x[0:4, stage+1] - self.xbar[:, stage]).T))
+            if 0<stage<self.N:
+                cost += ca.bilin(self.Q, self.fix_angle(self.x[:, stage] - self.xbar[:, stage-1]).T)
 
         # terminal state cost
-        cost += ca.bilin(self.P, self.fix_angle(self.x[0:4, self.N]-self.xbar[:, self.N-1]))
+        cost += ca.bilin(self.P, self.fix_angle(self.x[:, self.N]-self.xbar[:, self.N-1]))
 
         # collect everything into vectors in the format for `nlpsol`
         self.nlp = {
@@ -188,7 +170,15 @@ class MPCPathFollower:
         # setup options
         # we update the options dict from settings with the equality list
         # which tells the solver which constraints are equality vs inequality constraints
-        self.options = dict(**self.nlpsolver.opts)#, equality=np.array(ca.vertcat(*self.equality)).flatten().astype(bool).tolist())
+        if self.nlpsolver.name=='fatrop':
+            self.nlpsolver.opts.withopt(equality=np.array(ca.vertcat(*self.equality)).flatten().astype(bool).tolist())
+        self.options = dict(**(
+                self.nlpsolver.opts 
+            if self.nlpsolver.name!='fatrop' else 
+                self.nlpsolver.opts.withopt(
+                    equality=np.array(ca.vertcat(*self.equality)).flatten().astype(bool).tolist()
+                )
+        ))
 
         # now construct the solver and the constraints!
         self.solver = ca.nlpsol('solver', self.nlpsolver.name, self.nlp, self.options)
@@ -225,8 +215,8 @@ class MPCPathFollower:
             array of shape (2, 1): control result. [[acc], [theta]]
         """
         if P is None: P = self.default_P
-        p = ca.blockcat([[ca.DM(x0.reshape((4, 1))), trajectory[0:4, :]], 
-                         [u_prev.reshape((2, 1)), trajectory[4:6, :]]])
+        p = ca.blockcat([[ca.DM(x0.reshape((5, 1))), trajectory[0:5, :]], 
+                         [trajectory[5:7, :], ca.DM.zeros(2, 1)]])
         P = ca.DM(P)
         p = ca.vertcat(ca.vec(p), ca.vec(P))
 
@@ -237,7 +227,7 @@ class MPCPathFollower:
             'lam_g0': res['lam_g'],
         }
         self.soln = np.array(ca.reshape(res['x'], self.q.shape)) # (8, self.N+1)
-        return self.soln[6:8, 0:1]
+        return self.soln[5:7, 0:1]
 
 
     def make_dynamics(self, n, method='rk4'):
@@ -254,16 +244,17 @@ class MPCPathFollower:
         # state: [ x, y, theta, v] (theta is heading)
         # control: [a, phi] (fwd acceleration, steering angle)
 
-        x0 = ca.SX.sym('q0', 4)
+        x0 = ca.SX.sym('q0', 5)
         u0 = ca.SX.sym('u0', 2)
 
-        beta = ca.arctan(self.L_R/(self.L_F + self.L_R) * ca.tan(u0[1]))
+        beta = ca.arctan(self.L_R/(self.L_F + self.L_R) * ca.tan(x0[4]))
 
         # calculate dx/dt
         x1 = ca.vertcat(x0[3] * ca.cos(x0[2] + beta),  # dxPos/dt = v*cos(theta+beta)
                         x0[3] * ca.sin(x0[2] + beta),  # dyPos/dt = v*sin(theta+beta)
                         x0[3] / self.L_R * ca.sin(beta),   # dtheta/dt = v/l_r*sin(beta)
                         u0[0],                    # dv/dt = a
+                        u0[1]
         )
 
         f = ca.Function('f', [x0, u0], [x1])
@@ -272,7 +263,7 @@ class MPCPathFollower:
 
         if method == 'midpoint':
             x = x0
-            for i in range(n):
+            for _ in range(n):
                 xm = x + f(x, u0)*(self.DT/(2*n))
                 x += f(xm, u0)*(self.DT/n)
         elif method == 'rk4':
@@ -280,11 +271,9 @@ class MPCPathFollower:
             h = self.DT/n
             for _ in range(n):
                 k1 = h*f(x, u0)
-                k2 = h*f(x+k1/2, u0)
-                k3 = h*f(x + k2/2, u0)
-                k4 = h*f(x+k3, u0)
+                k2 = h*f(x+h*k1/2, u0)
+                k3 = h*f(x+h*k2/2, u0)
+                k4 = h*f(x+h*k3, u0)
                 x += (k1 + 2*k2 + 2*k3 + k4)/6
-
-        u_prev = ca.SX.sym('u0_2', 2)
         
-        return ca.Function('F', [ca.vertcat(x0, u_prev), u0], [ca.vertcat(x, u0)]), f, A, B
+        return ca.Function('F', [x0, u0], [x]), f, A, B

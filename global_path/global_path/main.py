@@ -7,6 +7,7 @@ from feb_msgs.msg import Map
 from std_msgs.msg import Bool
 #from .global_opt_settings import GlobalOptSettings as settings
 from all_settings.all_settings import GlobalOptSettings as settings
+from all_settings.all_settings import MPCSettings as mpc_settings
 from .global_opt_compiled import CompiledGlobalOpt
 from .ConeOrdering import ConeOrdering, N_point_generator
 from eufs_msgs.msg import ConeArrayWithCovariance
@@ -47,16 +48,18 @@ class GlobalPath(Node):
         left, right = ConeOrdering(msg, self.state, self.cone_history)
         
         res = self.g.solve(np.array(left), np.array(right))
-        states, controls = self.g.to_constant_tgrid(0.02, **res)
+        states, controls = self.g.to_constant_tgrid(mpc_settings.DT*0.1, **res)
+
         
         msg = FebPath()
         msg.x = states[:, 0].flatten().tolist()
         msg.y = states[:, 1].flatten().tolist()
         msg.psi = states[:, 2].flatten().tolist()
         msg.v = states[:, 3].flatten().tolist()
+        msg.th = states[:, 4].flatten().tolist()
 
         msg.a = controls[:, 0].flatten().tolist()
-        msg.theta = controls[:, 1].flatten().tolist()
+        msg.thdot = controls[:, 1].flatten().tolist()
         
         self.pc_publisher.publish(msg)
 

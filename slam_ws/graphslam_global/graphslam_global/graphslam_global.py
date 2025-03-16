@@ -73,7 +73,7 @@ class GraphSLAM_Global(Node):
                 if (self.using_ground_truth_wheelspeeds):
                     self.wheelspeeds_sub = self.create_subscription(WheelSpeedsStamped, '/ground_truth/wheel_speeds', self.wheelspeed_sub_sim, 1)
                 else: 
-                    self.wheelspeeds_sub = self.create_subscription(WheelSpeedsStamped, '/ros_can/wheel_speeds', 1)
+                    self.wheelspeeds_sub = self.create_subscription(WheelSpeedsStamped, '/ros_can/wheel_speeds', self.wheelspeed_sub_sim, 1)
             
             self.state_subby = self.create_subscription(CarState, '/ground_truth/state', self.state_sub, 1,)
         else: 

@@ -27,8 +27,8 @@ class LocalPath(Node):
         super().__init__("local_path")
         self.cone_history = ConeHistory()
         self.GifVisualizer = None
-        # if LocalOptSettings.save_to_gif:
-        if True:
+        if settings.save_to_gif:
+        # if True:
             self.GifVisualizer = GifVisualizer(gif_filename="local_cone_ordering.gif", fps=10)
         
         self.distance_cone_order = settings.distance_cone_order

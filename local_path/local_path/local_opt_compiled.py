@@ -134,16 +134,38 @@ class CompiledLocalOpt:
         self.gtable = dict()
         self.glen = 0
 
+
         #* Dynamics constraints: # Math: F(z_i, u_i, \Delta t_i) == z_{i+1}
-        for i in range(0, self.N-1):
-            # print(self.z[i, :]);
-            self._add_constraint(
-                f'dynamics{i}',
-                g = vec(self.fix_angle(
-                    self.dynamics(self.z[i, :], self.u[i, :], self.dt[i, :]).T-self.z[i+1, :])),# + self.sl_dyn[i, :]),
-                lbg = DM([0.0]*5),
-                ubg = DM([0.0]*5)
-            )
+        dynamics = self.fix_angle.map(self.N-1)(
+                        self.dynamics.map(self.N-1, 'thread', 19)(
+                            self.z[:-1, :].T, self.u[:-1, :].T, self.dt[:-1, :].T
+                        ) - self.z[1:, :].T
+                    )
+        # for i in range(-1, self.N-1):
+        #     self._add_constraint(
+        #         f'dynamics{i}',
+        #         g = vec(self.fix_angle(
+        #             self.dynamics(self.z[i, :], self.u[i, :], self.dt[i, :]).T-self.z[i+1, :])),# + self.sl_dyn[i, :]),
+        #         lbg = DM([0.0]*5),
+        #         ubg = DM([0.0]*5)
+        #     )
+        self._add_constraint(
+            'dynamics',
+            vec(dynamics),
+            vec(DM.zeros(dynamics.shape)),
+            vec(DM.zeros(dynamics.shape))
+        )
+
+        # #* Dynamics constraints: # Math: F(z_i, u_i, \Delta t_i) == z_{i+1}
+        # for i in range(0, self.N-1):
+        #     # print(self.z[i, :]);
+        #     self._add_constraint(
+        #         f'dynamics{i}',
+        #         g = vec(self.fix_angle(
+        #             self.dynamics(self.z[i, :], self.u[i, :], self.dt[i, :]).T-self.z[i+1, :])),# + self.sl_dyn[i, :]),
+        #         lbg = DM([0.0]*5),
+        #         ubg = DM([0.0]*5)
+        #     )
         #* other constraints. all follow the same pattern.
         self._add_constraint(
             'vel',

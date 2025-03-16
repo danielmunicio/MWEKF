@@ -22,7 +22,7 @@ class GlobalOptSettings(metaclass=Settings):
 
 class LocalOptSettings(metaclass=Settings):
     """settings for LocalOpt. All in one place, so it's always synced."""
-    N: int = 50 # for testing, input 10 pairs of cones to test
+    N: int = 10 # for testing, input 10 pairs of cones to test
     solver: str = 'ipopt'
     solver_opts: Dict = {
         # set linear solver
@@ -45,8 +45,8 @@ class LocalOptSettings(metaclass=Settings):
     V_MIN: float = 0.0
     V_MAX: float = 10.0
     FRIC_MAX: Union[float, Function] = 12.0
-    write_to_file = True
-    save_to_gif = True
+    write_to_file = False
+    save_to_gif = False
     use_history = True
     filtering_method = 0
     distance_cone_order: bool = False

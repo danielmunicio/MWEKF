@@ -138,7 +138,7 @@ class CompiledGlobalOpt:
 
         #* Dynamics constraints: # Math: F(z_i, u_i, \Delta t_i) == z_{i+1}
         dynamics = self.fix_angle.map(self.N)(
-                        self.dynamics.map(self.N, 'thread', 19)(
+                        self.dynamics.map(self.N, 'thread', 20)(
                             self.z.T, self.u.T, self.dt.T
                         ) - self.z_i.T
                     )
@@ -238,7 +238,7 @@ class CompiledGlobalOpt:
         self.cones = vertcat(self.bound_pairs[:, :2], self.bound_pairs[:, 2:4]).T
         left = self.bound_pairs[:, :2].T
         right = self.bound_pairs[:, 2:4].T
-        self.nc = 3 #* number of cones to consider (ahead of and behind the current cone, on each side)
+        self.nc = 5 #* number of cones to consider (ahead of and behind the current cone, on each side)
         for i in range(self.N):
             if i<self.nc:
                 considered = horzcat(left[:, ((i-self.nc)%self.N):self.N], left[:, :i+self.nc],
@@ -254,7 +254,7 @@ class CompiledGlobalOpt:
             self._add_constraint(
                 f'cones{i}',
                 g=self.safe(self.rot(-self.psi[i])@((considered-self.z[i, :2].T) + car_centroid_center_of_mass_offset)).T, 
-                lbg=DM([1]*self.nc*4),
+                lbg=DM([1.0]*self.nc*4),
                 ubg=DM([inf]*self.nc*4)
             )
 
@@ -370,11 +370,11 @@ class CompiledGlobalOpt:
         self.x0 = vec(vertcat(
             DM([0.5]*self.N), # t
             DM(angles),       # psi
-            DM([1.0]*self.N), # v
+            DM([4.0]*self.N), # v
             DM([0.0]*self.N), # theta
             DM([0.0]*self.N), # a
-            DM([0.0]*self.N), # theta
-            DM([0.5]*self.N), # dt
+            DM([0.0]*self.N), # thdot
+            DM([0.7]*self.N), # dt
             # DM([0.0]*self.N*4)# track slack vars
         ))
         # self.solver.print_options()
@@ -384,6 +384,7 @@ class CompiledGlobalOpt:
             ubg=self.ubg,
             p=horzcat(DM(left), DM(right)),
         )
+        print(self.soln)
         self.soln['x'] = np.array(reshape(self.soln['x'], (self.N, 7)))
         self.soln['xy'] = (left.T*(1-self.soln['x'][:, 0])+right.T*self.soln['x'][:, 0]).T
 

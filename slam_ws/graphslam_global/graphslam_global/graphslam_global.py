@@ -103,6 +103,7 @@ class GraphSLAM_Global(Node):
 
         self.orange_y_bounds = []
         self.lap_counter = -1
+        self.end_race_pub = self.create_publisher(Bool, '/end_race', 1)
     def cmd_callback(self, cmd: Float64):
         self.currentstate.theta = cmd.data
     def state_sub(self, state: CarState):
@@ -141,11 +142,19 @@ class GraphSLAM_Global(Node):
                     self.lap_counter -= 1
             if self.lap_counter > 0:
                 self.local_map.header.stamp = self.get_clock().now().to_msg()
-                self.global_map_pub.publish(self.local_map)
+                map_msg = Map()
+                left = np.array(self.slam.get_cones(1))
+                right = np.array(self.slam.get_cones(2))
+                map_msg.left_cones_x = left[:, 0].flatten().tolist()
+                map_msg.left_cones_y = left[:, 1].flatten().tolist()
+                map_msg.right_cones_x = right[:, 0].flatten().tolist()
+                map_msg.right_cones_y = right[:, 1].flatten().tolist()
+                self.global_map_pub.publish(map_msg)
                 self.finished = True
             if self.lap_counter > settings.NUM_LAPS:
-                assert False
-                self._end_race()
+                msg = Bool()
+                msg.data = True
+                self.end_race_pub.publish(msg)
 
         self.currentstate.x += dx[0]
         self.currentstate.y += dx[1]

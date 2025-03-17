@@ -4,12 +4,12 @@
 import numpy as np
 from all_settings.all_settings import MPCSettings as settings
 from .mpc_controller import MPCPathFollower
-from time import perf_counter
+from time import perf_counter, sleep
 
 # ROS Imports
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Float64
+from std_msgs.msg import Float64, Bool
 
 from sensor_msgs.msg import PointCloud
 from geometry_msgs.msg import Point32, PoseArray, Pose, Point, Quaternion
@@ -17,6 +17,7 @@ from feb_msgs.msg import State, FebPath, Map
 from ackermann_msgs.msg import AckermannDriveStamped
 from eufs_msgs.msg import WheelSpeeds
 import scipy as sp
+
 
 def makepose(x):
     p = Pose()
@@ -56,8 +57,35 @@ class MPC(Node):
         self.DT = settings.DT/10.0
         self.curr_state = np.zeros(5)
         self.create_timer(self.DT, self.run_control)
+        self.create_subscription(Bool, '/end_race', self.end_race_callback, 1)
 
-        
+    def end_race_callback(self, msg):
+        msg = AckermannDriveStamped()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.drive.acceleration = -100  
+        msg.drive.steering_angle = self.curr_state[4]
+
+        # with open("sim_data.txt", "a") as f:
+        #     print("------------------------------------------------", file=f)
+        #     print("FROM MPC:", file=f)
+        #     print("Sending Acceleration Of:", msg.drive.acceleration, file=f)
+        #     print("Sending Steering Of:", msg.drive.steering_angle, file=f)
+        #     print("-------------------------------------------------", file=f)
+            
+        self.control_pub.publish(msg)
+
+        throttle_msg = Float64()
+        steer_msg = Float64()
+        throttle_msg.data = -100
+        steer_msg.data = self.curr_state[4]
+
+        self.throttle_pub.publish(throttle_msg)
+        self.steer_pub.publish(steer_msg)
+
+        sleep(2.0)
+
+        rclpy.shutdown()
+
     def steer_callback(self, msg: WheelSpeeds):
         '''
         Return Steering Angle from steering angle sensor on car

@@ -439,7 +439,7 @@ class CompiledLocalOpt:
             ubg=self.ubg,
             p=vertcat(vec(DM(curr_state).T), vec(horzcat(DM(left), DM(right)))),
         )
-        self.warmstart = self.soln['x']
+        # self.warmstart = self.soln['x']
         # print("SOLVE FINISHED")
         if err_ok and not self.solver.stats()['success']:
             raise AssertionError("Solver failed to converge")

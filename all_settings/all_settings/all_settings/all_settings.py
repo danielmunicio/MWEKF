@@ -6,7 +6,7 @@ from typing import Union, Dict
 
 class GlobalOptSettings(metaclass=Settings):
     """settings for CompiledGlobalOpt. All in one place, so it's always synced."""
-    N: int = 50
+    N: int = 100
     solver: str = 'ipopt'
     car_params: dict = {'l_r': 0.79, 'l_f':0.79, 'm': 1.}
     bbox: dict = {'l': 2.7+0.25, 'w': 1.6+0.25}
@@ -22,7 +22,7 @@ class GlobalOptSettings(metaclass=Settings):
 
 class LocalOptSettings(metaclass=Settings):
     """settings for LocalOpt. All in one place, so it's always synced."""
-    N: int = 10 # for testing, input 10 pairs of cones to test
+    N: int = 50 # for testing, input 10 pairs of cones to test
     solver: str = 'ipopt'
     solver_opts: Dict = {
         # set linear solver
@@ -70,8 +70,8 @@ class MPCSettings(metaclass=Settings):
     """settings for CompiledGlobalOpt. All in one place, so it's always synced."""
     N: int = 10
     DT: float = 0.1
-    L_F: float = 0.76 - 1
-    L_R: float = 0.76 + 1 
+    L_F: float = 0.79 - 1
+    L_R: float = 0.79 + 1 
     V_MIN: float = 0.0
     V_MAX: float = 10.0
     A_MIN: float = -10.0
@@ -83,7 +83,7 @@ class MPCSettings(metaclass=Settings):
     DF_DOT_MIN: float = -1.0
     DF_DOT_MAX: float = 1.0
     Q: list = [5., 5., 0., 0., 0.]
-    R: list = [10., 0.]
+    R: list = [0., 0.]
     RUNTIME_FREQUENCY: float = 100
     nlpsolver = FATROPSolver
     ivpsolver = MidpointSolver
@@ -102,7 +102,7 @@ class GraphSLAMSolverSettings(metaclass=Settings):
 
 class GraphSLAMSettings(metaclass=Settings):
     publish_to_rviz: bool = True
-    local_radius: int = int(1e5)
+    local_radius: int = int(10)
     local_vision_delta: float = pi / 2 # how far into periphery of robot heading on each side to include local cones (robot has tunnel vision if this is small) (radians)
     solve_by_time: bool = True # Solve based on distance traveled otherwise
     solve_frequency: float = 0.3 # Time in seconds between solves
@@ -118,6 +118,7 @@ class GraphSLAMSettings(metaclass=Settings):
     instant_global_map = False # Whether or not to instantly publish the global map
     # Hardware Based Settings
     forward_imu_direction: str = 'x' # Which direction is forward for the IMU. Can  be 'x', 'y', or 'z'
+    NUM_LAPS: int = 3
 
 class GraphSLAMRSSolverSettings(metaclass=Settings):
     x0: tuple[float, float] = (0.0, 0.0)

@@ -90,6 +90,7 @@ class GraphSLAM_Global(Node):
 
         # Publish the current map (GLOBAL_NODE, so this will send the whole map)
         self.global_map_pub = self.create_publisher(Map, '/slam/map/global', 1)
+        self.lap_counter_pub = self.create_publisher(Float64, '/slam/lap_counter', 1)
 
         self.local_map_pub = self.create_publisher(Map, '/slam/map/local', 1)
         self.steering_sub = self.create_subscription(Float64, '/control/steer', self.cmd_callback, 1)
@@ -100,7 +101,8 @@ class GraphSLAM_Global(Node):
             self.positionguess = self.create_publisher(PointCloud, '/slam/guessed_positions', 1)
             self.pose_pub = self.create_publisher(PoseStamped, '/slam/pose', 1)
 
-
+        self.orange_y_bounds = []
+        self.lap_counter = -1
     def cmd_callback(self, cmd: Float64):
         self.currentstate.theta = cmd.data
     def state_sub(self, state: CarState):
@@ -108,10 +110,11 @@ class GraphSLAM_Global(Node):
             Currently being used to get the cars position so we can calculate the cones R, theta properly.
         """
         if self.using_ground_truth_state: 
-            self.currenstate.x = state.pose.pose.position.x
-            self.currentstate.y = state.pose.pose.position.y
-            self.currentstate.heading = quat_to_euler(state.pose.pose.orientation)
-            self.currentstate.velocity = np.sqrt(state.twist.twist.linear.x**2 + state.twist.twist.linear.y**2)
+            self.update_state(
+                [state.pose.pose.position.x - self.currentstate.x, state.pose.pose.position.y - self.currentstate.y],
+                quat_to_euler(state.pose.pose.orientation),
+                np.sqrt(state.twist.twist.linear.x**2 + state.twist.twist.linear.y**2)
+            )
         return
 
     def wheelspeed_sub_sim(self, msg: WheelSpeedsStamped):
@@ -130,11 +133,30 @@ class GraphSLAM_Global(Node):
         Outputs: None
         """
         # All carstates should be float #'s 
+        if len(self.orange_y_bounds) > 0:
+            if self.orange_y_bounds[0] < self.currentstate.y < self.orange_y_bounds[1]:
+                if self.currentstate.x < self.orange_x_pos and self.currentstate.x + dx[0] > self.orange_x_pos:
+                    self.lap_counter += 1
+                elif self.currentstate.x > self.orange_x_pos and self.currentstate.x + dx[0] < self.orange_x_pos:
+                    self.lap_counter -= 1
+            if self.lap_counter > 0:
+                self.local_map.header.stamp = self.get_clock().now().to_msg()
+                self.global_map_pub.publish(self.local_map)
+                self.finished = True
+            if self.lap_counter > settings.NUM_LAPS:
+                assert False
+                self._end_race()
+
         self.currentstate.x += dx[0]
         self.currentstate.y += dx[1]
         self.currentstate.velocity = velocity
         self.currentstate.heading = yaw
         self.currentstate.header.stamp = self.get_clock().now().to_msg()
+        msg = Float64()
+        msg.data = float(self.lap_counter)
+        self.lap_counter_pub.publish(msg)
+
+
 
 
 
@@ -206,7 +228,11 @@ class GraphSLAM_Global(Node):
                 cone_matrix[0].append(r)
                 cone_matrix[1].append(theta)
                 cone_matrix[2].append(1)
- 
+            for cone in cones.big_orange_cones:
+                r, theta = cartesian_to_polar([0.0, 0.0], (cone.point.x, cone.point.y))
+                cone_matrix[0].append(r)
+                cone_matrix[1].append(theta)
+                cone_matrix[2].append(0)
 
             cone_matrix = np.array(cone_matrix).T
             cone_dx = cone_matrix[:,0] * np.cos(cone_matrix[:,1]+self.currentstate.heading) # r * cos(theta) element wise
@@ -242,10 +268,11 @@ class GraphSLAM_Global(Node):
             rot = lambda x: np.array([[np.cos(x), -np.sin(x)], [np.sin(x), np.cos(x)]])
             cones = rot(-self.currentstate.heading)@cones
             res = self.slam.pose_from_data_association([self.currentstate.x, self.currentstate.y, 0.0], cones.T, colors)
-            self.currentstate.x = res[0]
-            self.currentstate.y = res[1]
-            self.currentstate.heading += res[2]
-            print(res)
+            self.update_state([res[0] - self.currentstate.x, res[1]- self.currentstate.y], self.currentstate.heading + res[2], self.currentstate.velocity)
+            # self.currentstate.x = res[0]
+            # self.currentstate.y = res[1]
+            # self.currentstate.heading += res[2]
+            # print(res)
             return
         if ready_to_solve:
             # last_slam_update initialized to infinity, so set current state x,y to 0 in the case. otherwise, update graph with relative position from last update graph
@@ -270,13 +297,19 @@ class GraphSLAM_Global(Node):
         self.time = time.time()
         self.slam.solve_graph()
         # print("UPDATING STATE")
-    
+        if len(self.orange_y_bounds)==0:
+            orange_cones = np.array(self.slam.get_cones(0)) # orange cones
+            if (max_y:=np.max(orange_cones[:, 1])) - (min_y:=np.min(orange_cones[:, 1])) > 2:
+                self.orange_y_bounds = [min_y, max_y]
+                self.orange_x_pos = np.average(orange_cones[:, 0])
+
         
         x_guess, lm_guess = np.array(self.slam.get_positions()), np.array(self.slam.get_cones())
 
         # Publish Running Estimate of Car Positions & Cone Positions in respective messages: positionguess & cone_vis_pub
 
         pos = np.array(x_guess[-1]).flatten()
+        self.update_state([pos[0] - self.currentstate.x, pos[1]-self.currentstate.y], self.currentstate.heading, self.currentstate.velocity)
         self.currentstate.x = pos[0]
         self.currentstate.y = pos[1]
 

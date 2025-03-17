@@ -222,6 +222,12 @@ class CompiledGlobalOpt:
             lbg = DM([-inf]*self.N),
             ubg = DM([0.0]*self.N)
         )
+        self._add_constraint(
+            'min_time',
+            g = ca.sum1(self.dt),
+            lbg = ca.DM([10.0]),
+            ubg = ca.DM([ca.inf])
+        )
 
         #* Cone Constraints: stop the car from hitting any cones
         # TODO: allow the cone locations to be different from the track side points

@@ -47,8 +47,12 @@ class GlobalPath(Node):
         # left = np.vstack([p.l[-20:], p.l[:-20]])
         # right = np.vstack([p.r[-20:], p.r[:-20]])
         # left, right = ConeOrdering(msg, self.state)
+        true_cones = np.array([list(msg.left_cones_x) + list(msg.right_cones_x), 
+                               list(msg.left_cones_y) + list(msg.right_cones_y)]).T
+        
         left, right = ConeOrdering(msg, self.state, self.cone_history)
-        res = self.g.solve(np.array(left), np.array(right))
+
+        res = self.g.solve(np.array(left), np.array(right), true_cones)
         states, controls = self.g.to_constant_tgrid(mpc_settings.DT*0.1, **res)
 
         

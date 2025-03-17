@@ -16,8 +16,9 @@ class GlobalOptSettings(metaclass=Settings):
     DF_DOT_MAX: float =  1.0
     V_MIN: float = 0.0
     V_MAX: float = 8.0
-    FRIC_MAX = 12.0 # float or function
+    FRIC_MAX = 10.0 # float or function
     write_to_file = True
+    N_CONES_PER_POINT: int = 4
 
 
 class LocalOptSettings(metaclass=Settings):
@@ -44,7 +45,7 @@ class LocalOptSettings(metaclass=Settings):
     DF_DOT_MAX: float =  1.0
     V_MIN: float = 0.0
     V_MAX: float = 10.0
-    FRIC_MAX: Union[float, Function] = 12.0
+    FRIC_MAX: Union[float, Function] = 10.0
     write_to_file = False
     save_to_gif = False
     use_history = True
@@ -70,8 +71,8 @@ class MPCSettings(metaclass=Settings):
     """settings for CompiledGlobalOpt. All in one place, so it's always synced."""
     N: int = 10
     DT: float = 0.1
-    L_F: float = 0.79 - 1
-    L_R: float = 0.79 + 1
+    L_F: float = 0.79
+    L_R: float = 0.79
     V_MIN: float = 0.0
     V_MAX: float = 10.0
     A_MIN: float = -10.0

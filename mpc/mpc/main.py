@@ -50,6 +50,7 @@ class MPC(Node):
         self.mpc.construct_solver(use_c=True) # load compiled solver
         print("inited mpc")
 
+        self.race_done = False
         self.path = None
         self.global_path = None
         self.local_path = None
@@ -60,9 +61,10 @@ class MPC(Node):
         self.create_subscription(Bool, '/end_race', self.end_race_callback, 1)
 
     def end_race_callback(self, msg):
+        self.race_done = True
         msg = AckermannDriveStamped()
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.drive.acceleration = -100  
+        msg.drive.acceleration = -100.0  
         msg.drive.steering_angle = self.curr_state[4]
 
         # with open("sim_data.txt", "a") as f:
@@ -76,15 +78,17 @@ class MPC(Node):
 
         throttle_msg = Float64()
         steer_msg = Float64()
-        throttle_msg.data = -100
+        throttle_msg.data = -100.0
         steer_msg.data = self.curr_state[4]
 
-        self.throttle_pub.publish(throttle_msg)
-        self.steer_pub.publish(steer_msg)
+        for _ in range(10):
+            self.throttle_pub.publish(throttle_msg)
+            self.steer_pub.publish(steer_msg)
+            self.control_pub.publish(msg)
 
-        sleep(2.0)
-
+            sleep(0.1)
         rclpy.shutdown()
+
 
     def steer_callback(self, msg: WheelSpeeds):
         '''
@@ -168,6 +172,7 @@ class MPC(Node):
         self.curr_state[4] = carstate.theta
     
     def run_control(self):
+        if self.race_done: return
         curr_state = self.curr_state
         
         pt = np.array(curr_state[0:2])

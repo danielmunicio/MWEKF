@@ -5,6 +5,7 @@ from .dynamics import discrete_custom_integrator
 from casadi import MX, DM, Function, nlpsol, horzcat, reshape, sin, cos, SX, vec, inf, vertcat, tan, arctan, sum1, sumsqr
 import os
 import casadi as ca
+import itertools
 # hsl checking fuckery
 # only works on mac/linux. if you havee windows, I'm willing to bet you have bigger problems.
 hsl_avail = False
@@ -92,6 +93,7 @@ class CompiledGlobalOpt:
 
         #* Track parameters
         self.bound_pairs = MX.sym('bound_pairs', self.N, 4)
+        self.cones_param = MX.sym('cones', self.N, self.N_CONES_PER_POINT*2)
 
         #* opt variables
         self.x = MX.sym('x', self.N, 7)
@@ -207,18 +209,26 @@ class CompiledGlobalOpt:
             ubg = DM([1.0]*self.N)
         )
         # centripetal acceleration: # Math: \frac{v^2}{r}=\frac{v^2}{\frac{v}{\dot{\theta}}}=\frac{v^2\dot{\theta}}{v}=v\dot{\theta}
-        ac = (self.v**2 / self.car_params['l_r']) * sin(arctan(self.car_params['l_r']/(self.car_params['l_f'] + self.car_params['l_r']) * tan(self.z[:, 4])))
-        fric_max = self.FRIC_MAX(self.v)**2
+        v, theta, a = ca.MX.sym('v'), ca.MX.sym('theta'), ca.MX.sym('a')
+        fric_lim = ca.Function(
+            'a_c', 
+            [v, theta, a], 
+            [a**2
+              + ((v**2 / self.car_params['l_r']) * sin(arctan(self.car_params['l_r']/(self.car_params['l_f'] + self.car_params['l_r']) * tan(theta))))**2
+             - self.FRIC_MAX(v)**2]
+        ).map(self.N, 'thread', 20)
+        # ac = (self.v**2 / self.car_params['l_r']) * sin(arctan(self.car_params['l_r']/(self.car_params['l_f'] + self.car_params['l_r']) * tan(self.z[:, 4])))
+        # fric_max = self.FRIC_MAX(self.v)**2
         self._add_constraint(
-            'centripetal_acc',
-            g = ac**2 + self.u[:, 0]**2-fric_max,
+            'centripetal_acc_0',
+            g = vec(fric_lim(self.z[:, 3], self.z[:, 4], self.u[:, 0])),
             lbg = DM([-inf]*self.N),
             ubg = DM([0.0]*self.N)
         )
-        ac2 = (self.v**2 / self.car_params['l_r']) * sin(arctan(self.car_params['l_r']/(self.car_params['l_f'] + self.car_params['l_r']) * tan(self.z_i[:, 4])))
+        # ac2 = (self.v**2 / self.car_params['l_r']) * sin(arctan(self.car_params['l_r']/(self.car_params['l_f'] + self.car_params['l_r']) * tan(self.z_i[:, 4])))
         self._add_constraint(
-            'centripetal_acc',
-            g = ac2**2 + self.u_i[:, 0]**2-fric_max,
+            'centripetal_acc_1',
+            g = vec(fric_lim(self.z_i[:, 3], self.z_i[:, 4], self.u[:, 0])),
             lbg = DM([-inf]*self.N),
             ubg = DM([0.0]*self.N)
         )
@@ -234,29 +244,48 @@ class CompiledGlobalOpt:
 
         #* construct a function which is close enough to a rectangle
         self.safe = Function('safespace', [x:=MX.sym('x', 2)], [(DM([2/self.bbox['l'], 2/self.bbox['w']])**6).T@x**6])
+        x = MX.sym('x', 3)
+        pos = x[0:2]
+        th = x[2:3]
+        cones = MX.sym('cones', 2*self.N_CONES_PER_POINT)
+        car_centroid_center_of_mass_offset = vertcat(self.car_params['l_f']-self.car_params['l_r'], 0)
+        car_frame_cones = self.rot(-th)@(ca.reshape(cones, 2, self.N_CONES_PER_POINT) - pos) + car_centroid_center_of_mass_offset
+        safe_function = (DM([2/self.bbox['l'], 2/self.bbox['w']])**6).T@car_frame_cones**6
+        self.cone_constr = ca.Function(
+            'cone_constr',
+            [x, cones],
+            [safe_function.T],
+        ).map(self.N, 'thread', 20)
 
-        self.cones = vertcat(self.bound_pairs[:, :2], self.bound_pairs[:, 2:4]).T
-        left = self.bound_pairs[:, :2].T
-        right = self.bound_pairs[:, 2:4].T
-        self.nc = 5 #* number of cones to consider (ahead of and behind the current cone, on each side)
-        for i in range(self.N):
-            if i<self.nc:
-                considered = horzcat(left[:, ((i-self.nc)%self.N):self.N], left[:, :i+self.nc],
-                                     right[:, ((i-self.nc)%self.N):self.N], right[:, :i+self.nc])
-            elif i+self.nc >=self.N:
-                considered = horzcat(left[:, i-self.nc:self.N], left[:, :((i+self.nc)%self.N)],
-                                     right[:, i-self.nc:self.N], right[:, :((i+self.nc)%self.N)])
-            else:
-                considered = horzcat(left[:, i-self.nc:i+self.nc],
-                                     right[:, i-self.nc:i+self.nc])
+        self._add_constraint(
+            'cone_constraint',
+            g = vec(self.cone_constr(self.z[:, 0:3].T, self.cones_param.T)),
+            lbg = vec(ca.DM.ones(self.N_CONES_PER_POINT, self.N)),
+            ubg = vec(ca.DM.inf(self.N_CONES_PER_POINT, self.N)),
+        )
+
+        # self.cones = vertcat(self.bound_pairs[:, :2], self.bound_pairs[:, 2:4]).T
+        # left = self.bound_pairs[:, :2].T
+        # right = self.bound_pairs[:, 2:4].T
+        # self.nc = 5 #* number of cones to consider (ahead of and behind the current cone, on each side)
+        # for i in range(self.N):
+        #     if i<self.nc:
+        #         considered = horzcat(left[:, ((i-self.nc)%self.N):self.N], left[:, :i+self.nc],
+        #                              right[:, ((i-self.nc)%self.N):self.N], right[:, :i+self.nc])
+        #     elif i+self.nc >=self.N:
+        #         considered = horzcat(left[:, i-self.nc:self.N], left[:, :((i+self.nc)%self.N)],
+        #                              right[:, i-self.nc:self.N], right[:, :((i+self.nc)%self.N)])
+        #     else:
+        #         considered = horzcat(left[:, i-self.nc:i+self.nc],
+        #                              right[:, i-self.nc:i+self.nc])
                 
-            car_centroid_center_of_mass_offset = vertcat(self.car_params['l_f']-self.car_params['l_r'], 0)
-            self._add_constraint(
-                f'cones{i}',
-                g=self.safe(self.rot(-self.psi[i])@((considered-self.z[i, :2].T) + car_centroid_center_of_mass_offset)).T, 
-                lbg=DM([1.0]*self.nc*4),
-                ubg=DM([inf]*self.nc*4)
-            )
+        #     car_centroid_center_of_mass_offset = vertcat(self.car_params['l_f']-self.car_params['l_r'], 0)
+        #     self._add_constraint(
+        #         f'cones{i}',
+        #         g=self.safe(self.rot(-self.psi[i])@((considered-self.z[i, :2].T) + car_centroid_center_of_mass_offset)).T, 
+        #         lbg=DM([1.0]*self.nc*4),
+        #         ubg=DM([inf]*self.nc*4)
+        #     )
 
 
         #* YAY we're done adding constraints. Now concatenate all the constraints into one big vector.
@@ -274,7 +303,7 @@ class CompiledGlobalOpt:
             'x': vec(self.x),
             'f': self.f,
             'g': self.g,
-            'p': self.bound_pairs,
+            'p': ca.horzcat(self.bound_pairs, self.cones_param),
         }
 
     def _add_constraint(self, name, g, lbg, ubg):
@@ -351,7 +380,7 @@ class CompiledGlobalOpt:
         return np.array(states), np.array(controls)
 
         
-    def solve(self, left, right):
+    def solve(self, left, right, cones):
         """crunch the numbers.
 
         Args:
@@ -361,6 +390,19 @@ class CompiledGlobalOpt:
         Returns:
             dict: result of solve. keys 'z' (states), 'u' (controls), 't' (timestamps)
         """
+        tic = perf_counter()
+        cones_arr = np.zeros((left.shape[0], self.N_CONES_PER_POINT*2))
+        leftsorted = np.copy(cones)
+        rightsorted = np.copy(cones)
+        N_L = int(np.floor(self.N_CONES_PER_POINT/2))
+        N_R = int(np.ceil(self.N_CONES_PER_POINT/2))
+        for i, l, r in zip(itertools.count(), left, right):
+            leftsorted[:, :] = leftsorted[np.linalg.norm(leftsorted-l,axis=1).argsort(), :]
+            rightsorted[:, :] = rightsorted[np.linalg.norm(rightsorted-r,axis=1).argsort(), :]
+            cones_arr[i][0:N_L*2] = leftsorted[0:N_L, :].flatten()
+            cones_arr[i][N_L*2:] = rightsorted[0:N_R, :].flatten()
+        toc = perf_counter()
+        print(f'cone search stuff took {toc-tic:.5f}s')
         center = (left+right)/2
         diffs = np.diff(center, prepend=center[-1:], axis=0)
         diffs = np.concatenate([diffs, [[1, 0]]], axis=0)
@@ -382,7 +424,7 @@ class CompiledGlobalOpt:
             x0=self.x0,
             lbg=self.lbg,
             ubg=self.ubg,
-            p=horzcat(DM(left), DM(right)),
+            p=horzcat(DM(left), DM(right), DM(cones_arr)),
         )
         print(self.soln)
         self.soln['x'] = np.array(reshape(self.soln['x'], (self.N, 7)))

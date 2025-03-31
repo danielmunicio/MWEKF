@@ -206,8 +206,8 @@ class CompiledLocalOpt:
         self._add_constraint(
             't',
             g = vec(self.t),
-            lbg = DM([0.4]*self.N),
-            ubg = DM([0.6]*self.N)
+            lbg = DM([0.45]*self.N),
+            ubg = DM([0.55]*self.N)
         )
         self._add_constraint(
             't0',
@@ -224,7 +224,7 @@ class CompiledLocalOpt:
         # Keeps initial heading and velocity unchangeable
         self._add_constraint(
             'curr_velocity',
-            g = self.curr_state[3] - self.v[0],
+            g = self.curr_state[3] - 1 +0.0*self.v[0],
             lbg = DM(0),
             ubg = DM(0)
         )
@@ -440,10 +440,10 @@ class CompiledLocalOpt:
             p=vertcat(vec(DM(curr_state).T), vec(horzcat(DM(left), DM(right)))),
         )
         # self.warmstart = self.soln['x']
-        # print("SOLVE FINISHED")
+        print("SOLVE FINISHED")
         if err_ok and not self.solver.stats()['success']:
             raise AssertionError("Solver failed to converge")
-        
+        print("SOLVE OK")
         self.soln['x'] = np.array(reshape(self.soln['x'], (self.N, 7)))
         # print("LOCAL OPT OUTPUT")
         # print(self.soln)

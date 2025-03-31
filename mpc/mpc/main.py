@@ -180,8 +180,12 @@ class MPC(Node):
         if self.path is not None: 
             idx = np.argmin(np.linalg.norm(self.path[:, :2] - pt, axis=1))
             idxs = (np.arange(idx, idx+10*self.mpc.N, 10))
-            xidxs = ((idxs+10)%len(self.path)).tolist()
-            uidxs = ((idxs)%len(self.path)).tolist()
+            if self.global_path is not None:
+                xidxs = ((idxs+10)%len(self.path)).tolist()
+                uidxs = ((idxs)%len(self.path)).tolist()
+            else:
+                xidxs = np.clip((idxs+10), 0, len(self.path)-1).astype(int).tolist()
+                uidxs = np.clip((idxs), 0, len(self.path)-1).astype(int).tolist()
             # trajectory = self.path[idxs]
             x_traj = self.path[xidxs, 0:5]
             u_traj = self.path[uidxs, 5:7]

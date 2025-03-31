@@ -308,7 +308,7 @@ class GraphSLAM_Global(Node):
         # print("UPDATING STATE")
         if len(self.orange_y_bounds)==0:
             orange_cones = np.array(self.slam.get_cones(0)) # orange cones
-            if (len(orange_cones)>2) and ((max_y:=np.max(orange_cones[:, 1])) - (min_y:=np.min(orange_cones[:, 1])) > 2):
+            if (len(orange_cones.flatten())>2) and ((max_y:=np.max(orange_cones[:, 1])) - (min_y:=np.min(orange_cones[:, 1])) > 2):
                 self.orange_y_bounds = [min_y, max_y]
                 self.orange_x_pos = np.average(orange_cones[:, 0])
 

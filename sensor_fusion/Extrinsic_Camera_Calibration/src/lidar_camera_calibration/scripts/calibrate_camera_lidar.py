@@ -493,7 +493,7 @@ def main(args=None):
     
     print(sys.argv)
     if len(sys.argv) == 1:
-        pass  # Use the default values set above
+        combined = True  # Use the default values set above
     elif sys.argv[1] == '--select-points':
         project_mode = False
     elif sys.argv[1] == '--select-points-realsense':

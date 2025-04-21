@@ -65,7 +65,7 @@ class MPCSettings(metaclass=Settings):
     DF_MAX: float = 1 * np.pi/10
     A_DOT_MIN: float = -5.0
     A_DOT_MAX: float = 5.0
-    DF_DOT_MIN: float = -0.5
+    DF_DOT_MIN: float = -0.6
     DF_DOT_MAX: float =  0.5
     # Q: list[float] = [1., 1., 10., 0.1]
     Q: list = [5., 5., 0., 0.]
@@ -128,3 +128,14 @@ class BrakingSettings(metaclass=Settings):
     VOLTS_PER_PSI: float = 0.0271494 # computed using linear regression on desmos with like 3 datapoints
     VOLTS_FOR_ZERO_PSI: float = 0.962366 # same regression ^
     VMAX: float = 4.7 # max voltage the arduino can output (at PWM duty cycle 255)
+
+class SimulatorPerceptionSettings(metaclass=Settings):
+    cone_noise_camera_std: float = 0.3
+    cone_noise_lidar_std: float = 0.1
+
+    # Delay for Camera and LiDAR 
+    cone_delay_camera_mean: float = 0.01
+    cone_delay_camera_std: float = 1e-5
+
+    cone_delay_lidar_mean: float = 0.01
+    cone_delay_lidar_mean: float = 1e-5

@@ -130,12 +130,16 @@ class BrakingSettings(metaclass=Settings):
     VMAX: float = 4.7 # max voltage the arduino can output (at PWM duty cycle 255)
 
 class SimulatorPerceptionSettings(metaclass=Settings):
-    cone_noise_camera_std: float = 0.3
-    cone_noise_lidar_std: float = 0.1
+    camera_noise_std: float = 0.3
+    lidar_noise_std: float = 0.1
 
-    # Delay for Camera and LiDAR 
-    cone_delay_camera_mean: float = 0.01
-    cone_delay_camera_std: float = 1e-5
+    # Delay for Camera and LiDAR BETWEEN measurement and send
+    camera_delay_mean: float = 0.01
+    camera_delay_std: float = 1e-5
 
-    cone_delay_lidar_mean: float = 0.01
-    cone_delay_lidar_mean: float = 1e-5
+    lidar_delay_mean: float = 0.01
+    lidar_delay_std: float = 1e-5
+
+    # Publishing Rate for Sensor 
+    camera_hz: int = 15
+    lidar_hz: int = 5

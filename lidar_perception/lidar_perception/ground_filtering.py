@@ -3,7 +3,11 @@ from rclpy.node import Node
 import numpy as np
 from sensor_msgs.msg import PointCloud2, PointField
 import sensor_msgs_py.point_cloud2 as pc2
-import matplotlib.pyplot as plt 
+import matplotlib.pyplot as plt
+
+# Plane coefficients from the equation
+a, b, c, d = -0.055, -0.003, 0.998, 0.591
+plane_normal = np.sqrt(a**2 + b**2 + c**2)
 
 class LiDARCones(Node):
     def __init__(self):
@@ -14,6 +18,9 @@ class LiDARCones(Node):
         self.filtered_pub = self.create_publisher(PointCloud2, '/filtered_pointcloud', 1)
 
     def lidar_callback(self, pointcloud):
+        if self.recieved: 
+            return
+
         # Read points with intensity
         points = list(pc2.read_points(
             pointcloud,
@@ -21,8 +28,9 @@ class LiDARCones(Node):
             skip_nans=True
         ))
 
-        # Filter points with z >= 1.7
-        filtered_points = [p for p in points if p[2] <= -0.3]
+        # Filter points based on plane distance
+        filtered_points = self.filter_points_by_plane(points)
+
         self.get_logger().info(f"Original: {len(points)} pts, Filtered: {len(filtered_points)} pts")
 
         # Extract z values for histogram
@@ -34,7 +42,21 @@ class LiDARCones(Node):
         # Plot histogram
         #self.plot_histogram(self.z_values)
 
-        self.recieved = True
+        #self.recieved = True
+
+    def filter_points_by_plane(self, points, threshold=0.05):
+        """
+        Filters out points close to the plane described by the equation.
+        Points with a distance from the plane below `threshold` are removed.
+        """
+        filtered_points = []
+        for p in points:
+            x, y, z = p[0], p[1], p[2]
+            # Compute the signed distance from the point to the plane
+            distance = abs(a * x + b * y + c * z + d) / plane_normal
+            if distance > threshold:  # Keep points that are far from the plane
+                filtered_points.append(p)
+        return filtered_points
 
     def plot_histogram(self, z_values):
         if not z_values:
@@ -71,4 +93,4 @@ def main(args=None):
     rclpy.shutdown()
 
 if __name__ == '__main__':
-    main() 
+    main()

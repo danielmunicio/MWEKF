@@ -18,6 +18,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/FebPath.msg"
   "msg/Map.msg"
   "msg/State.msg"
+  "msg/ConesCartesian.msg"
   DEPENDENCIES std_msgs sensor_msgs
  )
 ament_export_dependencies(rosidl_default_runtime)

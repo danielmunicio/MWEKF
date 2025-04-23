@@ -21,6 +21,7 @@ setup(
     entry_points={
         'console_scripts': [
             'lidar_perception = lidar_perception.ground_filtering:main',
+            'lidar_perception_fast = lidar_perception.ground_filtering_fast:main',
             'save_points = lidar_perception.save_points_to_pc:main',
             'sensor_fusion = lidar_perception.find_cone_cluster:main'
         ],

@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 from sklearn.cluster import DBSCAN
 from mpl_toolkits.mplot3d import Axes3D
 from time import perf_counter
+import ros2_numpy
+
 # Plane coefficients from the equation
 a, b, c, d = -0.055, -0.003, 0.998, 0.591
 plane_normal = np.sqrt(a**2 + b**2 + c**2)
@@ -22,14 +24,11 @@ class LiDARCones(Node):
     def lidar_callback(self, pointcloud):
         # Read points with intensity
         start = perf_counter()
-        points = np.asarray(list(pc2.read_points(
-            pointcloud,
-            field_names=("x", "y", "z", "intensity"),
-            skip_nans=True
-        )))
+        points_xyz = ros2_numpy.point_cloud2.point_cloud2_to_array(pointcloud)['xyz']
+        intensities = ros2_numpy.point_cloud2.point_cloud2_to_array(pointcloud)['intensity']
 
-        # Convert structured array to plain float array
-        points = np.vstack([points['x'], points['y'], points['z'], points['intensity']]).T
+        points = np.hstack([points_xyz, intensities])
+        points = points[~np.isnan(points).any(axis=1)]
 
         extract_points = perf_counter()
         # Filter points based on plane distance
@@ -49,14 +48,14 @@ class LiDARCones(Node):
         cone_points = filtered_points[cone_mask]
         
         #self.plot_clusters_3d(filtered_points[:, :3], clustered_points_scan.labels_)
-
+        finish = perf_counter()
         # Publish filtered pointcloud
         print("Overall Times: ")
         print("Extracting Pointcloud: ", extract_points - start)
-        print("Filtering Points: ", filtered_points - extract_points)
-        print("Clustering Points: ", cluster_points - filtered_points)
+        print("Filtering Points: ", filter_points - extract_points)
+        print("Clustering Points: ", cluster_points - filter_points)
         print("Finding Cones From Clusters: ", find_cones - cluster_points)
-
+        print("Total Time: ", finish - start)
         self.publish_filtered_pointcloud(cone_points, pointcloud.header)
 
 

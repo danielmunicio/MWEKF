@@ -1,8 +1,10 @@
 import rclpy
 from rclpy.node import Node
 import numpy as np
-from sensor_msgs.msg import PointCloud2, PointField
-import sensor_msgs_py.point_cloud2 as pc2
+from sensor_msgs.msg import PointCloud2, PointField, PointCloud
+from geometry_msgs.msg import Point32
+import sensor_msgs_py.point_cloud2 as pc2A
+from feb_msgs.msg import ConesCartesian
 import matplotlib.pyplot as plt
 from sklearn.cluster import DBSCAN
 from mpl_toolkits.mplot3d import Axes3D
@@ -22,6 +24,8 @@ class LiDARCones(Node):
         self.recieved = False
         self.lidar_sub = self.create_subscription(PointCloud2, 'rslidar_points', self.lidar_callback, 1)
         self.filtered_pub = self.create_publisher(PointCloud2, '/filtered_pointcloud', 1)
+        self.perception_pub = self.create_publisher(ConesCartesian, '/cones/lidar', 1)
+        self.perception_vis_pub = self.create_publisher(PointCloud, 'cones/viz/lidar', 1)
 
     def lidar_callback(self, pointcloud):
         # Read points with intensity
@@ -48,21 +52,60 @@ class LiDARCones(Node):
 
         # Run cuML DBSCAN
         clustered_points_scan = cuDBSCAN(eps=0.1, min_samples=30).fit(filtered_points_gpu)
-
+        labels_cp = clustered_points_scan.labels_
+        labels_np = labels_cp.get() if isinstance(labels_cp, cp.ndarray) else labels_cp
         cluster_points = perf_counter()
 
         #filtered_cone_labels = self.filter_cluster_for_cones(filtered_points, clustered_points_scan.labels_)
-        filtered_cone_labels = self.filter_cluster_for_cones_cuML(filtered_points, clustered_points_scan.labels_)
+        filtered_cone_labels = self.filter_cluster_for_cones_cuML(filtered_points, labels_cp)
         filtered_cone_labels_gpu = cp.asarray(filtered_cone_labels)
-
         find_cones = perf_counter()
-        #cone_mask = np.isin(clustered_points_scan.labels_, filtered_cone_labels)
-        cone_mask = cp.isin(clustered_points_scan.labels_, filtered_cone_labels_gpu)
 
-        cone_mask_np = cone_mask.get()  # Convert cuPy array to NumPy array
+        print("FILTERED CONE LABELS: ", filtered_cone_labels)
+
+        positions = []
+        cone_msg = ConesCartesian()
+        cones_guess = PointCloud()
+        for label in filtered_cone_labels:
+            #print(f"Cone cluster label {label} has {len(individual_cone_points)} points")
+            mask = (labels_np == label)
+            individual_cone_points = filtered_points[mask]
+            cone_pose = self.find_cone_position(individual_cone_points)
+            cone_msg.x.append(cone_pose[0])
+            cone_msg.y.append(cone_pose[1])
+            cone_msg.color.append(-1)
+            cone_msg.header.stamp = self.get_clock().now().to_msg()
+
+            # Perception Vis Publishers
+            pt = Point32()
+            print("CONE POSE: ", cone_pose)
+            print("TYPE: ", type(cone_pose[0]))
+            pt.x = float(cone_pose[0])
+            pt.y = float(cone_pose[1])
+            pt.z = 0.0
+            positions.append(pt)
+
+        self.perception_pub.publish(cone_msg)
+
+        cones_guess.points = positions
+        cones_guess.header.frame_id = "map"
+        cones_guess.header.stamp = self.get_clock().now().to_msg()
+        self.perception_vis_pub.publish(cones_guess)
+
+        # NOTE: Used to work, can be returned on in like 5 minutes to confirm pointclouds filtering work
+
+        #self.publish_filtered_pointcloud(individual_cone_points, pointcloud.header)
+
+        #cone_mask = np.isin(clustered_points_scan.labels_, filtered_cone_labels)
+        #cone_mask = cp.isin(clustered_points_scan.labels_, filtered_cone_labels_gpu)
+
+        #cone_mask_np = cone_mask.get()  # Convert cuPy array to NumPy array
         #cone_points = filtered_points[cone_mask]
         
-        cone_points = filtered_points[cone_mask_np]
+        #cone_points = filtered_points[cone_mask_np]
+
+        #print("CONE POINTS: ", cone_points)
+
         #self.plot_clusters_3d(filtered_points[:, :3], clustered_points_scan.labels_)
         finish = perf_counter()
         # Publish filtered pointcloud
@@ -72,7 +115,6 @@ class LiDARCones(Node):
         print("Clustering Points: ", cluster_points - filter_points)
         print("Finding Cones From Clusters: ", find_cones - cluster_points)
         print("Total Time: ", finish - start)
-        self.publish_filtered_pointcloud(cone_points, pointcloud.header)
 
 
     def filter_points_by_plane_and_distance(self, points, threshold=0.05, max_distance=10.0):
@@ -160,7 +202,20 @@ class LiDARCones(Node):
         
         return cones
 
-            
+    def find_cone_position(self, pointcloud, method='median'):
+        """
+        Find the position of a cone, given its pointcloud. For now only returns x and y position
+
+        Args: 
+            pointcloud (numpy array): Nx3 array of 3D Points
+        """
+        if method == 'median':
+            cone_positions = np.median(pointcloud, axis=0)
+        if method == 'mean':
+            cone_positions = np.mean(pointcloud, axis=0)
+
+        return cone_positions[0:2]
+
     def plot_clusters_3d(self, points, labels):
         """
         Plots clustered 3D points using matplotlib, excluding noise points.

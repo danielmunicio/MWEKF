@@ -143,3 +143,28 @@ class SimulatorPerceptionSettings(metaclass=Settings):
     # Publishing Rate for Sensor 
     camera_hz: int = 15
     lidar_hz: int = 5
+
+class LiDAROnlySettings(metaclass=Settings):
+    # Ground Filtering 
+    ground_plane_coefficients: list = [-0.055, -0.003, 0.998, 0.591]
+    ground_filter_threshold: float = 0.05
+    max_distance: float = 10.0
+
+    # DB Scan 
+    eps: float = 0.1
+    min_samples: float = 30
+    using_cuML: bool = True
+
+    # Cone Dimensions Requirements
+    # List of [min_size, max_size]
+    x_size: list = [0.1, 0.25]
+    y_size: list = [0.05, 0.15]
+    z_size: list = [0.1, 0.3]
+
+    # Cone Position Algorithm 
+    # Can do 'median' or 'mean
+    method: str = 'median' 
+
+    # Visual Settings: 
+    publish_filtered_pointcloud: bool = False
+    publish_perception_viz: bool = True

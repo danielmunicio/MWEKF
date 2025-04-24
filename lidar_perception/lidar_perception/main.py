@@ -12,7 +12,7 @@ from time import perf_counter
 import ros2_numpy
 from cuml.cluster import DBSCAN as cuDBSCAN
 import cupy as cp
-
+from all_settings.all_settings import LiDAROnlySettings as settings
 # Plane coefficients from the equation
 a, b, c, d = -0.055, -0.003, 0.998, 0.591
 plane_normal = np.sqrt(a**2 + b**2 + c**2)
@@ -38,7 +38,11 @@ class LiDARCones(Node):
 
         extract_points = perf_counter()
         # Filter points based on plane distance
-        filtered_points = self.filter_points_by_plane_and_distance(points)
+        filtered_points = self.filter_points_by_plane_and_distance(points,
+                                                                    threshold=settings.ground_filter_threshold,
+                                                                    max_distance=settings.max_distance
+                                                                    )
+
         filter_points = perf_counter()
         self.get_logger().info(f"Original: {len(points)} pts, Filtered: {len(filtered_points)} pts")
 
@@ -51,7 +55,7 @@ class LiDARCones(Node):
         filtered_points_gpu = cp.asarray(filtered_points[:, :3])
 
         # Run cuML DBSCAN
-        clustered_points_scan = cuDBSCAN(eps=0.1, min_samples=30).fit(filtered_points_gpu)
+        clustered_points_scan = cuDBSCAN(eps=settings.eps, min_samples=settings.min_samples).fit(filtered_points_gpu)
         labels_cp = clustered_points_scan.labels_
         labels_np = labels_cp.get() if isinstance(labels_cp, cp.ndarray) else labels_cp
         cluster_points = perf_counter()
@@ -123,20 +127,16 @@ class LiDARCones(Node):
         - Distance from a plane
         - Distance from the origin
         """
-        # Plane parameters (assumed to be defined somewhere globally or in the class)
         # Plane equation: ax + by + cz + d = 0
-  
+        a, b, c, d = settings.ground_plane_coefficents
 
         xyz = points[:, :3]  # Shape (N, 3)
         x, y, z = xyz[:, 0], xyz[:, 1], xyz[:, 2]
 
-        # Compute signed distance from the plane (vectorized)
         distance_to_plane = np.abs(a * x + b * y + c * z + d) / plane_normal
 
-        # Compute Euclidean distance from origin (vectorized)
         distance_from_origin = np.sqrt(x**2 + y**2 + z**2)
 
-        # Create boolean mask for filtering
         mask = (distance_to_plane > threshold) & (distance_from_origin <= max_distance)
 
         return points[mask]
@@ -191,13 +191,12 @@ class LiDARCones(Node):
             max_values = cluster_np.max(axis=0)
             print(f"Bounding Box {label}")
             
-            # Calculate bounding box sizes
-            x_box = max_values[0] - min_values[0]
-            y_box = max_values[1] - min_values[1]
-            z_box = max_values[2] - min_values[2]
+            # Check if these fit insize criteria
+            x_box = settings.x_size[0] < max_values[0] - min_values[0] < settings.x_size[1]
+            y_box = settings.y_size[0] < max_values[1] - min_values[1] < settings.y_size[1]
+            z_box = settings.z_size[0] < max_values[2] - min_values[2] < settings.z_size[1]
 
-            # Arbitrary filtering criteria for cone-like clusters
-            if (x_box < 0.25 and y_box < 0.15 and z_box < 0.3):
+            if (x_box and y_box and z_box):
                 cones.append(label)
         
         return cones

@@ -39,7 +39,7 @@ class LiDARCones(Node):
         # Do a sklearn DB Scan 
         # EPS is like the max distance from a point to another point in a cluster, to add point to cluster
         # Min samples is minimum number of points in a cluster to be a cluster
-        clustered_points_scan = DBSCAN(eps=0.1, min_samples=30).fit(filtered_points[:, :3])
+        clustered_points_scan = DBSCAN(eps=0.1, min_samples=30, n_jobs=-1).fit(filtered_points[:, :3])
         cluster_points = perf_counter()
 
         filtered_cone_labels = self.filter_cluster_for_cones(filtered_points, clustered_points_scan.labels_)

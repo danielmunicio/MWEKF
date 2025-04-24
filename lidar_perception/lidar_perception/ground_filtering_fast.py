@@ -8,6 +8,8 @@ from sklearn.cluster import DBSCAN
 from mpl_toolkits.mplot3d import Axes3D
 from time import perf_counter
 import ros2_numpy
+from cuml.cluster import DBSCAN as cuDBSCAN
+import cupy as cp
 
 # Plane coefficients from the equation
 a, b, c, d = -0.055, -0.003, 0.998, 0.591
@@ -39,14 +41,28 @@ class LiDARCones(Node):
         # Do a sklearn DB Scan 
         # EPS is like the max distance from a point to another point in a cluster, to add point to cluster
         # Min samples is minimum number of points in a cluster to be a cluster
-        clustered_points_scan = DBSCAN(eps=0.1, min_samples=30, n_jobs=-1).fit(filtered_points[:, :3])
+        #clustered_points_scan = DBSCAN(eps=0.1, min_samples=30, n_jobs=-1).fit(filtered_points[:, :3])
+
+        # Convert numpy array to cupy (GPU array)
+        filtered_points_gpu = cp.asarray(filtered_points[:, :3])
+
+        # Run cuML DBSCAN
+        clustered_points_scan = cuDBSCAN(eps=0.1, min_samples=30).fit(filtered_points_gpu)
+
         cluster_points = perf_counter()
 
-        filtered_cone_labels = self.filter_cluster_for_cones(filtered_points, clustered_points_scan.labels_)
+        #filtered_cone_labels = self.filter_cluster_for_cones(filtered_points, clustered_points_scan.labels_)
+        filtered_cone_labels = self.filter_cluster_for_cones_cuML(filtered_points, clustered_points_scan.labels_)
+        filtered_cone_labels_gpu = cp.asarray(filtered_cone_labels)
+
         find_cones = perf_counter()
-        cone_mask = np.isin(clustered_points_scan.labels_, filtered_cone_labels)
-        cone_points = filtered_points[cone_mask]
+        #cone_mask = np.isin(clustered_points_scan.labels_, filtered_cone_labels)
+        cone_mask = cp.isin(clustered_points_scan.labels_, filtered_cone_labels_gpu)
+
+        cone_mask_np = cone_mask.get()  # Convert cuPy array to NumPy array
+        #cone_points = filtered_points[cone_mask]
         
+        cone_points = filtered_points[cone_mask_np]
         #self.plot_clusters_3d(filtered_points[:, :3], clustered_points_scan.labels_)
         finish = perf_counter()
         # Publish filtered pointcloud
@@ -111,7 +127,40 @@ class LiDARCones(Node):
             if (x_box < 0.25 and y_box < 0.15 and z_box < 0.3):
                 cones.append(label)
         return cones
+    
+
+    def filter_cluster_for_cones_cuML(self, points, labels):
+        cones = []
+        # Convert cuPy labels to NumPy for indexing
+        labels_np = cp.asnumpy(labels)
+
+        # Get unique labels excluding -1 (noise label)
+        unique_labels = set(labels_np[labels_np != -1])
         
+        for label in unique_labels:
+            # Extract the points corresponding to the current cluster label
+            cluster = points[labels_np == label]
+            
+            # Convert the cluster points to NumPy for min/max calculation
+            cluster_np = cp.asnumpy(cluster)  # Convert to NumPy for min/max, as cuPy might be slower here
+            
+            # Get the bounding box
+            min_values = cluster_np.min(axis=0)
+            max_values = cluster_np.max(axis=0)
+            print(f"Bounding Box {label}")
+            
+            # Calculate bounding box sizes
+            x_box = max_values[0] - min_values[0]
+            y_box = max_values[1] - min_values[1]
+            z_box = max_values[2] - min_values[2]
+
+            # Arbitrary filtering criteria for cone-like clusters
+            if (x_box < 0.25 and y_box < 0.15 and z_box < 0.3):
+                cones.append(label)
+        
+        return cones
+
+            
     def plot_clusters_3d(self, points, labels):
         """
         Plots clustered 3D points using matplotlib, excluding noise points.

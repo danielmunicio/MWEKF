@@ -36,16 +36,12 @@ UTILITIES_PATH = '/home/daniel/feb-system-integration/sensor_fusion/Extrinsic_Ca
 class SensorFusion(Node):
     def __init__(self, dual_camera=True):
         super().__init__('sensor_fusion_node')
-        logitech_camera_topic = '/sensors/camera/image_color'
+
         realsense_camera_topic = '/camera/camera/color/image_raw'
-        lidar_points_topic = 'rslidar_points'
+        realsense_depth_camera_topic = ''
 
-        self.lidar_sub = self.create_subscription(PointCloud2, lidar_points_topic, self.velodyne_callback, qos_profile_sensor_data)
-        self.image_sub_logitech = self.create_subscription(Image, logitech_camera_topic, self.logitech_callback, qos_profile_sensor_data)
-
-        if dual_camera:
-            self.image_sub_realsense = self.create_subscription(Image, realsense_camera_topic, self.realsense_callback, qos_profile_sensor_data)
-
+        self.image_sub_realsense = self.create_subscription(Image, realsense_camera_topic, self.realsense_callback, qos_profile_sensor_data)
+        self.depth_sub_realsense = self.create_subscription(Image, realsense_depth_camera_topic, self.realsense_depth_callback, qos_profile_sensor_data)
         self.cones_cartesian_pub = self.create_publisher(ConesCartesian, '/perception_cones_cartesian', 1)
         self.perception_pub = self.create_publisher(Cones, '/perception_cones', 1)
         self.perception_visual_pub = self.create_publisher(PointCloud, '/perception_cones_viz', 1)
@@ -53,31 +49,16 @@ class SensorFusion(Node):
         self.camera_info_msg = None
         self.image_msg = None
         self.realsense_image_msg = None
-        self.logitech_image_msg = None
-        self.velodyne_msg = None
-        self.combined = dual_camera
-        self.model_operator = ModelOperations(UTILITIES_PATH)
+        self.realsense_depth_msg = None
 
-        self.cone_bounding_boxes = []
-        self.timer = self.create_timer(1.0, self.write_cone_bounding_box_to_file)
-    def camera_info_callback(self, msg):
-        if not FIRST_TIME:
-            return
-        self.camera_info_msg = msg
-        self.setup()
+        self.model_operator = ModelOperations(UTILITIES_PATH)
 
     def realsense_callback(self, msg):
         self.realsense_image_msg = msg
         self.process()
 
-    def logitech_callback(self, msg):
-        self.logitech_image_msg = msg
-        self.process() 
-
-    def velodyne_callback(self, msg):
-        self.velodyne_msg = msg
-        self.process()
-
+    def realsense_depth_callback(self, msg):
+        pass 
 
     def setup(self):
         global TF_BUFFER, TF_LISTENER, CAMERA_MODEL
@@ -175,44 +156,9 @@ class SensorFusion(Node):
         chosen_classes = [yolo_class_to_feb_class[classesToActual[int(included_classes[i])]] for i in range(len(included_classes))]
         return x_coordinates, y_coordinates, chosen_classes
 
-    def project_both_point_clouds(self):
-        x_coords_realsense, y_coords_realsense, classes_realsense = self.get_dist_angle_classes(self.velodyne_msg, self.realsense_image_msg, self.model_operator, True)
-        x_coords_logitech, y_coords_logitech, classes_logitech = self.get_dist_angle_classes(self.velodyne_msg, self.logitech_image_msg, self.model_operator, False)
-
-      
-       # Combine Cartesian coordinates and colors from both cameras
-        x_combined = np.concatenate([x_coords_realsense, x_coords_logitech])
-        y_combined = np.concatenate([y_coords_realsense, y_coords_logitech])
-        colors_combined = np.concatenate([classes_realsense, classes_logitech])
-
-        # Create a 2D array of points with colors
-        points = np.column_stack((x_combined, y_combined, colors_combined))
-        if len(points) == 0:
-            return
-
-        cones_msg = ConesCartesian()
-        cones_msg.header.stamp = self.get_clock().now().to_msg()
-        cones_msg.x = x_combined
-        cones_msg.y = y_combined
-        cones_msg.color = colors_combined
-        self.perception_pub.publish(cones_msg)
-
-        cones_guess = PointCloud()
-        positions = []
-        for x, y, color_value in zip(x_combined, y_combined, colors_combined):
-            positions.append(Point32())
-            positions[-1].x = x
-            positions[-1].y = y
-            positions[-1].z = 0.0
-
-        cones_guess.points = positions
-        cones_guess.header.frame_id = "rslidar"
-        cones_guess.header.stamp = self.get_clock().now().to_msg()
-        self.perception_visual_pub.publish(cones_guess)
     def project_point_cloud(self):
-        if self.logitech_image_msg is None:
-            return
-        x_coords, y_coords, chosen_classes = self.get_dist_angle_classes(is_realsense=False)
+
+        x_coords, y_coords, chosen_classes = self.get_dist_angle_classes()
 
         cones_msg = Cones()
         cones_msg.header.stamp = self.get_clock().now().to_msg()
@@ -221,10 +167,7 @@ class SensorFusion(Node):
         cones_cartesian = ConesCartesian()
         positions = []
         for x, y, color_value in zip(x_coords, y_coords, chosen_classes):
-            # I want to be sure for now, that any values that get used, are CORRECT 
-            if np.linalg.norm([x, y]) > 10.0:
-                print("FILTERED")
-                continue
+
             positions.append(Point32())
             positions[-1].x = x
             positions[-1].y = y
@@ -242,53 +185,10 @@ class SensorFusion(Node):
         self.perception_visual_pub.publish(cones_guess)
         self.cones_cartesian_pub.publish(cones_cartesian)
 
-    def write_cone_bounding_box_to_file(self):
-        # Check if cone_bounding_boxes has any data
-        if not self.cone_bounding_boxes:
-            self.get_logger().info("No bounding boxes to write to file.")
-            return
-        
-        # Convert the bounding box list to a numpy array
-        bounding_boxes = np.array(self.cone_bounding_boxes)
-        
-        # Save the bounding boxes to a CSV file
-        np.savetxt("cone_bounding_boxes.csv", bounding_boxes, delimiter=',', header="x_size,y_size", comments="")
-
-
-
-
-
-
-def filter_outliers(data, lower_percentile=25, upper_percentile=75, multiplier=1.5):
-    """
-    Filters out outliers using the IQR method. Data points outside of the
-    range defined by 1.5 * IQR from the quartiles are considered outliers and removed.
-    
-    Parameters:
-        data (numpy.ndarray): Input data array.
-        lower_percentile (float): Lower percentile for calculating IQR.
-        upper_percentile (float): Upper percentile for calculating IQR.
-        multiplier (float): Multiplier for the IQR to define outlier boundaries.
-    
-    Returns:
-        numpy.ndarray: Data with outliers removed.
-    """
-    Q1 = np.percentile(data, lower_percentile)  # 25th percentile (Q1)
-    Q3 = np.percentile(data, upper_percentile)  # 75th percentile (Q3)
-    IQR = Q3 - Q1  # Interquartile Range
-    
-    # Define the bounds for filtering
-    lower_bound = Q1 - multiplier * IQR
-    upper_bound = Q3 + multiplier * IQR
-    
-    # Filter out the data points that are outside the bounds
-    filtered_data = data[(data >= lower_bound) & (data <= upper_bound)]
-    
-    return filtered_data
 
 def main(args=None):
     rclpy.init(args=args)
-    node = SensorFusion(dual_camera=False)
+    node = SensorFusion()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()

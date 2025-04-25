@@ -166,5 +166,5 @@ class LiDAROnlySettings(metaclass=Settings):
     method: str = 'median' 
 
     # Visual Settings: 
-    publish_filtered_pointcloud: bool = False
+    publish_ground_filtered_pointcloud: bool = False
     publish_perception_viz: bool = True

@@ -1,21 +1,22 @@
+# ROS Libraries
 import rclpy
 from rclpy.node import Node
-import numpy as np
 from sensor_msgs.msg import PointCloud2, PointField, PointCloud
 from geometry_msgs.msg import Point32
-import sensor_msgs_py.point_cloud2 as pc2A
 from feb_msgs.msg import ConesCartesian
+import ros2_numpy
+
+# Python Libraries
+import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.cluster import DBSCAN
-from mpl_toolkits.mplot3d import Axes3D
 from time import perf_counter
-import ros2_numpy
 from cuml.cluster import DBSCAN as cuDBSCAN
 import cupy as cp
+
+# Python Files
 from all_settings.all_settings import LiDAROnlySettings as settings
-# Plane coefficients from the equation
-a, b, c, d = -0.055, -0.003, 0.998, 0.591
-plane_normal = np.sqrt(a**2 + b**2 + c**2)
+from .visual_debugging import publish_filtered_pointcloud, plot_clusters_3d
 
 class LiDARCones(Node):
     def __init__(self):
@@ -27,6 +28,9 @@ class LiDARCones(Node):
         self.perception_pub = self.create_publisher(ConesCartesian, '/cones/lidar', 1)
         self.perception_vis_pub = self.create_publisher(PointCloud, 'cones/viz/lidar', 1)
 
+        self.a, self.b, self.c, self.d = settings.ground_plane_coefficients
+        self.plane_normal = np.sqrt(self.a**2 + self.b**2 + self.c**2)
+
     def lidar_callback(self, pointcloud):
         # Read points with intensity
         start = perf_counter()
@@ -35,8 +39,8 @@ class LiDARCones(Node):
 
         points = np.hstack([points_xyz, intensities])
         points = points[~np.isnan(points).any(axis=1)]
-
         extract_points = perf_counter()
+
         # Filter points based on plane distance
         filtered_points = self.filter_points_by_plane_and_distance(points,
                                                                     threshold=settings.ground_filter_threshold,
@@ -98,6 +102,8 @@ class LiDARCones(Node):
 
         # NOTE: Used to work, can be returned on in like 5 minutes to confirm pointclouds filtering work
 
+        if settings.publish_ground_filtered_pointcloud:
+            publish_filtered_pointcloud(self, filtered_points, cones_guess.header)
         #self.publish_filtered_pointcloud(individual_cone_points, pointcloud.header)
 
         #cone_mask = np.isin(clustered_points_scan.labels_, filtered_cone_labels)
@@ -128,30 +134,16 @@ class LiDARCones(Node):
         - Distance from the origin
         """
         # Plane equation: ax + by + cz + d = 0
-        a, b, c, d = settings.ground_plane_coefficents
-
         xyz = points[:, :3]  # Shape (N, 3)
         x, y, z = xyz[:, 0], xyz[:, 1], xyz[:, 2]
 
-        distance_to_plane = np.abs(a * x + b * y + c * z + d) / plane_normal
+        distance_to_plane = np.abs(self.a * x + self.b * y + self.c * z + self.d) / self.plane_normal
 
         distance_from_origin = np.sqrt(x**2 + y**2 + z**2)
 
         mask = (distance_to_plane > threshold) & (distance_from_origin <= max_distance)
 
         return points[mask]
-
-    def publish_filtered_pointcloud(self, points, header):
-        fields = [
-            PointField(name='x', offset=0, datatype=PointField.FLOAT32, count=1),
-            PointField(name='y', offset=4, datatype=PointField.FLOAT32, count=1),
-            PointField(name='z', offset=8, datatype=PointField.FLOAT32, count=1),
-            PointField(name='intensity', offset=12, datatype=PointField.FLOAT32, count=1),
-        ]
-
-        cloud_msg = pc2.create_cloud(header, fields, points)
-        self.filtered_pub.publish(cloud_msg)
-        self.get_logger().info("Filtered point cloud published to /filtered_pointcloud")
 
     def filter_cluster_for_cones(self, points, labels):
         cones = []
@@ -214,36 +206,6 @@ class LiDARCones(Node):
             cone_positions = np.mean(pointcloud, axis=0)
 
         return cone_positions[0:2]
-
-    def plot_clusters_3d(self, points, labels):
-        """
-        Plots clustered 3D points using matplotlib, excluding noise points.
-    
-        Args:
-            points (np.ndarray): Nx3 array of 3D points.
-            labels (np.ndarray): Cluster labels for each point.
-        """
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
-
-        # Get unique labels excluding noise (-1)
-        unique_labels = set(labels) - {-1}
-
-        # Assign a color to each cluster
-        colors = plt.cm.get_cmap('tab20', len(unique_labels))
-
-        for k in unique_labels:
-            class_member_mask = (labels == k)
-            xyz = points[class_member_mask]
-
-            ax.scatter(xyz[:, 0], xyz[:, 1], xyz[:, 2], c=[colors(k)], label=f'cluster {k}', s=10)
-
-        ax.set_xlabel('X')
-        ax.set_ylabel('Y')
-        ax.set_zlabel('Z')
-        ax.legend()
-        plt.title("3D Clusters from DBSCAN")
-        plt.show()
 
 def main(args=None):
     rclpy.init(args=args)

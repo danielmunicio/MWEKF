@@ -63,9 +63,7 @@ class SensorFusion(Node):
         self.process()
 
     def setup(self):
-        global TF_BUFFER, TF_LISTENER, CAMERA_MODEL
         FIRST_TIME = False
-
         self.get_logger().info('Setting up camera model')
         camera_info_msg = CameraInfo()
         camera_info_msg.header.frame_id = 'camera_frame'
@@ -98,6 +96,7 @@ class SensorFusion(Node):
         y_coordinates = []
         z_coordinates = []
         included_classes = []
+        cones_msg = ConesCartesian()
 
         for idx, segmentation_output in enumerate(segmentation_outputs):
             if conf[idx] > 0.7:
@@ -118,11 +117,18 @@ class SensorFusion(Node):
                     print('-------------------------------------')
                     print("CONE COORDINATES: ", cone_position)
                     print('-------------------------------------')
+                    cones_msg.x.append(cone_position[0])
+                    cones_msg.y.append(cone_position[1])
+                    # Z attribute not part of cones message 
+                    #cones_msg.z.append(cone_position[2])
+
         classesToActual = {0: 0, 1: 1, 2: 7, 3: 8, 4: 9}
         yolo_class_to_feb_class = {8: 2, 1: 1, 0: 0, 7: 0, 9: 0}
         mask_conf = [idx for idx, con in enumerate(conf) if con > 0.7]
         chosen_classes = []
-        chosen_classes = [yolo_class_to_feb_class[classesToActual[int(included_classes[i])]] for i in range(len(included_classes))]
+        cones_msg.color = [yolo_class_to_feb_class[classesToActual[int(cls)]] for cls in included_classes]
+        if len(cones_msg.x) != 0:
+            self.cones_cartesian_pub.publish(cones_msg)
         return x_coordinates, y_coordinates, chosen_classes
 
     def project_point_cloud(self):
@@ -152,7 +158,7 @@ class SensorFusion(Node):
         cones_cartesian.header.stamp = self.get_clock().now().to_msg()
 
         self.perception_visual_pub.publish(cones_guess)
-        self.cones_cartesian_pub.publish(cones_cartesian)
+        #self.cones_cartesian_pub.publish(cones_cartesian)
 
 
 def main(args=None):

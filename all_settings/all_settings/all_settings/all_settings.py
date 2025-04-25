@@ -146,9 +146,10 @@ class SimulatorPerceptionSettings(metaclass=Settings):
 
 class LiDAROnlySettings(metaclass=Settings):
     # Ground Filtering 
-    ground_plane_coefficients: list = [-0.055, -0.003, 0.998, 0.591]
-    ground_filter_threshold: float = 0.05
-    max_distance: float = 10.0
+    #ground_plane_coefficients: list = [-0.055, -0.003, 0.998, 0.591]
+    ground_plane_coefficients: list = [-0.107, 0.002, 0.994, 0.612]
+    ground_filter_threshold: float = 0.1
+    max_distance: float = 5.0
 
     # DB Scan 
     eps: float = 0.1
@@ -166,5 +167,5 @@ class LiDAROnlySettings(metaclass=Settings):
     method: str = 'median' 
 
     # Visual Settings: 
-    publish_ground_filtered_pointcloud: bool = False
+    publish_ground_filtered_pointcloud: bool = True
     publish_perception_viz: bool = True

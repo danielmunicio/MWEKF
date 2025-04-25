@@ -38,7 +38,7 @@ class SensorFusion(Node):
         super().__init__('sensor_fusion_node')
 
         realsense_camera_topic = '/camera/camera/color/image_raw'
-        realsense_depth_camera_topic = ''
+        realsense_depth_camera_topic = '/camera/camera/aligned_depth_to_color/image_raw'
 
         self.image_sub_realsense = self.create_subscription(Image, realsense_camera_topic, self.realsense_callback, qos_profile_sensor_data)
         self.depth_sub_realsense = self.create_subscription(Image, realsense_depth_camera_topic, self.realsense_depth_callback, qos_profile_sensor_data)
@@ -55,10 +55,12 @@ class SensorFusion(Node):
 
     def realsense_callback(self, msg):
         self.realsense_image_msg = msg
-        self.process()
+        if self.realsense_depth_msg is not None:
+            self.process()
 
     def realsense_depth_callback(self, msg):
-        pass 
+        self.realsense_depth_msg = msg
+        self.process()
 
     def setup(self):
         global TF_BUFFER, TF_LISTENER, CAMERA_MODEL
@@ -78,77 +80,44 @@ class SensorFusion(Node):
         self.R, self.T = FileOperations.get_extrinsic_parameters(UTILITIES_PATH)
 
     def process(self):
-        if self.combined:
-            self.project_both_point_clouds
-        else: 
-            self.project_point_cloud()
+        self.project_point_cloud()
 
 
-
-    def get_dist_angle_classes(self, is_realsense=False):
-        if self.velodyne_msg is None or (is_realsense and self.realsense_image_msg) is None or (not is_realsense and self.logitech_image_msg) is None:
+    def get_dist_angle_classes(self):
+        if self.realsense_depth_msg is None or self.realsense_image_msg is None:
             return
-        # Convert camera into LiDAR coordinate system
-        R, T = FileOperations.get_extrinsic_parameters(UTILITIES_PATH, is_realsense)
-        RT = np.hstack((R, T.T))
-        h, w, _, camera_matrix, _ = FileOperations.get_intrinsic_parameters(UTILITIES_PATH, is_realsense)
+        h, w, _, camera_matrix, _ = FileOperations.get_intrinsic_parameters(UTILITIES_PATH, realsenseCamera=True)
         h, w = 480, 640
         camera_matrix = np.array(camera_matrix, dtype=np.float64).reshape(3, 3)
-        P = camera_matrix @ RT
-
-        points3D = ros2_numpy.point_cloud2.point_cloud2_to_array(self.velodyne_msg)['xyz']
-        points3D = np.array(points3D, dtype=np.float64)
-        points3D_homogeneous = np.hstack((points3D[:, :3], np.ones((points3D.shape[0], 1))))
-        points2D_homogeneous = P @ points3D_homogeneous.T
-        points3D_homogeneous = np.hstack((points3D[:, :3], np.ones((points3D.shape[0], 1))))
-        points2D_homogeneous = P @ points3D_homogeneous.T
-        points2D = points2D_homogeneous[:2, :] / points2D_homogeneous[2, :]
-        points2D = points2D.T
-        inrange = np.where((points2D[:, 0] >= 0) &
-                        (points2D[:, 1] >= 0) &
-                        (points2D[:, 0] < h - 1) &
-                        (points2D[:, 1] < w - 1))
-        points2D = points2D[inrange[0]].round().astype('int')
-        points3D = points3D[inrange[0]]
-        if is_realsense:
-            segmentation_outputs, classes, conf = self.model_operator.predict(self.realsense_image_msg, CV_BRIDGE)
-        else:
-            segmentation_outputs, classes, conf = self.model_operator.predict(self.logitech_image_msg, CV_BRIDGE)
+        inv_camera_matrix = np.linalg.inv(camera_matrix)
+        segmentation_outputs, classes, conf = self.model_operator.predict(self.realsense_image_msg, CV_BRIDGE)
+        depth_image = ros2_numpy.numpify(self.realsense_depth_msg)  # shape (480, 640), dtype=uint16
+        depth_image = depth_image.astype(np.float32) / 1000.0  # Convert to meters
 
         x_coordinates = []
         y_coordinates = []
-        median_distances = []
-        center_points = []
-        angles = []
+        z_coordinates = []
         included_classes = []
+
         for idx, segmentation_output in enumerate(segmentation_outputs):
             if conf[idx] > 0.7:
                 mask = np.zeros((h, w), dtype=np.uint8)
                 if len(segmentation_output) != 0:
-                    vertices = np.array(segmentation_output, np.int32)
-                    centroid = np.average(vertices, axis=0)
-                    vertices = np.array([centroid + 0.9 * (v-centroid) for v in vertices], np.int32)
-                    cv2.fillPoly(mask, [vertices], 1)
-                    x_coords = points2D[:, 0]
-                    y_coords = points2D[:, 1]
+                    segmentation_output = np.array([segmentation_output]).reshape((-1, 1, 2))
 
-                    in_polygon = mask[y_coords, x_coords] == 1 
-                    points_in_polygon = points3D[in_polygon]
-                    x_in_polygon = points_in_polygon[:, 0]
-                    y_in_polygon = points_in_polygon[:, 1]
-
-                    if len(points_in_polygon) > 0:
-                        size_x = np.max(filter_outliers(x_in_polygon)) - np.min(filter_outliers(x_in_polygon))
-                        size_y = np.max(filter_outliers(y_in_polygon)) - np.min(filter_outliers(y_in_polygon))
-
-                        self.cone_bounding_boxes.append([size_x, size_y])
-                        median_x = np.median(x_in_polygon)
-                        median_y = np.median(y_in_polygon)
-                        included_classes.append(classes[idx])
-                        x_coordinates.append(median_x)
-                        y_coordinates.append(median_y)
-
-        #orange = 0, yellow = 1, blue = 2 in feb system
+                    cv2.fillPoly(mask, [segmentation_output], 1)
+                    #overlay = CV_BRIDGE.imgmsg_to_cv2(self.realsense_image_msg, 'bgr8').copy()
+                    #cv2.polylines(overlay, [segmentation_output], isClosed=True, color=(0,255,0), thickness=2)
+                    #cv2.imshow("segmentation", overlay)
+                    #cv2.waitKey(0)
+                    in_segmentation = np.where(mask == 1)
+                    depths = depth_image[in_segmentation]
+                    pixels = np.vstack((in_segmentation[1], in_segmentation[0], np.ones_like(in_segmentation[1])))
+                    camera_coords = (inv_camera_matrix @ pixels) * depths
+                    cone_position = np.median(camera_coords, axis=1)
+                    print('-------------------------------------')
+                    print("CONE COORDINATES: ", cone_position)
+                    print('-------------------------------------')
         classesToActual = {0: 0, 1: 1, 2: 7, 3: 8, 4: 9}
         yolo_class_to_feb_class = {8: 2, 1: 1, 0: 0, 7: 0, 9: 0}
         mask_conf = [idx for idx, con in enumerate(conf) if con > 0.7]

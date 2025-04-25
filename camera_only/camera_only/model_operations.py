@@ -1,5 +1,6 @@
 from ultralytics import YOLO
 import os
+import cv2
 
 class ModelOperations:
 

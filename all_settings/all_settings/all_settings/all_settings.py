@@ -173,3 +173,8 @@ class LiDAROnlySettings(metaclass=Settings):
 class CameraOnlySettings(metaclass=Settings):
     publish_visual: bool = True
     yolo_minimum_confidence: float = 0.7
+
+    # Camera setup settings
+    dual_camera: bool = False
+    logitech_camera: bool = False
+    realsense_camera: bool = True

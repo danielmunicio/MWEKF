@@ -33,33 +33,27 @@ CALIB_PATH = 'calibration_data/lidar_camera_calibration'
 UTILITIES_PATH = '/home/daniel/feb-system-integration/sensor_fusion/Extrinsic_Camera_Calibration/src/lidar_camera_calibration/utilities'
 # UTILITIES_PATH = os.path.join(PKG_PATH, 'utilities')
 
-class CameraOnly(Node):
+class DepthAnythingCameraOnly(Node):
     def __init__(self, dual_camera=True):
         super().__init__('sensor_fusion_node')
 
-        realsense_camera_topic = '/camera/camera/color/image_raw'
-        realsense_depth_camera_topic = '/camera/camera/aligned_depth_to_color/image_raw'
+        logitech_camera_topic = '/sensors/camera/image_raw'
 
-        self.image_sub_realsense = self.create_subscription(Image, realsense_camera_topic, self.realsense_callback, qos_profile_sensor_data)
-        self.depth_sub_realsense = self.create_subscription(Image, realsense_depth_camera_topic, self.realsense_depth_callback, qos_profile_sensor_data)
-        self.cones_cartesian_pub = self.create_publisher(ConesCartesian, '/cones/camera_only', 1)
+        self.image_sub = self.create_subscription(Image, logitech_camera_topic, self.realsense_callback, qos_profile_sensor_data)
+        self.cones_pub = self.create_publisher(ConesCartesian, '/cones/camera_only', 1)
         self.perception_visual_pub = self.create_publisher(PointCloud, '/perception_cones_viz', 1)
 
         self.camera_info_msg = None
         self.image_msg = None
-        self.realsense_image_msg = None
-        self.realsense_depth_msg = None
 
         self.model_operator = ModelOperations(UTILITIES_PATH)
 
-    def logitech_callback(self, msg):
-        self.realsense_image_msg = msg
-        if self.realsense_depth_msg is not None:
-            self.process()
+    def camera_callback(self, msg):
+        self.image_msg = msg
+        self.process()
 
 
     def setup(self):
-        FIRST_TIME = False
         self.get_logger().info('Setting up camera model')
         camera_info_msg = CameraInfo()
         camera_info_msg.header.frame_id = 'camera_frame'
@@ -97,10 +91,6 @@ class CameraOnly(Node):
                     segmentation_output = np.array([segmentation_output]).reshape((-1, 1, 2))
 
                     cv2.fillPoly(mask, [segmentation_output], 1)
-                    #overlay = CV_BRIDGE.imgmsg_to_cv2(self.realsense_image_msg, 'bgr8').copy()
-                    #cv2.polylines(overlay, [segmentation_output], isClosed=True, color=(0,255,0), thickness=2)
-                    #cv2.imshow("segmentation", overlay)
-                    #cv2.waitKey(0)
                     in_segmentation = np.where(mask == 1)
                     depths = depth_image[in_segmentation]
                     pixels = np.vstack((in_segmentation[1], in_segmentation[0], np.ones_like(in_segmentation[1])))
@@ -124,13 +114,3 @@ class CameraOnly(Node):
         return x_coordinates, y_coordinates, chosen_classes
 
 
-
-def main(args=None):
-    rclpy.init(args=args)
-    node = CameraOnly()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
-
-if __name__ == '__main__':
-    main()

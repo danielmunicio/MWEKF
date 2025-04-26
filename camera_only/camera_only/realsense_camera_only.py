@@ -36,7 +36,7 @@ CALIB_PATH = 'calibration_data/lidar_camera_calibration'
 UTILITIES_PATH = '/home/daniel/feb-system-integration/sensor_fusion/Extrinsic_Camera_Calibration/src/lidar_camera_calibration/utilities'
 # UTILITIES_PATH = os.path.join(PKG_PATH, 'utilities')
 
-class CameraOnly(Node):
+class RealsenseCameraOnly(Node):
     def __init__(self):
         super().__init__('sensor_fusion_node')
 
@@ -128,14 +128,3 @@ class CameraOnly(Node):
             if settings.publish_visual:
                 self.publish_perception_visual(x_coordinates, y_coordinates, chosen_classes)
 
-
-
-def main(args=None):
-    rclpy.init(args=args)
-    node = CameraOnly()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
-
-if __name__ == '__main__':
-    main()

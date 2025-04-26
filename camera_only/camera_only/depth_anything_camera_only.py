@@ -22,9 +22,6 @@ from geometry_msgs.msg import Quaternion, Vector3, PoseStamped, Pose, Point, Poi
 import tf2_ros
 import tf2_geometry_msgs
 
-from .visual_debugging import publish_perception_visual
-from all_settings.all_settings import CameraOnlySettings as settings
-
 # Global variables
 FIRST_TIME = True
 CV_BRIDGE = CvBridge()
@@ -37,7 +34,7 @@ UTILITIES_PATH = '/home/daniel/feb-system-integration/sensor_fusion/Extrinsic_Ca
 # UTILITIES_PATH = os.path.join(PKG_PATH, 'utilities')
 
 class CameraOnly(Node):
-    def __init__(self):
+    def __init__(self, dual_camera=True):
         super().__init__('sensor_fusion_node')
 
         realsense_camera_topic = '/camera/camera/color/image_raw'
@@ -54,18 +51,15 @@ class CameraOnly(Node):
         self.realsense_depth_msg = None
 
         self.model_operator = ModelOperations(UTILITIES_PATH)
-        self.setup()
 
-    def realsense_callback(self, msg):
+    def logitech_callback(self, msg):
         self.realsense_image_msg = msg
         if self.realsense_depth_msg is not None:
             self.process()
 
-    def realsense_depth_callback(self, msg):
-        self.realsense_depth_msg = msg
-        self.process()
 
     def setup(self):
+        FIRST_TIME = False
         self.get_logger().info('Setting up camera model')
         camera_info_msg = CameraInfo()
         camera_info_msg.header.frame_id = 'camera_frame'
@@ -97,18 +91,21 @@ class CameraOnly(Node):
         cones_msg = ConesCartesian()
 
         for idx, segmentation_output in enumerate(segmentation_outputs):
-            if conf[idx] > settings.yolo_minimum_confidence:
+            if conf[idx] > 0.7:
                 mask = np.zeros((h, w), dtype=np.uint8)
                 if len(segmentation_output) != 0:
                     segmentation_output = np.array([segmentation_output]).reshape((-1, 1, 2))
 
                     cv2.fillPoly(mask, [segmentation_output], 1)
+                    #overlay = CV_BRIDGE.imgmsg_to_cv2(self.realsense_image_msg, 'bgr8').copy()
+                    #cv2.polylines(overlay, [segmentation_output], isClosed=True, color=(0,255,0), thickness=2)
+                    #cv2.imshow("segmentation", overlay)
+                    #cv2.waitKey(0)
                     in_segmentation = np.where(mask == 1)
                     depths = depth_image[in_segmentation]
                     pixels = np.vstack((in_segmentation[1], in_segmentation[0], np.ones_like(in_segmentation[1])))
                     camera_coords = (inv_camera_matrix @ pixels) * depths
                     cone_position = np.median(camera_coords, axis=1)
-
                     print('-------------------------------------')
                     print("CONE COORDINATES: ", cone_position)
                     print('-------------------------------------')
@@ -119,14 +116,12 @@ class CameraOnly(Node):
 
         classesToActual = {0: 0, 1: 1, 2: 7, 3: 8, 4: 9}
         yolo_class_to_feb_class = {8: 2, 1: 1, 0: 0, 7: 0, 9: 0}
-        mask_conf = [idx for idx, con in enumerate(conf) if con > settings.yolo_minimum_confidence]
+        mask_conf = [idx for idx, con in enumerate(conf) if con > 0.7]
         chosen_classes = []
         cones_msg.color = [yolo_class_to_feb_class[classesToActual[int(cls)]] for cls in included_classes]
         if len(cones_msg.x) != 0:
             self.cones_cartesian_pub.publish(cones_msg)
-
-            if settings.publish_visual:
-                self.publish_perception_visual(x_coordinates, y_coordinates, chosen_classes)
+        return x_coordinates, y_coordinates, chosen_classes
 
 
 

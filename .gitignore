@@ -50,3 +50,6 @@ sim_data.txt
 # YOLO Created Images
 **/runs/
 *.json
+
+from sympy import symbols, Eq, simplify, I, pprint
+Depth-Anything-V2

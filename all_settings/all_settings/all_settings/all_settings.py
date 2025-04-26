@@ -169,3 +169,7 @@ class LiDAROnlySettings(metaclass=Settings):
     # Visual Settings: 
     publish_ground_filtered_pointcloud: bool = True
     publish_perception_viz: bool = True
+
+class CameraOnlySettings(metaclass=Settings):
+    publish_visual: bool = True
+    yolo_minimum_confidence: float = 0.7

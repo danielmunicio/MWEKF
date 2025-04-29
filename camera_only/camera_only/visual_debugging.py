@@ -6,8 +6,13 @@ from sensor_msgs.msg import PointCloud
 def publish_perception_visual(self, x_coordinates, y_coordinates, chosen_classes):
     cones_guess = PointCloud()
     positions = []
+    print("X COORDS: ", x_coordinates)
+    print("Y COORDS: ", y_coordinates)
+    print("COLORS: ", chosen_classes)
     for x, y, color_value in zip(x_coordinates, y_coordinates, chosen_classes):
-
+        print("X: ", x)
+        print("Y: ", y)
+        print("CLASS: ", color_value)
         positions.append(Point32())
         positions[-1].x = x
         positions[-1].y = y

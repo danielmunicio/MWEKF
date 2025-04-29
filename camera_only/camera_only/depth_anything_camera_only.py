@@ -50,6 +50,7 @@ class DepthAnythingCameraOnly(Node):
 
     def camera_callback(self, msg):
         self.image_msg = msg
+        self.depth_image = self.get_depth(self.image_msg)
         self.process()
 
 
@@ -68,15 +69,11 @@ class DepthAnythingCameraOnly(Node):
         self.R, self.T = FileOperations.get_extrinsic_parameters(UTILITIES_PATH)
 
     def process(self):
-        if self.realsense_depth_msg is None or self.realsense_image_msg is None:
-            return
         h, w, _, camera_matrix, _ = FileOperations.get_intrinsic_parameters(UTILITIES_PATH, realsenseCamera=True)
         h, w = 480, 640
         camera_matrix = np.array(camera_matrix, dtype=np.float64).reshape(3, 3)
         inv_camera_matrix = np.linalg.inv(camera_matrix)
         segmentation_outputs, classes, conf = self.model_operator.predict(self.realsense_image_msg, CV_BRIDGE)
-        depth_image = ros2_numpy.numpify(self.realsense_depth_msg)  # shape (480, 640), dtype=uint16
-        depth_image = depth_image.astype(np.float32) / 1000.0  # Convert to meters
 
         x_coordinates = []
         y_coordinates = []
@@ -114,3 +111,5 @@ class DepthAnythingCameraOnly(Node):
         return x_coordinates, y_coordinates, chosen_classes
 
 
+    def get_depth(self, image):
+        pass

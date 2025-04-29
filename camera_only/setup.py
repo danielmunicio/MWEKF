@@ -20,8 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'sensor_fusion = camera_only.find_cone_cluster:main',
-            'camera_only = camera_only.realsense_camera_only:main'
+            'camera_only = camera_only.main:main',
         ],
     },
 )

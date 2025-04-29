@@ -22,7 +22,9 @@ setup(
         'console_scripts': [
             'lidar_perception = lidar_perception.main:main',
             'save_points = lidar_perception.save_points_to_pc:main',
-            'sensor_fusion = lidar_perception.find_cone_cluster:main'
+            'sensor_fusion = lidar_perception.find_cone_cluster:main',
+            'find_ground = lidar_perception.Calibration.find_ground_gui:main',
+            'save_pointcloud = lidar_perception.save_pointcloud:main'
         ],
     },
 )

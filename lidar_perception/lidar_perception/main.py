@@ -16,7 +16,7 @@ import cupy as cp
 
 # Python Files
 from all_settings.all_settings import LiDAROnlySettings as settings
-from .visual_debugging import publish_filtered_pointcloud, plot_clusters_3d
+from .Calibration.visual_debugging import publish_filtered_pointcloud, plot_clusters_3d
 
 class LiDARCones(Node):
     def __init__(self):
@@ -61,6 +61,7 @@ class LiDARCones(Node):
         # Run cuML DBSCAN
         clustered_points_scan = cuDBSCAN(eps=settings.eps, min_samples=settings.min_samples).fit(filtered_points_gpu)
         labels_cp = clustered_points_scan.labels_
+        print("LABELS LENGTH: ", len(labels_cp))
         labels_np = labels_cp.get() if isinstance(labels_cp, cp.ndarray) else labels_cp
         cluster_points = perf_counter()
 
@@ -69,7 +70,7 @@ class LiDARCones(Node):
         filtered_cone_labels_gpu = cp.asarray(filtered_cone_labels)
         find_cones = perf_counter()
 
-        print("FILTERED CONE LABELS: ", filtered_cone_labels)
+        #print("FILTERED CONE LABELS: ", filtered_cone_labels)
 
         positions = []
         cone_msg = ConesCartesian()

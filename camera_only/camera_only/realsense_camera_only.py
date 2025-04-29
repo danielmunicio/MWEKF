@@ -3,7 +3,7 @@ import sys
 # External modules
 import cv2
 import numpy as np
-
+from time import perf_counter
 # ROS 2 modules
 import rclpy
 from rclpy.node import Node
@@ -64,7 +64,10 @@ class RealsenseCameraOnly(Node):
 
     def realsense_depth_callback(self, msg):
         self.realsense_depth_msg = msg
+        start = perf_counter()
         self.process()
+        end = perf_counter() 
+        print("TOTAL TIME: ", end - start)
 
     def setup(self):
         self.get_logger().info('Setting up camera model')

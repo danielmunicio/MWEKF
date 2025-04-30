@@ -25,7 +25,7 @@ class LiDARCones(Node):
         self.recieved = False
         self.lidar_sub = self.create_subscription(PointCloud2, 'rslidar_points', self.lidar_callback, 1)
         self.filtered_pub = self.create_publisher(PointCloud2, '/filtered_pointcloud', 1)
-        self.perception_pub = self.create_publisher(ConesCartesian, '/cones/lidar', 1)
+        self.perception_pub = self.create_publisher(ConesCartesian, '/lidar/cones', 1)
         self.perception_vis_pub = self.create_publisher(PointCloud, 'cones/viz/lidar', 1)
 
         self.a, self.b, self.c, self.d = settings.ground_plane_coefficients

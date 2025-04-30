@@ -105,6 +105,24 @@ class GraphSLAMSettings(metaclass=Settings):
     # Hardware Based Settings
     forward_imu_direction: str = 'x' # Which direction is forward for the IMU. Can  be 'x', 'y', or 'z'
 
+class MWEKFSettings(metaclass=Settings):
+    using_mwekf: bool = True
+
+class SimulatorPerceptionSettings(metaclass=Settings):
+    camera_noise_std: float = 0.3
+    lidar_noise_std: float = 0.1
+
+    # Delay for Camera and LiDAR BETWEEN measurement and send
+    camera_delay_mean: float = 0.01
+    camera_delay_std: float = 1e-5
+
+    lidar_delay_mean: float = 0.01
+    lidar_delay_std: float = 1e-5
+
+    # Publishing Rate for Sensor 
+    camera_hz: int = 15
+    lidar_hz: int = 5
+
 class CANSettings(metaclass=Settings):
     interface: str = 'socketcan'
     channel: str = 'can0'
@@ -129,20 +147,6 @@ class BrakingSettings(metaclass=Settings):
     VOLTS_FOR_ZERO_PSI: float = 0.962366 # same regression ^
     VMAX: float = 4.7 # max voltage the arduino can output (at PWM duty cycle 255)
 
-class SimulatorPerceptionSettings(metaclass=Settings):
-    camera_noise_std: float = 0.3
-    lidar_noise_std: float = 0.1
-
-    # Delay for Camera and LiDAR BETWEEN measurement and send
-    camera_delay_mean: float = 0.01
-    camera_delay_std: float = 1e-5
-
-    lidar_delay_mean: float = 0.01
-    lidar_delay_std: float = 1e-5
-
-    # Publishing Rate for Sensor 
-    camera_hz: int = 15
-    lidar_hz: int = 5
 
 class LiDAROnlySettings(metaclass=Settings):
     # Ground Filtering 

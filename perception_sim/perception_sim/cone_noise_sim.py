@@ -2,6 +2,7 @@ import rclpy
 from rclpy.node import Node
 import numpy as np
 from eufs_msgs.msg import ConeArrayWithCovariance
+from feb_msgs.msg import ConesCartesian
 from all_settings.all_settings import SimulatorPerceptionSettings as settings
 from time import sleep
 
@@ -14,8 +15,8 @@ class ConeNoiseSimulator(Node):
 
         # Publishers and Subscribers
         self.ground_truth_sub = self.create_subscription(ConeArrayWithCovariance, '/ground_truth/cones', self.cone_callback, 1)
-        self.camera_cones_pub = self.create_publisher(ConeArrayWithCovariance, '/camera/cones', 1)
-        self.lidar_cones_pub = self.create_publisher(ConeArrayWithCovariance, '/lidar/cones', 1)
+        self.camera_cones_pub = self.create_publisher(ConesCartesian, '/camera/cones', 1)
+        self.lidar_cones_pub = self.create_publisher(ConesCartesian, '/lidar/cones', 1)
 
         # Mimics publishing at the camera and LiDAR's given rates
         self.camera_timer = self.create_timer(1/settings.camera_hz, self.publish_camera)
@@ -34,60 +35,31 @@ class ConeNoiseSimulator(Node):
     def cone_callback(self, msg):
         # Adds noise to cones, and keeps them ready to publish
         # Doesn't actually publish though, publishing controlled by a timer 
-        camera_msg = ConeArrayWithCovariance()
-        lidar_msg = ConeArrayWithCovariance()
+        camera_msg = ConesCartesian()
+        lidar_msg = ConesCartesian()
 
-        for cone in msg.blue_cones:
-            camera_x, camera_y = self.add_gaussian_noise(cone.point.x, cone.point.y, is_camera=True)
-            cone.point.x = camera_x
-            cone.point.y = camera_y
-            camera_msg.blue_cones.append(cone)
-            self.camera_msg = camera_msg
+        # Format: (cones, camera_color, lidar_color)
+        cone_types = [
+            (msg.blue_cones, 2, -1),
+            (msg.yellow_cones, 1, -1),
+            (msg.orange_cones, 0, -1),
+            (msg.big_orange_cones, 3, -1)
+        ]
 
-            lidar_x, lidar_y = self.add_gaussian_noise(cone.point.x, cone.point.y, is_camera=False)
-            cone.point.x = lidar_x
-            cone.point.y = lidar_y
-            lidar_msg.blue_cones.append(cone)
-            self.lidar_msg = lidar_msg
+        for cones, camera_color, lidar_color in cone_types:
+            for cone in cones:
+                camera_x, camera_y = self.add_gaussian_noise(cone.point.x, cone.point.y, is_camera=True)
+                camera_msg.x.append(camera_x)
+                camera_msg.y.append(camera_y)
+                camera_msg.color.append(camera_color)
 
-        for cone in msg.yellow_cones:
-            camera_x, camera_y = self.add_gaussian_noise(cone.point.x, cone.point.y, is_camera=True)
-            cone.point.x = camera_x
-            cone.point.y = camera_y
-            camera_msg.yellow_cones.append(cone)
-            self.camera_msg = camera_msg
+                lidar_x, lidar_y = self.add_gaussian_noise(cone.point.x, cone.point.y, is_camera=False)
+                lidar_msg.x.append(lidar_x)
+                lidar_msg.y.append(lidar_y)
+                lidar_msg.color.append(lidar_color)
 
-            lidar_x, lidar_y = self.add_gaussian_noise(cone.point.x, cone.point.y, is_camera=False)
-            cone.point.x = lidar_x
-            cone.point.y = lidar_y
-            lidar_msg.yellow_cones.append(cone)
-            self.lidar_msg = lidar_msg
-
-        for cone in msg.orange_cones:
-            camera_x, camera_y = self.add_gaussian_noise(cone.point.x, cone.point.y, is_camera=True)
-            cone.point.x = camera_x
-            cone.point.y = camera_y
-            camera_msg.orange_cones.append(cone)
-            self.camera_msg = camera_msg
-
-            lidar_x, lidar_y = self.add_gaussian_noise(cone.point.x, cone.point.y, is_camera=False)
-            cone.point.x = lidar_x
-            cone.point.y = lidar_y
-            lidar_msg.orange_cones.append(cone)
-            self.lidar_msg = lidar_msg
-
-        for cone in msg.big_orange_cones:
-            camera_x, camera_y = self.add_gaussian_noise(cone.point.x, cone.point.y, is_camera=True)
-            cone.point.x = camera_x
-            cone.point.y = camera_y
-            camera_msg.big_orange_cones.append(cone)
-            self.camera_msg = camera_msg
-
-            lidar_x, lidar_y = self.add_gaussian_noise(cone.point.x, cone.point.y, is_camera=False)
-            cone.point.x = lidar_x
-            cone.point.y = lidar_y
-            lidar_msg.big_orange_cones.append(cone)
-            self.lidar_msg = lidar_msg
+        self.camera_msg = camera_msg
+        self.lidar_msg = lidar_msg
 
     def publish_camera(self):
         if self.camera_msg is None:

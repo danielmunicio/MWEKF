@@ -147,7 +147,7 @@ class SimulatorPerceptionSettings(metaclass=Settings):
 class LiDAROnlySettings(metaclass=Settings):
     # Ground Filtering 
     #ground_plane_coefficients: list = [-0.055, -0.003, 0.998, 0.591]
-    ground_plane_coefficients: list = [-0.107, 0.002, 0.994, 0.612]
+    ground_plane_coefficients: list = [-0.070, 0.002, 0.994, 0.650]
     ground_filter_threshold: float = 0.1
     max_distance: float = 5.0
 
@@ -171,7 +171,7 @@ class LiDAROnlySettings(metaclass=Settings):
     publish_perception_viz: bool = True
 
 class CameraOnlySettings(metaclass=Settings):
-    publish_visual: bool = True
+    publish_visual: bool = False
     yolo_minimum_confidence: float = 0.7
 
     # Camera setup settings

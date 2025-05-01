@@ -56,7 +56,7 @@ class ConeNoiseSimulator(Node):
                 lidar_x, lidar_y = self.add_gaussian_noise(cone.point.x, cone.point.y, is_camera=False)
                 lidar_msg.x.append(lidar_x)
                 lidar_msg.y.append(lidar_y)
-                lidar_msg.color.append(lidar_color)
+                lidar_msg.color.append(-1)
 
         self.camera_msg = camera_msg
         self.lidar_msg = lidar_msg

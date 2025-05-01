@@ -15,6 +15,7 @@ from .GraphSLAMSolve import GraphSLAMSolve
 from all_settings.all_settings import GraphSLAMSolverSettings as solver_settings
 from all_settings.all_settings import GraphSLAMSettings as settings
 from .utility_functions import compute_timediff, quat_to_euler, compute_delta_velocity, cartesian_to_polar
+from .icp import run_icp, plot_icp
 
 import matplotlib.pyplot as plt
 
@@ -91,41 +92,13 @@ class MWEKF(Node):
             self.recieved_camera = True
 
         if self.recieved_camera and self.recieved_lidar:
-            self.plot_values()
+            run_icp(self)
     
     def lidar_cones_callback(self, msg: ConesCartesian):
         if not self.recieved_lidar:
             self.lidar_cones_map = np.vstack([msg.x, msg.y, msg.color])
             self.recieved_lidar = True
     
-    #def 
-
-    def plot_values(self):
-        if self.camera_cones_map is None or self.lidar_cones_map is None:
-            self.get_logger().warn("Cone maps not fully received yet.")
-            return
-
-        plt.figure(figsize=(8, 8))
-        # Plot lidar cones in red
-        plt.scatter(
-            self.lidar_cones_map[0, :],  # x
-            self.lidar_cones_map[1, :],  # y
-            c='r', label='Lidar Cones', alpha=0.7
-        )
-        # Plot camera cones in blue
-        plt.scatter(
-            self.camera_cones_map[0, :],  # x
-            self.camera_cones_map[1, :],  # y
-            c='b', label='Camera Cones', alpha=0.7
-        )
-        plt.title("Lidar vs Camera Cone Detection")
-        plt.xlabel("X (m)")
-        plt.ylabel("Y (m)")
-        plt.axis("equal")
-        plt.legend()
-        plt.grid(True)
-        plt.show()
-
     def wheelspeed_sub_sim(self, msg):
         pass
 

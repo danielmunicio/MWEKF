@@ -371,19 +371,3 @@ class GraphSLAM_Global(Node):
 
         return close[:left_len][mask[:left_len]], close[left_len:][mask[left_len:]]
         
-
-# For running node
-def main(args=None):#
-    rclpy.init(args=args)
-    if settings.bypass_SLAM == True:
-        graphslam_bypass_node = Ground_Truth_Publisher()
-        rclpy.spin(graphslam_bypass_node)
-        rclpy.shutdown()
-    else:
-        graphslam_global_node = GraphSLAM_Global()
-        rclpy.spin(graphslam_global_node)
-        rclpy.shutdown()
-
-if __name__ == '__main__':
-    main()
-    

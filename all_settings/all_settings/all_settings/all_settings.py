@@ -100,17 +100,20 @@ class GraphSLAMSettings(metaclass=Settings):
     # Whether or not to use ground truth (perfectly accurate) measurements or not 
     using_ground_truth_cones: bool = True
     using_ground_truth_wheelspeeds: bool = True # Whether or not to use the perfect wheel speeds
-    bypass_SLAM = False # Bypasses SLAM Entirely, publishes ground truth position
-    instant_global_map = False # Whether or not to instantly publish the global map
+    bypass_SLAM: bool= False # Bypasses SLAM Entirely, publishes ground truth position
+    instant_global_map: bool = False # Whether or not to instantly publish the global map
     # Hardware Based Settings
     forward_imu_direction: str = 'x' # Which direction is forward for the IMU. Can  be 'x', 'y', or 'z'
 
-class MWEKFSettings(metaclass=Settings):
+    # Whether or not we are using MWEKF Implementation
     using_mwekf: bool = True
 
+class MWEKFSettings(metaclass=Settings):
+    pass
+
 class SimulatorPerceptionSettings(metaclass=Settings):
-    camera_noise_std: float = 0.3
-    lidar_noise_std: float = 0.1
+    camera_noise_std: float = 0.35
+    lidar_noise_std: float = 0.2
 
     # Delay for Camera and LiDAR BETWEEN measurement and send
     camera_delay_mean: float = 0.01

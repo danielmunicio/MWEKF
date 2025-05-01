@@ -2,7 +2,7 @@ import rclpy
 from rclpy.node import Node
 
 from all_settings.all_settings import GraphSLAMSettings as settings
-from .mwekf import MWEKF
+from .mwekf_frontend import MWEKF
 from .ground_truth_publisher import Ground_Truth_Publisher
 from .graphslam_global import GraphSLAM_Global
 

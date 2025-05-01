@@ -92,8 +92,7 @@ class MWEKF(Node):
             self.recieved_camera = True
 
         if self.recieved_camera and self.recieved_lidar:
-            run_icp(self)
-    
+            pass
     def lidar_cones_callback(self, msg: ConesCartesian):
         if not self.recieved_lidar:
             self.lidar_cones_map = np.vstack([msg.x, msg.y, msg.color])

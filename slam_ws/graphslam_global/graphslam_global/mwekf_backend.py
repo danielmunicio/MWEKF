@@ -34,13 +34,23 @@ class MWEKF_Backend():
     # Different Measurement Models 
     #################
 
-    def approximate_cones_measurement(self):
+    def cones_measurement_linearization(self, x, cones):
         """
-        Cones measurement comes in N x 2 of [x y]
-        Rotation Matrix is [[cos(theta), sin(theta)], [-sin(theta), cos(theta)] 
-        Translation is Nx2 of [x y] or just broadcast or something
+        Calculates partial derivative of measurement for cones. 
+        Remind me to do partial derivative tmmrw
         """
         pass
+
+    def h_cones(self, x, cones):
+        """
+        Calculates the expected position of the cones, based on the position of the car
+        Args: 
+        x - state vec
+        cones - cones measurement, NOTE: values of 0 or -1 or something will be cones not spotted
+        Cones not spotted should not be included in H
+        # Still need to figure out the masking logic or something
+        Returns: 2n x 1 array of cones
+        """
 
     def approximate_imu_measurement(self):
         pass

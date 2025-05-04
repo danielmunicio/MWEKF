@@ -16,7 +16,7 @@ import cupy as cp
 
 # Python Files
 from all_settings.all_settings import LiDAROnlySettings as settings
-from .Calibration.visual_debugging import publish_filtered_pointcloud, plot_clusters_3d
+from .visual_debugging import publish_filtered_pointcloud, plot_clusters_3d
 
 class LiDARCones(Node):
     def __init__(self):
@@ -44,6 +44,7 @@ class LiDARCones(Node):
         # Filter points based on plane distance
         filtered_points = self.filter_points_by_plane_and_distance(points,
                                                                     threshold=settings.ground_filter_threshold,
+                                                                    top_threshold=settings.ground_filter_top_threshold,
                                                                     max_distance=settings.max_distance
                                                                     )
 
@@ -128,7 +129,7 @@ class LiDARCones(Node):
         print("Total Time: ", finish - start)
 
 
-    def filter_points_by_plane_and_distance(self, points, threshold=0.05, max_distance=10.0):
+    def filter_points_by_plane_and_distance(self, points, threshold=0.05, top_threshold=0.5, max_distance=10.0):
         """
         Vectorized filtering of points based on:
         - Distance from a plane
@@ -142,7 +143,7 @@ class LiDARCones(Node):
 
         distance_from_origin = np.sqrt(x**2 + y**2 + z**2)
 
-        mask = (distance_to_plane > threshold) & (distance_from_origin <= max_distance)
+        mask = (threshold < distance_to_plane) & (distance_to_plane < top_threshold) & (distance_from_origin <= max_distance)
 
         return points[mask]
 

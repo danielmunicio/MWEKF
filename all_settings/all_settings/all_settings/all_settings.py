@@ -154,9 +154,10 @@ class BrakingSettings(metaclass=Settings):
 class LiDAROnlySettings(metaclass=Settings):
     # Ground Filtering 
     #ground_plane_coefficients: list = [-0.055, -0.003, 0.998, 0.591]
-    ground_plane_coefficients: list = [-0.070, 0.002, 0.994, 0.650]
-    ground_filter_threshold: float = 0.1
-    max_distance: float = 5.0
+    ground_plane_coefficients: list = [-0.25, 0.002, 1.0, 0.680]
+    ground_filter_threshold: float = 0.05
+    ground_filter_top_threshold: float = 0.5
+    max_distance: float = 10.0
 
     # DB Scan 
     eps: float = 0.1

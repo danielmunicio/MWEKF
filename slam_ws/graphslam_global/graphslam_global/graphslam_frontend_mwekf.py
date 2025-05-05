@@ -16,10 +16,11 @@ from geometry_msgs.msg import Quaternion, Vector3, PoseStamped, Pose, Point, Poi
 from sensor_msgs.msg import PointCloud
 from .utility_functions import compute_timediff, quat_to_euler, compute_delta_velocity, cartesian_to_polar, rotate_and_translate_cones
 from .ground_truth_publisher import Ground_Truth_Publisher
-from .mwekf_frontend import MWEKF
+from .mwekf_backend import MWEKF_Backend
 
 from feb_msgs.msg import State, FebPath, Map, Cones, ConesCartesian
 from eufs_msgs.msg import ConeArrayWithCovariance, ConeWithCovariance
+from ackermann_msgs.msg import AckermannDriveStamped
 
 
 class GraphSLAM_MWEKF(Node):
@@ -28,7 +29,7 @@ class GraphSLAM_MWEKF(Node):
         super().__init__('graphslam_global_node')
         
         self.slam = GraphSLAMSolve(**solver_settings)
-        self.mwekf = MWEKF()
+        self.mwekf = MWEKF_Backend(self, np.array([0., 0., 0., 0.]), 2)
         # SUBSCRIBERS
         # SIMULATOR SPECIFIC SUBSCRIBERS 
         if (settings.using_simulator):
@@ -47,7 +48,7 @@ class GraphSLAM_MWEKF(Node):
 
         self.imu_sub = self.create_subscription(Imu, '/imu', self.imu_callback, 1)
         self.cones_lidar_sub = self.create_subscription(ConesCartesian, '/lidar/cones', self.lidar_callback, 1)
-
+        self.mpc_sub = self.create_subscription(AckermannDriveStamped, '/cmd', self.mpc_callback, 1)
         # PUBLISHERS
         self.state_pub = self.create_publisher(State, '/slam/state', 1)
         self.global_map_pub = self.create_publisher(Map, '/slam/map/global', 1)
@@ -61,19 +62,24 @@ class GraphSLAM_MWEKF(Node):
         self.get_logger().info("Initialized le MWEKF")
 
 
+    def mpc_callback(self, msg: AckermannDriveStamped):
+        sec, nsec = self.get_clock().now().seconds_nanoseconds()
+        self.mwekf.last_u[:] = [msg.drive.acceleration, msg.drive.steering_angle, sec + nsec * 1e-9]
+        print("CMD: ", msg.drive.acceleration, msg.drive.steering_angle)
+
     def wheelspeed_sub_sim(self, msg: WheelSpeedsStamped):
-        self.mwekf.wheelspeed_sub(((msg.speeds.lb_speed + msg.speeds.rb_speed)/2)*np.pi*0.505/60)
+        self.mwekf.update((((msg.speeds.lb_speed + msg.speeds.rb_speed)/2)*np.pi*0.505/60), 3)
 
     def wheelspeed_sub(self, msg: Float64): 
-        self.mwekf.wheelspeed_sub_sim(msg.data)
+        self.mwekf.update(msg.data, 3)
 
     def imu_callback(self, imu: Imu) -> None:
         if settings.using_simulator:
-            self.mwekf.imu_callback(quat_to_euler(imu.orientation))
+            self.mwekf.update(quat_to_euler(imu.orientation), 2)
         else: 
             forward = settings.imu_foward_direction
         pass
-
+    
     def d435i_cones_callback(self, msg: ConesCartesian):
         self.cones_callback(rotate_and_translate_cones(msg, 'd435i'))
 
@@ -89,7 +95,7 @@ class GraphSLAM_MWEKF(Node):
     def create_mwekf(self):
         pass
 
-    def load_mwekf(self):
+    def load_mwekf_to_slam(self):
         pass
 
 

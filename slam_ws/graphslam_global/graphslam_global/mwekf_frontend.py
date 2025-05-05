@@ -9,7 +9,7 @@ from feb_msgs.msg import State, FebPath, Map, Cones, ConesCartesian
 
 # Python Libraries
 import numpy as np
-
+from time import perf_counter
 
 from .GraphSLAMSolve import GraphSLAMSolve
 from all_settings.all_settings import GraphSLAMSolverSettings as solver_settings
@@ -22,35 +22,24 @@ import matplotlib.pyplot as plt
 
 
 class MWEKF(Node):
-    def __init__(self):
+    def __init__(self, x0, num_cones):
         # ROS2 INTEGRATIONS
-        super().__init__('graphslam_global_node')
         
-        self.mwekf =  MWEKF_Backend(num_cones=10)
+        self.mwekf =  MWEKF_Backend(x0, num_cones=10)
 
-    # Camera and Cones callbacks are gonna be tricky because we have to do icp and cone matching stuff
-    def camera_cones_callback(self, msg: ConesCartesian):
-        if not self.recieved_camera:
-            self.camera_cones_map = np.vstack([msg.x, msg.y, msg.color])
-            self.recieved_camera = True
+    def camera_sub(self, cones):
+        pass
+        #self.mwekf.update(cones, 0)
 
-        if self.recieved_camera and self.recieved_lidar:
-            pass
-    def lidar_cones_callback(self, msg: ConesCartesian):
-        if not self.recieved_lidar:
-            self.lidar_cones_map = np.vstack([msg.x, msg.y, msg.color])
-            self.recieved_lidar = True
-    
+    def lidar_sub(self, cones):
+        pass
+        #self.mwekf.update(cones, 1)
+
     def wheelspeed_sub(self, velocity):
-        pass
-        #self.mwekf.update(velocity, 3)
-
-    def state_sub(self, msg):
-        pass
+        self.mwekf.update(velocity, 3)
 
     def imu_callback(self, yaw):
-        pass
-        #self.mwekf.update(yaw, 2)
+        self.mwekf.update(yaw, 2)
 
-    def mpc_input(self, msg):
-        pass
+    def mpc_input(self, accel, steering):
+        self.mwekf.last_u[:] = [accel, steering, perf_counter()]

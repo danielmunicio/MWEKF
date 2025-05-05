@@ -9,7 +9,7 @@ from feb_msgs.msg import State, FebPath, Map, Cones, ConesCartesian
 
 # Python Libraries
 import numpy as np
-
+from time import perf_counter
 
 from .GraphSLAMSolve import GraphSLAMSolve
 from all_settings.all_settings import GraphSLAMSolverSettings as solver_settings
@@ -19,15 +19,26 @@ from .utility_functions import compute_timediff, quat_to_euler, compute_delta_ve
 from .icp import run_icp, plot_icp
 
 class MWEKF_Backend():
-    def __init__(self, num_cones):
+    def __init__(self, SLAM, x0, num_cones):
+        self.SLAM = SLAM
+        self.state = x0.reshape(-1, 1)
         # Dynamics Model
-        n = 4 + num_cones # num states
+        self.n = 4 # num states
         #m = 4 # num measurements - camera, lidar, ws, imu
-        self.Q = np.eye(n)
-        self.P = np.eye(n)
+        self.Q = 1000 * np.eye(self.n)
+        self.P = np.eye(self.n)
         self.C = None
 
-        self.last_time = None
+        self.R_lidar = np.eye(num_cones)
+        self.R_camera = np.eye(num_cones)
+        self.R_imu = np.eye(1)
+        self.R_wheelspeeds = np.eye(1)
+
+        self.l_f = mpc_settings.L_F
+        self.l_r = mpc_settings.L_R
+        # Last control input NOTE: last element is time it was recieved at!!!
+        sec, nsec = self.SLAM.get_clock().now().seconds_nanoseconds()
+        self.last_u = np.array([0., 0., sec + nsec * 1e-9])
 
 
 
@@ -52,6 +63,8 @@ class MWEKF_Backend():
         # Still need to figure out the masking logic or something
         Returns: 2n x 1 array of cones
         """
+        pass
+
     def jac_cones(self, state, cones):
         pass
 
@@ -63,33 +76,31 @@ class MWEKF_Backend():
         jac[0, 3] = 1
         return jac
 
+    def h_imu(self, state):
+        return state[3]
+
+    def h_wheelspeeds(self, state):
+        return state[2]
+
     def jac_wheelspeeds(self, state):
         """
         Just taking in velocity, so h is just [0 0 1 0 0 0 ....]
         """
-        jac = np.zeroes((1, len(state)))
+        jac = np.zeros((1, len(state)))
         jac[0, 2] = 1
         return jac
 
-    def approximate_imu_measurement(self, msg):
-        """
-        Takes in IMU measurement, and just 
-        """
-        pass
-
-    def approximate_wheelspeed_measurement(self):
-        pass
-
     def approximate_measurement(self, state, measurement, measurement_type):
-        if measurement_type == 0 or 1:
-            jac = self.jac_cones(state, measurement, measurement_type)
+        if measurement_type == 0 or measurement_type == 1:
+            jac = self.jac_cones(state, measurement)
         elif measurement_type == 2:
             jac = self.jac_imu(state)
         elif measurement_type == 3:
             jac = self.jac_wheelspeeds(state)
+
         else:
             jac = None
-
+        return jac
     ###############
     # State Estimation based on Dynamics
     # Might add multiple state estimation steps based on dynamics before doing update, to fully utilize MPC speed
@@ -119,11 +130,26 @@ class MWEKF_Backend():
 
         return state_next
 
+
     def approximate_A(self, state, u):
-        pass
+        x, y, theta, v = state
+        a, delta = u  # acceleration and steering angle
+        
+        # The Jacobian terms based on the linearized model
+        A = np.zeros((4, 4))
 
+        # Update A matrix according to the linearized model
+        A[0, 2] = -v * np.sin(theta)  # ∂(dot_x)/∂theta
+        A[0, 3] = np.cos(theta)  # ∂(dot_x)/∂v
+        A[1, 2] = v * np.cos(theta)  # ∂(dot_y)/∂theta
+        A[1, 3] = np.sin(theta)  # ∂(dot_y)/∂v
+        A[2, 3] = np.tan(delta) / (self.l_f + self.l_r)  # ∂(dot_θ)/∂v
+        A[3, 3] = 0  # ∂(dot_v)/∂v, since dot_v = a and no dependence on state variables
 
-    def update(self, state, u, measurement, measurement_type, dt):
+        return A
+    
+
+    def update(self, measurement, measurement_type):
         """
         Updates EKF, based on measurement
         Measurement Types: 
@@ -132,21 +158,38 @@ class MWEKF_Backend():
         2 = IMU - idk yet
         3 = Wheelspeeds - velocity measurement ? 
         """
-        x_next = self.g(state, u, dt)
-        A = self.approximate_A(state, u)
+        print("U: ", self.last_u)
+        print("MEASUREMENT: ", measurement)
+        sec, nsec = self.SLAM.get_clock().now().seconds_nanoseconds()
+        time = sec + nsec * 1e-9
+        dt = time - self.last_u[2]
+        x_next = self.g(self.state, self.last_u[0:2], dt)
+        print("FIRST POSE GUESS: ", x_next)
+        print("DT: ", dt)
+        A = self.approximate_A(self.state, u=self.last_u[0:2])
+        print("A: ", A)
         P = A @ self.P @ A.T + self.Q
-
+        print("P: ", P)
         # Take jacobian of whichever measurement we're using
-        C = self.approximate_measurement(state, measurement, measurement_type)
+        C = self.approximate_measurement(self.state, measurement, measurement_type)
         # Get R based on whichever measurement we're using
         R = self.choose_R(measurement_type)
-
+        print("C SHPAPE: ", C.shape)
+        print("R SHAPE: ", R.shape)
+        print("SHAPE: ", C @ P @ C.T)
+        print("P SHAPE: ", P.shape)
+        print("C.T SHAPE: ", C.T.shape)
+        print("SHAPE 2: ", (P @ C.T).shape)
         K = P @ C.T @ np.linalg.inv(C @ P @ C.T + R)
+        print("KALMAN GAIN: ", K)
         h = self.choose_h(measurement_type)
-        x_new = x_next + K @ (measurement - h(x_next))
-        self.P = (np.eye(self.n) - K @ C) @ P
+        print("diff: ", np.array([measurement] - np.array(h(x_next))))
+
+        x_new = x_next + K @ (np.array([measurement]) - np.array([h(x_next)]).reshape(-1, 1))
         
-        return x_new
+        self.P = (np.eye(self.n) - K @ C) @ P
+        self.state = x_new
+        print("POSE: ", x_new)
 
     def choose_R(self, measurement_type):
         if measurement_type == 0:

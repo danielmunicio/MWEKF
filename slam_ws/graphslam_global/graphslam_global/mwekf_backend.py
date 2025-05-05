@@ -132,7 +132,7 @@ class MWEKF_Backend():
 
 
     def approximate_A(self, state, u):
-        x, y, theta, v = state
+        x, y, v, theta = state
         a, delta = u  # acceleration and steering angle
         
         # The Jacobian terms based on the linearized model

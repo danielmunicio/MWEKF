@@ -40,10 +40,9 @@ class RealsenseCameraOnly(Node):
     def __init__(self):
         super().__init__('sensor_fusion_node')
 
-        realsense_camera_topic = '/camera/camera2/color/image_raw'
-        realsense_depth_camera_topic = '/camera/camera2/aligned_depth_to_color/image_raw'
+        realsense_camera_topic = '/camera/camera/color/image_raw'
+        realsense_depth_camera_topic = '/camera/camera/aligned_depth_to_color/image_raw'
 
-        print('initing to topic: ', realsense_camera_topic)
         self.image_sub_realsense = self.create_subscription(Image, realsense_camera_topic, self.realsense_callback, qos_profile_sensor_data)
         self.depth_sub_realsense = self.create_subscription(Image, realsense_depth_camera_topic, self.realsense_depth_callback, qos_profile_sensor_data)
         self.cones_cartesian_pub = self.create_publisher(ConesCartesian, '/realsense/cones', 1)
@@ -57,13 +56,13 @@ class RealsenseCameraOnly(Node):
         self.model_operator = ModelOperations(UTILITIES_PATH)
         self.setup()
         self.get_logger().info('Successfully Initialized Realsense Camera-Only')
+
     def realsense_callback(self, msg):
         self.realsense_image_msg = msg
         if self.realsense_depth_msg is not None:
             self.process()
 
     def realsense_depth_callback(self, msg):
-        print('recieved depth')
         self.realsense_depth_msg = msg
         start = perf_counter()
         self.process()
@@ -91,8 +90,8 @@ class RealsenseCameraOnly(Node):
         h, w = 480, 640
         camera_matrix = np.array(camera_matrix, dtype=np.float64).reshape(3, 3)
         inv_camera_matrix = np.linalg.inv(camera_matrix)
-        img = CV_BRIDGE.imgmsg_to_cv2(self.realsense_image_msg, 'bgr8')
-        segmentation_outputs, classes, conf = self.model_operator.predict(img)
+        img_flipped = cv2.flip(CV_BRIDGE.imgmsg_to_cv2(self.realsense_image_msg, 'bgr8'), -1)
+        segmentation_outputs, classes, conf = self.model_operator.predict(self.realsense_image_msg, CV_BRIDGE)
         depth_image = ros2_numpy.numpify(self.realsense_depth_msg)  # shape (480, 640), dtype=uint16
         depth_image = depth_image.astype(np.float32) / 1000.0  # Convert to meters
 

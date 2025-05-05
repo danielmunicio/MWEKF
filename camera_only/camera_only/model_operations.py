@@ -11,14 +11,13 @@ class ModelOperations:
         self.model = YOLO(self.model_path)
         self.model.fuse()
     
-    def predict(self, img_msg, CV_BRIDGE):
-        img = CV_BRIDGE.imgmsg_to_cv2(img_msg, 'bgr8')
-        results = self.model.predict(source=img, save=True, save_txt=True)
+    def predict(self, img_msg):
+        results = self.model.predict(source=img_msg, save=True, save_txt=True)
         # print(results)
         classes = results[0].boxes.cls.tolist()
         conf = results[0].boxes.conf.tolist()
         segmentation_outputs = []
-        scale_x, scale_y = img.shape[:2]
+        scale_x, scale_y = img_msg.shape[:2]
         # print("scales")
         print(scale_x)
         print(scale_y)

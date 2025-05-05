@@ -2,14 +2,14 @@ import rclpy
 from rclpy.node import Node
 
 from all_settings.all_settings import GraphSLAMSettings as settings
-from .mwekf_frontend import MWEKF
 from .ground_truth_publisher import Ground_Truth_Publisher
 from .graphslam_global import GraphSLAM_Global
+from .graphslam_frontend_mwekf import GraphSLAM_MWEKF
 
 def main(args=None):#
     rclpy.init(args=args)
     if settings.using_mwekf:
-        graphslam_node = MWEKF()
+        graphslam_node = GraphSLAM_MWEKF()
         rclpy.spin(graphslam_node)
         rclpy.shutdown()
     elif settings.bypass_SLAM == True:

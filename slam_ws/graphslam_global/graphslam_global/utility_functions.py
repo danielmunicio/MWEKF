@@ -1,6 +1,8 @@
 import math
 from std_msgs.msg import Header
 from geometry_msgs.msg import Quaternion, Vector3
+from feb_msgs.msg import ConesCartesian
+
 from numpy import pi 
 
 def compute_timediff(slam, header: Header) -> float:
@@ -77,3 +79,6 @@ def compute_delta_velocity(self, acc: Vector3, dt: float, imu_direction: str) ->
     #                       straightline model is not accurate enough
     linear_velocity = longitudinal_acc * dt
     return linear_velocity
+
+def rotate_and_translate_cones(msg: ConesCartesian, camera):
+    pass

@@ -45,7 +45,7 @@ class RealsenseCameraOnly(Node):
 
         self.image_sub_realsense = self.create_subscription(Image, realsense_camera_topic, self.realsense_callback, qos_profile_sensor_data)
         self.depth_sub_realsense = self.create_subscription(Image, realsense_depth_camera_topic, self.realsense_depth_callback, qos_profile_sensor_data)
-        self.cones_cartesian_pub = self.create_publisher(ConesCartesian, '/realsense/cones', 1)
+        self.cones_cartesian_pub = self.create_publisher(ConesCartesian, '/realsense/d435i/cones', 1)
         self.perception_visual_pub = self.create_publisher(PointCloud, '/perception_cones_viz', 1)
 
         self.camera_info_msg = None

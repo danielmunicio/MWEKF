@@ -177,54 +177,26 @@ class MWEKF_Backend():
         3 = Wheelspeeds - velocity measurement ? 
         """
         called_time = perf_counter()
-        print("PERF COUNTER DT: ", called_time - self.last_called_time)
         self.last_called_time = perf_counter()
-        print("U: ", self.last_u)
-        print("MEASUREMENT: ", measurement)
         sec, nsec = self.SLAM.get_clock().now().seconds_nanoseconds()
         time = perf_counter()
         dt = time - self.last_u[2]
         self.last_u[2] = perf_counter()
         x_next = self.g(self.state, self.last_u[0:2], dt)
-        print("X_NEXT: ", x_next)
-        print("FIRST POSE GUESS: ", x_next)
-        print("FIRST POSE GUESS TYPE: ", type(x_next))
-        print("FIRST POSE GUESS SHPAE: ", x_next.shape)
-        print("FIRST ELEM: ", type(x_next[0]))
-        print("DT: ", dt)
         A = self.approximate_A(self.state, u=self.last_u[0:2])
         #A = self.compute_A_fd(self.state, self.last_u[0:2], self.last_u[2])
-        print("A: ", A)
         P = A @ self.P @ A.T + self.Q
         print("P: ", P)
         # Take jacobian of whichever measurement we're using
         C = self.approximate_measurement(x_next, measurement, measurement_type)
         # Get R based on whichever measurement we're using
         R = self.choose_R(measurement_type)
-        print("C SHPAPE: ", C.shape)
-        print("R SHAPE: ", R.shape)
-        print("SHAPE: ", C @ P @ C.T)
-        print("P SHAPE: ", P.shape)
-        print("C.T SHAPE: ", C.T.shape)
-        print("SHAPE 2: ", (P @ C.T).shape)
         K = P @ C.T @ np.linalg.inv(C @ P @ C.T + R)
-        print("KALMAN GAIN: ", K)
         h = self.choose_h(measurement_type)
-        print("diff: ", measurement.reshape(-1, 1) - np.array(h(x_next)))
-        print("INVERSION: ", np.linalg.cond(C @ P @ C.T + R))
         x_new = x_next + K @ (measurement.reshape(-1, 1) - h(x_next).reshape(-1, 1))
         x_diff = x_new[0] - self.state[0]
-        print('---------------------------')
-        print("X DIFF", x_diff)
-        print("VELOCITY BASED ON DIFF: ", x_diff / dt)
-        print("Total time in SIM: ", perf_counter() - self.start_time)
-        print("AVERAGE VELOCITY OVERALL: ", x_new[0] / (perf_counter() - self.start_time))
-        if (x_diff > 0.2):
-            bonk
-        print('---------------------------')
         self.P = (np.eye(self.n) - K @ C) @ P
         self.state = x_new
-        print("POSE: ", x_new)
 
     def choose_R(self, measurement_type):
         if measurement_type == 0:

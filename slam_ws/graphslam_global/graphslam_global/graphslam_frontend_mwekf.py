@@ -35,7 +35,8 @@ class GraphSLAM_MWEKF(Node):
         self.window = np.zeros([mwekf_settings.window_size, 3])
         self.window_initialized = False
         self.global_map = [[], [], []]
-        self.queue = []
+
+        self.queue_cones = np.array([])
 
         # SUBSCRIBERS
         # SIMULATOR SPECIFIC SUBSCRIBERS 
@@ -98,10 +99,32 @@ class GraphSLAM_MWEKF(Node):
         self.camera_callback(rotate_and_translate_cones(msg, 'd435'))
 
     def camera_callback(self, msg: ConesCartesian):
+        # Returns matched_cones in tuple of form 
+        # (index_in_cone_message, index in global map)
+        # New cones is list of indices in cone message
+
         matched_cones, new_cones = self.data_association(msg)
 
-        # Add new cones to queue of cones to be added to the MWEKF
+        # Cones to send to MWEKF in form: 
+        # (map_idx, cone_x, cone_y)
+        mwekf_measurement_cones = []
 
+        if self.window_initialized:
+            for msg_idx, map_idx in matched_cones:
+                # Check which cones are in window
+                # Not actually how you check if the cone is in global map but will fix later
+                if map_idx in self.mwekf.cone_indices:
+                    # If this is in window, send it as measurement
+                    mwekf_measurement_cones.append((map_idx, msg.x[msg_idx], msg.y[msg_idx]))
+                else: 
+                    # If it's not in the window, but in the global map, check if it's already in the queue 
+                    # NOTE: What do we do with cones in the queue? Do we not aggregate any information about them whatsoever ?
+                    if self.map_idx not in self.queue_cones[:, 0]:
+                        self.queue_cones = self.queue_cones.vstack([map_idx, msg.x[msg_idx], msg.y[msg_idx]])
+
+        cones_to_be_queued = np.array([])
+        # Add new cones to queue of cones to be added to the MWEKF
+        for cone in new_cones
         # Get cones behind the car 
         passed_cones = self.get_behind_cones()
         

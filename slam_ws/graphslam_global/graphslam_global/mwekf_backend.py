@@ -44,6 +44,8 @@ class MWEKF_Backend():
         # Last control input NOTE: last element is time it was recieved at!!!
         self.last_u = np.array([0., 0., perf_counter()])
 
+        # What cones we have, stored as indicies in the global map
+        self.cone_indices = []
 
 
     #################

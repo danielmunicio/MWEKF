@@ -21,13 +21,13 @@ from .icp import run_icp, plot_icp
 class MWEKF_Backend():
     def __init__(self, SLAM, x0, num_cones):
         self.SLAM = SLAM
-        print("X0:", x0.shape)
         self.state = x0[:, np.newaxis]
-        print("INNITIAL STATE: ", self.state)
         self.start_time = perf_counter()
         self.last_called_time = perf_counter()
         # Dynamics Model
+        self.num_cones = num_cones
         self.n = 4 # num states
+
         #m = 4 # num measurements - camera, lidar, ws, imu
         self.Q = np.eye(self.n)
         self.P = np.eye(self.n)
@@ -37,11 +37,11 @@ class MWEKF_Backend():
         self.R_camera = np.eye(num_cones)
         self.R_imu = np.eye(1)
         self.R_wheelspeeds = np.eye(1)
+        self.R_SLAM = np.eye(2)
 
         self.l_f = mpc_settings.L_F
         self.l_r = mpc_settings.L_R
         # Last control input NOTE: last element is time it was recieved at!!!
-        sec, nsec = self.SLAM.get_clock().now().seconds_nanoseconds()
         self.last_u = np.array([0., 0., perf_counter()])
 
 
@@ -86,12 +86,21 @@ class MWEKF_Backend():
     def h_wheelspeeds(self, state):
         return np.array([state[2]])
 
+    def h_SLAM(self, state):
+        return state[0:2]
+
     def jac_wheelspeeds(self, state):
         """
         Just taking in velocity, so h is just [0 0 1 0 0 0 ....]
         """
         jac = np.zeros((1, len(state)))
         jac[0, 2] = 1
+        return jac
+
+    def jac_SLAM(self, state):
+        jac = np.zeros((2, len(state)))
+        jac[0, 0] = 1
+        jac[1, 1] = 1
         return jac
 
     def approximate_measurement(self, state, measurement, measurement_type):
@@ -101,7 +110,8 @@ class MWEKF_Backend():
             jac = self.jac_imu(state)
         elif measurement_type == 3:
             jac = self.jac_wheelspeeds(state)
-
+        elif measurement_type == 4:
+            jac = self.jac_SLAM(state)
         else:
             jac = None
         return jac
@@ -154,7 +164,6 @@ class MWEKF_Backend():
         return A
     
     def compute_A_fd(self, x, u, dt, eps=1e-5):
-        print("X: ", x)
         n = len(x)
         A = np.zeros((n, n))
         fx = self.g(x, u, dt)
@@ -175,10 +184,8 @@ class MWEKF_Backend():
         1 = cones_lidar - Nx2 Array of [x y]
         2 = IMU - idk yet
         3 = Wheelspeeds - velocity measurement ? 
+        4 = SLAM update
         """
-        called_time = perf_counter()
-        self.last_called_time = perf_counter()
-        sec, nsec = self.SLAM.get_clock().now().seconds_nanoseconds()
         time = perf_counter()
         dt = time - self.last_u[2]
         self.last_u[2] = perf_counter()
@@ -186,7 +193,6 @@ class MWEKF_Backend():
         A = self.approximate_A(self.state, u=self.last_u[0:2])
         #A = self.compute_A_fd(self.state, self.last_u[0:2], self.last_u[2])
         P = A @ self.P @ A.T + self.Q
-        print("P: ", P)
         # Take jacobian of whichever measurement we're using
         C = self.approximate_measurement(x_next, measurement, measurement_type)
         # Get R based on whichever measurement we're using
@@ -207,7 +213,9 @@ class MWEKF_Backend():
             return self.R_imu
         if measurement_type == 3:
             return self.R_wheelspeeds
-        
+        if measurement_type == 4:
+            return self.R_SLAM
+
     def choose_h(self, measurement_type):
         if measurement_type == 0:
             return self.h_cones
@@ -217,3 +225,11 @@ class MWEKF_Backend():
             return self.h_imu
         if measurement_type == 3:
             return self.h_wheelspeeds
+        if measurement_type == 4:
+            return self.h_SLAM
+
+    def update_window(self, cones):
+        """
+        Change cones window with new cones
+        """
+        pass

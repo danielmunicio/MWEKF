@@ -83,8 +83,8 @@ class GraphSLAMSolverSettings(metaclass=Settings):
     local_radius: int = int(10)
     
     max_landmark_distance: float = 0.7
-    dx_weight: float = 1e-4
-    z_weight: float = 5.0
+    dx_weight: float = 1.0
+    z_weight: float = 1.0
 
 class GraphSLAMSettings(metaclass=Settings):
     publish_to_rviz: bool = True
@@ -109,7 +109,7 @@ class GraphSLAMSettings(metaclass=Settings):
     using_mwekf: bool = True
 
 class MWEKFSettings(metaclass=Settings):
-    pass
+    window_size: int = 10 # num of cones in window
 
 class SimulatorPerceptionSettings(metaclass=Settings):
     camera_noise_std: float = 0.35

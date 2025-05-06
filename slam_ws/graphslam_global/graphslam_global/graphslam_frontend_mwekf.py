@@ -2,6 +2,7 @@ import numpy as np
 from .GraphSLAMSolve import GraphSLAMSolve
 from all_settings.all_settings import GraphSLAMSolverSettings as solver_settings
 from all_settings.all_settings import GraphSLAMSettings as settings
+from all_settings.all_settings import MWEKFSettings as mwekf_settings
 from time import perf_counter
 import math
 import time
@@ -29,10 +30,12 @@ class GraphSLAM_MWEKF(Node):
         super().__init__('graphslam_global_node')
         
         self.slam = GraphSLAMSolve(**solver_settings)
-        self.mwekf = MWEKF_Backend(self, np.array([0., 0., 0., 0.]), 2)
+        self.mwekf = MWEKF_Backend(self, np.array([0., 0., 0., 0.]), mwekf_settings.window_size)
+
         # SUBSCRIBERS
         # SIMULATOR SPECIFIC SUBSCRIBERS 
         if (settings.using_simulator):
+            self.cones_sub = self.create_subscription(ConeArrayWithCovariance, '/ground_truth/cones', self.cones_callback, 1)
             if (settings.using_wheelspeeds):
                 if (settings.using_ground_truth_wheelspeeds):
                     self.wheelspeeds_sub = self.create_subscription(WheelSpeedsStamped, '/ground_truth/wheel_speeds', self.wheelspeed_sub_sim, 1)
@@ -61,18 +64,21 @@ class GraphSLAM_MWEKF(Node):
 
         self.get_logger().info("Initialized le MWEKF")
         self.last_mpc_time = perf_counter()
+        self.last_slam_update = np.array([np.Inf, np.Inf])
+        self.time = time.time()
 
     def mpc_callback(self, msg: AckermannDriveStamped):
         sec, nsec = self.get_clock().now().seconds_nanoseconds()
         self.mwekf.last_u[:] = [msg.drive.acceleration, msg.drive.steering_angle, perf_counter()]
         self.last_mpc_time = perf_counter()
-        print("CMD: ", msg.drive.acceleration, msg.drive.steering_angle)
 
     def wheelspeed_sub_sim(self, msg: WheelSpeedsStamped):
         self.mwekf.update(np.array([((msg.speeds.lb_speed + msg.speeds.rb_speed)/2)*np.pi*0.505/60]), 3)
+        self.publish_pose()
 
     def wheelspeed_sub(self, msg: Float64): 
         self.mwekf.update(msg.data, 3)
+        self.publish_pose()
 
     def imu_callback(self, imu: Imu) -> None:
         if settings.using_simulator:
@@ -96,16 +102,39 @@ class GraphSLAM_MWEKF(Node):
     def create_mwekf(self):
         pass
 
-    def load_mwekf_to_slam(self):
-        pass
+    def publish_pose(self):
+        state = State()
+        state.x = float(self.mwekf.state[0])
+        state.y = float(self.mwekf.state[1])
+        state.velocity = float(self.mwekf.state[2])
+        state.heading = float(self.mwekf.state[3])
+        self.state_pub.publish(state)
 
+        if settings.publish_to_rviz:
+            pose_msg = PoseStamped()
+            pose_msg.pose.position.x = float(state.x)
+            pose_msg.pose.position.y = float(state.y)
+            pose_msg.pose.position.z = 0.
+            pose_msg.pose.orientation.w = np.cos(state.heading/2)
+            pose_msg.pose.orientation.x = 0.0
+            pose_msg.pose.orientation.y = 0.0
+            pose_msg.pose.orientation.z = np.sin(state.heading/2)
+            pose_msg.header.frame_id = "map"
+            pose_msg.header.stamp = self.get_clock().now().to_msg()
+            self.pose_pub.publish(pose_msg)
+
+    def load_mwekf_to_slam(self):
+        state = self.mwekf.state[0:4]
+        cones = self.mwekf.state[3:self.mwekf.num_cones]
+        pass
 
     def cones_callback(self, cones) -> None:
         """
         Function that takes the list of cones, updates and solves the graph
     
         """
-        if self.using_simulator: 
+        print("STARTING SLAM POSE: ", self.mwekf.state[0:2])
+        if settings.using_simulator: 
             cone_matrix = [[], [], []]
             for cone in cones.blue_cones:
                 r, theta = cartesian_to_polar([0.0, 0.0], (cone.point.x, cone.point.y))
@@ -120,8 +149,8 @@ class GraphSLAM_MWEKF(Node):
  
 
             cone_matrix = np.array(cone_matrix).T
-            cone_dx = cone_matrix[:,0] * np.cos(cone_matrix[:,1]+self.currentstate.heading) # r * cos(theta) element wise
-            cone_dy = cone_matrix[:,0] * np.sin(cone_matrix[:,1]+self.currentstate.heading) # r * sin(theta) element_wise
+            cone_dx = cone_matrix[:,0] * np.cos(cone_matrix[:,1]+self.mwekf.state[3]) # r * cos(theta) element wise
+            cone_dy = cone_matrix[:,0] * np.sin(cone_matrix[:,1]+self.mwekf.state[3]) # r * sin(theta) element_wise
             cartesian_cones = np.vstack((cone_dx, cone_dy, cone_matrix[:,2])).T # n x 3 array of n cones and dx, dy, color   -- input for update_graph
 
         else: 
@@ -136,28 +165,25 @@ class GraphSLAM_MWEKF(Node):
                     cone_matrix[2].append(cones.color[idx])
         
             cone_matrix = np.array(cone_matrix).T
-            cone_dx = cone_matrix[:,0] * np.cos(cone_matrix[:,1]+self.currentstate.heading)# r * cos(theta) element wise
-            cone_dy = cone_matrix[:,0] * np.sin(cone_matrix[:,1]+self.currentstate.heading) # r * sin(theta) element_wise
+            cone_dx = cone_matrix[:,0] * np.cos(cone_matrix[:,1]+self.mwekf.state[3])# r * cos(theta) element wise
+            cone_dy = cone_matrix[:,0] * np.sin(cone_matrix[:,1]+self.mwekf.state[3]) # r * sin(theta) element_wise
             cartesian_cones = np.vstack((cone_dx, cone_dy, cone_matrix[:,2])).T # n x 3 array of n cones and dx, dy, color   -- input for update_graph
-
-        # Dummy function for now, need to update graph and solve graph on each timestep
-        if self.finished:
-            return
         
-        distance_solve_condition = np.linalg.norm(self.last_slam_update-np.array([self.currentstate.x, self.currentstate.y])) > 1.0
+        distance_solve_condition = np.linalg.norm(self.last_slam_update-self.mwekf.state[0:2]) > 1.0
         time_solve_condition = time.time() - self.time > 0.3
         # Check depending on if ready to solve based on whether you're solving by time or by condition
-        ready_to_solve = (self.solve_by_time and time_solve_condition) or (not self.solve_by_time and distance_solve_condition)
+        ready_to_solve = (settings.solve_by_time and time_solve_condition) or (not settings.solve_by_time and distance_solve_condition)
 
         if ready_to_solve:
             # last_slam_update initialized to infinity, so set current state x,y to 0 in the case. otherwise, update graph with relative position from last update graph
+            print("SLAM DX: ", self.mwekf.state[0:2]-self.last_slam_update)
             self.slam.update_graph(
-                np.array([self.currentstate.x, self.currentstate.y])-self.last_slam_update if self.last_slam_update[0]<999999999.0 else np.array([0.0, 0.0]), 
+                np.array(self.mwekf.state[0:2])-self.last_slam_update if self.last_slam_update[0]<999999999.0 else np.array([0.0, 0.0]), 
                                    cartesian_cones[:, :2], 
                                    cartesian_cones[:, 2].flatten())
-            self.last_slam_update = np.array([self.currentstate.x, self.currentstate.y])
             self.time = time.time()
             self.slam.solve_graph()
+            self.last_slam_update = self.mwekf.state[0:2]
         else:
             return
     
@@ -166,10 +192,9 @@ class GraphSLAM_MWEKF(Node):
 
         # Publish Running Estimate of Car Positions & Cone Positions in respective messages: positionguess & cone_vis_pub
 
-        pos = np.array(x_guess[-1]).flatten()
-        self.currentstate.x = pos[0]
-        self.currentstate.y = pos[1]
-
+        pos = np.array(x_guess[-1])
+        self.mwekf.update(pos, 4)
+        print("POST SLAM POSE: ", pos[0:2])
         #x and lm guess come out as lists, so change to numpy arrays
         x_guess = np.array(x_guess)
         lm_guess = np.array(lm_guess)
@@ -179,24 +204,20 @@ class GraphSLAM_MWEKF(Node):
 
         #filter local conesfor sim & publihs in local_map_pub
 
-        local_left, local_right = self.localCones(self.local_radius, left_cones, right_cones)
+        local_left, local_right = self.localCones(settings.local_radius, left_cones, right_cones)
         if (len(np.array(local_left)) == 0 or len(np.array(local_right)) == 0):
             return
         #update map message with new map data 
+        local_map = Map()
+        local_map.left_cones_x = np.array(local_left)[:,0].tolist()
+        local_map.left_cones_y = np.array(local_left)[:,1].tolist()
+        local_map.right_cones_x = np.array(local_right)[:,0].tolist()
+        local_map.right_cones_y = np.array(local_right)[:,1].tolist()
+        local_map.header.stamp = self.get_clock().now().to_msg()
+        local_map.header.frame_id = "map"
+        self.local_map_pub.publish(local_map)
 
-        self.local_map.left_cones_x = np.array(local_left)[:,0].tolist()
-        self.local_map.left_cones_y = np.array(local_left)[:,1].tolist()
-        self.local_map.right_cones_x = np.array(local_right)[:,0].tolist()
-        self.local_map.right_cones_y = np.array(local_right)[:,1].tolist()
-
-        #update message header
-        #self.local_map.header.seq = self.seq
-        self.local_map.header.stamp = self.get_clock().now().to_msg()
-        self.local_map.header.frame_id = "map"
-
-        self.local_map_pub.publish(self.local_map)
-
-        if self.publish_to_rviz:
+        if settings.publish_to_rviz:
             # Publish SLAM Position visual
             position_guess = PointCloud()
             positions = []
@@ -214,7 +235,6 @@ class GraphSLAM_MWEKF(Node):
             blue_array = np.array([2 for i in range(len(lm_guess[:,2]))])
             left_cones = lm_guess[np.round(lm_guess[:,2]) == 2][:,:2] # blue
             right_cones = lm_guess[np.round(lm_guess[:,2]) == 1][:,:2] # yellow
-            print(self.slam.color.shape, self.slam.lhat.shape, left_cones.shape, right_cones.shape, lm_guess, cartesian_cones)
             total_cones = np.vstack((left_cones,right_cones))
             cones_msg = PointCloud()
             cones_to_send = []
@@ -244,9 +264,8 @@ class GraphSLAM_MWEKF(Node):
         """
         left = np.array(left)
         right = np.array(right)
-        curpos = np.array([self.currentstate.x, self.currentstate.y])
-        heading = self.currentstate.heading
-
+        curpos = self.mwekf.state[0:2].flatten()
+        heading = self.mwekf.state[3][0]
         # Cones within radius
         close_left = left[((left - curpos) ** 2).sum(axis=1) < radius * radius]
         close_right = right[((right - curpos) ** 2).sum(axis=1) < radius * radius]
@@ -266,7 +285,7 @@ class GraphSLAM_MWEKF(Node):
         mask = delta_vecs[:, 0]>0
 
         to_plot = close[mask]
-        if self.publish_to_rviz:
+        if settings.publish_to_rviz:
             cones_msg = PointCloud()
             cones_to_send = []
             for cone in to_plot: 

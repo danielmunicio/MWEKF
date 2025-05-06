@@ -60,22 +60,23 @@ class GraphSLAM_MWEKF(Node):
             self.pose_pub = self.create_publisher(PoseStamped, '/slam/pose', 1)
 
         self.get_logger().info("Initialized le MWEKF")
-
+        self.last_mpc_time = perf_counter()
 
     def mpc_callback(self, msg: AckermannDriveStamped):
         sec, nsec = self.get_clock().now().seconds_nanoseconds()
-        self.mwekf.last_u[:] = [msg.drive.acceleration, msg.drive.steering_angle, sec + nsec * 1e-9]
+        self.mwekf.last_u[:] = [msg.drive.acceleration, msg.drive.steering_angle, perf_counter()]
+        self.last_mpc_time = perf_counter()
         print("CMD: ", msg.drive.acceleration, msg.drive.steering_angle)
 
     def wheelspeed_sub_sim(self, msg: WheelSpeedsStamped):
-        self.mwekf.update((((msg.speeds.lb_speed + msg.speeds.rb_speed)/2)*np.pi*0.505/60), 3)
+        self.mwekf.update(np.array([((msg.speeds.lb_speed + msg.speeds.rb_speed)/2)*np.pi*0.505/60]), 3)
 
     def wheelspeed_sub(self, msg: Float64): 
         self.mwekf.update(msg.data, 3)
 
     def imu_callback(self, imu: Imu) -> None:
         if settings.using_simulator:
-            self.mwekf.update(quat_to_euler(imu.orientation), 2)
+            self.mwekf.update(np.array([quat_to_euler(imu.orientation)]), 2)
         else: 
             forward = settings.imu_foward_direction
         pass

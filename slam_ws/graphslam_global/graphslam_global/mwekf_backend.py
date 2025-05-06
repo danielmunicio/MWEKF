@@ -21,11 +21,15 @@ from .icp import run_icp, plot_icp
 class MWEKF_Backend():
     def __init__(self, SLAM, x0, num_cones):
         self.SLAM = SLAM
-        self.state = x0.reshape(-1, 1)
+        print("X0:", x0.shape)
+        self.state = x0[:, np.newaxis]
+        print("INNITIAL STATE: ", self.state)
+        self.start_time = perf_counter()
+        self.last_called_time = perf_counter()
         # Dynamics Model
         self.n = 4 # num states
         #m = 4 # num measurements - camera, lidar, ws, imu
-        self.Q = 1000 * np.eye(self.n)
+        self.Q = np.eye(self.n)
         self.P = np.eye(self.n)
         self.C = None
 
@@ -38,7 +42,7 @@ class MWEKF_Backend():
         self.l_r = mpc_settings.L_R
         # Last control input NOTE: last element is time it was recieved at!!!
         sec, nsec = self.SLAM.get_clock().now().seconds_nanoseconds()
-        self.last_u = np.array([0., 0., sec + nsec * 1e-9])
+        self.last_u = np.array([0., 0., perf_counter()])
 
 
 
@@ -77,10 +81,10 @@ class MWEKF_Backend():
         return jac
 
     def h_imu(self, state):
-        return state[3]
+        return np.array([state[3]])
 
     def h_wheelspeeds(self, state):
-        return state[2]
+        return np.array([state[2]])
 
     def jac_wheelspeeds(self, state):
         """
@@ -111,6 +115,7 @@ class MWEKF_Backend():
         state: [x, y, v, phi, ...]
         u: [a, psi] - acceleration and steering angle
         """
+        state = state.flatten()
         x, y, v, phi = state[0], state[1], state[2], state[3]
         a, psi = u[0], u[1]
 
@@ -127,8 +132,8 @@ class MWEKF_Backend():
         state_next[1]= y + dy * dt
         state_next[2] = v + dv * dt
         state_next[3] = phi + dphi * dt
-
-        return state_next
+        
+        return state_next[:, np.newaxis]
 
 
     def approximate_A(self, state, u):
@@ -148,6 +153,19 @@ class MWEKF_Backend():
 
         return A
     
+    def compute_A_fd(self, x, u, dt, eps=1e-5):
+        print("X: ", x)
+        n = len(x)
+        A = np.zeros((n, n))
+        fx = self.g(x, u, dt)
+        for i in range(n):
+            dx = np.zeros((n, 1))
+            dx[i] = eps
+            fx_plus = self.g((x + dx), u, dt)
+            fx_minus = self.g((x - dx), u, dt)
+            A[:, i] = ((fx_plus - fx_minus) / (2 * eps)).flatten()
+
+        return A
 
     def update(self, measurement, measurement_type):
         """
@@ -158,20 +176,29 @@ class MWEKF_Backend():
         2 = IMU - idk yet
         3 = Wheelspeeds - velocity measurement ? 
         """
+        called_time = perf_counter()
+        print("PERF COUNTER DT: ", called_time - self.last_called_time)
+        self.last_called_time = perf_counter()
         print("U: ", self.last_u)
         print("MEASUREMENT: ", measurement)
         sec, nsec = self.SLAM.get_clock().now().seconds_nanoseconds()
-        time = sec + nsec * 1e-9
+        time = perf_counter()
         dt = time - self.last_u[2]
+        self.last_u[2] = perf_counter()
         x_next = self.g(self.state, self.last_u[0:2], dt)
+        print("X_NEXT: ", x_next)
         print("FIRST POSE GUESS: ", x_next)
+        print("FIRST POSE GUESS TYPE: ", type(x_next))
+        print("FIRST POSE GUESS SHPAE: ", x_next.shape)
+        print("FIRST ELEM: ", type(x_next[0]))
         print("DT: ", dt)
         A = self.approximate_A(self.state, u=self.last_u[0:2])
+        #A = self.compute_A_fd(self.state, self.last_u[0:2], self.last_u[2])
         print("A: ", A)
         P = A @ self.P @ A.T + self.Q
         print("P: ", P)
         # Take jacobian of whichever measurement we're using
-        C = self.approximate_measurement(self.state, measurement, measurement_type)
+        C = self.approximate_measurement(x_next, measurement, measurement_type)
         # Get R based on whichever measurement we're using
         R = self.choose_R(measurement_type)
         print("C SHPAPE: ", C.shape)
@@ -183,10 +210,18 @@ class MWEKF_Backend():
         K = P @ C.T @ np.linalg.inv(C @ P @ C.T + R)
         print("KALMAN GAIN: ", K)
         h = self.choose_h(measurement_type)
-        print("diff: ", np.array([measurement] - np.array(h(x_next))))
-
-        x_new = x_next + K @ (np.array([measurement]) - np.array([h(x_next)]).reshape(-1, 1))
-        
+        print("diff: ", measurement.reshape(-1, 1) - np.array(h(x_next)))
+        print("INVERSION: ", np.linalg.cond(C @ P @ C.T + R))
+        x_new = x_next + K @ (measurement.reshape(-1, 1) - h(x_next).reshape(-1, 1))
+        x_diff = x_new[0] - self.state[0]
+        print('---------------------------')
+        print("X DIFF", x_diff)
+        print("VELOCITY BASED ON DIFF: ", x_diff / dt)
+        print("Total time in SIM: ", perf_counter() - self.start_time)
+        print("AVERAGE VELOCITY OVERALL: ", x_new[0] / (perf_counter() - self.start_time))
+        if (x_diff > 0.2):
+            bonk
+        print('---------------------------')
         self.P = (np.eye(self.n) - K @ C) @ P
         self.state = x_new
         print("POSE: ", x_new)

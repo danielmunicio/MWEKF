@@ -31,6 +31,11 @@ class GraphSLAM_MWEKF(Node):
         
         self.slam = GraphSLAMSolve(**solver_settings)
         self.mwekf = MWEKF_Backend(self, np.array([0., 0., 0., 0.]), mwekf_settings.window_size)
+        # Do we want window to have color ? 
+        self.window = np.zeros([mwekf_settings.window_size, 3])
+        self.window_initialized = False
+        self.global_map = [[], [], []]
+        self.queue = []
 
         # SUBSCRIBERS
         # SIMULATOR SPECIFIC SUBSCRIBERS 
@@ -85,7 +90,6 @@ class GraphSLAM_MWEKF(Node):
             self.mwekf.update(np.array([quat_to_euler(imu.orientation)]), 2)
         else: 
             forward = settings.imu_foward_direction
-        pass
     
     def d435i_cones_callback(self, msg: ConesCartesian):
         self.cones_callback(rotate_and_translate_cones(msg, 'd435i'))
@@ -94,13 +98,59 @@ class GraphSLAM_MWEKF(Node):
         self.camera_callback(rotate_and_translate_cones(msg, 'd435'))
 
     def camera_callback(self, msg: ConesCartesian):
-        return
+        matched_cones, new_cones = self.data_association(msg)
+
+        # Add new cones to queue of cones to be added to the MWEKF
+
+        # Get cones behind the car 
+        passed_cones = self.get_behind_cones()
+        
+        # Check if any cones in mwekf are behind the car 
+
+        # if cones behind the car: 
+            # Check if we have cones in queue 
+            # if we do, remove cones behind the car, add queue cones
+
 
     def lidar_callback(self, msg: ConesCartesian):
+        # NOTE: Thinking of doing LiDAR cannot initialize new cones
+        matched_cones, new_cones = self.data_association(msg)
         return
 
-    def create_mwekf(self):
-        pass
+    def data_association(self, msg: ConesCartesian):
+        pos = self.mwekf.state[0:4].flatten() # array of [x, y, velocity, heading]
+        R = np.array([[np.cos(pos[3]), -np.sin(pos[3])],
+                       [np.sin(pos[3]), np.cos(pos[3])]])
+        cones_message_local = np.vstack([msg.x, msg.y])
+        cones_message_global = R @ cones_message_local + pos[:, np.newaxis] # should be (2, N)
+        cones_message_color = np.array(msg.color)
+
+        map_pos = self.global_map[:, :2] # should be (M, 2)
+        map_colors = self.global_map[:, 2].astype(int)
+
+        # First, check if each cone can be matched to a cone in the global map
+        # Much more susceptible to false positives than the cameras
+        matched_cones = []
+        new_cones = []
+
+        for i in range(map_pos.shape[0]):
+            message_pos = cones_message_global[i]
+            message_color = cones_message_color[i]
+
+            diffs = map_pos - message_pos
+            dists = np.linalg.norm(diffs, axis=1)
+            mask = (dists < solver_settings.max_landmark_radius) & (map_colors == message_color)
+
+            # For each cone that's not close enough to a cone in the global map, throw it in a list for now 
+            # For each cone that IS in the global map, throw it in a list
+            if np.any(mask):
+                matched_cones.append((message_pos[0], message_pos[1], message_pos[2]))
+
+            else: 
+                new_cones.append((message_pos[0], message_pos[1], message_pos[2]))
+
+        return matched_cones, new_cones
+    
 
     def publish_pose(self):
         state = State()
@@ -134,7 +184,6 @@ class GraphSLAM_MWEKF(Node):
     
         """
         state = self.mwekf.state.flatten()
-        print("STARTING SLAM POSE: ", state[0:2])
         if settings.using_simulator: 
             cone_matrix = [[], [], []]
             for cone in cones.blue_cones:
@@ -150,11 +199,9 @@ class GraphSLAM_MWEKF(Node):
  
 
             cone_matrix = np.array(cone_matrix).T
-            print("HEADING: ")
             cone_dx = cone_matrix[:,0] * np.cos(cone_matrix[:,1]+state[3]) # r * cos(theta) element wise
             cone_dy = cone_matrix[:,0] * np.sin(cone_matrix[:,1]+state[3]) # r * sin(theta) element_wise
             cartesian_cones = np.vstack((cone_dx, cone_dy, cone_matrix[:,2])).T # n x 3 array of n cones and dx, dy, color   -- input for update_graph
-            print("CONES: ", cartesian_cones[:, 0:2])
         else: 
             cone_matrix = [[], [], []]
             array_len = len(cones.r)
@@ -183,7 +230,6 @@ class GraphSLAM_MWEKF(Node):
             else: 
                 dx = state[0:2] - self.last_slam_update
 
-            print("DX: ", dx)
             self.slam.update_graph(dx, cartesian_cones[:, :2], cartesian_cones[:, 2].flatten())
 
             self.time = time.time()
@@ -199,7 +245,6 @@ class GraphSLAM_MWEKF(Node):
 
         pos = np.array(x_guess[-1])
         self.mwekf.update(pos, 4)
-        print("POST SLAM POSE: ", pos)
         #x and lm guess come out as lists, so change to numpy arrays
         x_guess = np.array(x_guess)
         lm_guess = np.array(lm_guess)

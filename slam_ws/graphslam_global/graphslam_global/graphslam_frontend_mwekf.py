@@ -133,7 +133,8 @@ class GraphSLAM_MWEKF(Node):
         Function that takes the list of cones, updates and solves the graph
     
         """
-        print("STARTING SLAM POSE: ", self.mwekf.state[0:2])
+        state = self.mwekf.state.flatten()
+        print("STARTING SLAM POSE: ", state[0:2])
         if settings.using_simulator: 
             cone_matrix = [[], [], []]
             for cone in cones.blue_cones:
@@ -149,8 +150,9 @@ class GraphSLAM_MWEKF(Node):
  
 
             cone_matrix = np.array(cone_matrix).T
-            cone_dx = cone_matrix[:,0] * np.cos(cone_matrix[:,1]+self.mwekf.state[3]) # r * cos(theta) element wise
-            cone_dy = cone_matrix[:,0] * np.sin(cone_matrix[:,1]+self.mwekf.state[3]) # r * sin(theta) element_wise
+            print("HEADING: ")
+            cone_dx = cone_matrix[:,0] * np.cos(cone_matrix[:,1]+state[3]) # r * cos(theta) element wise
+            cone_dy = cone_matrix[:,0] * np.sin(cone_matrix[:,1]+state[3]) # r * sin(theta) element_wise
             cartesian_cones = np.vstack((cone_dx, cone_dy, cone_matrix[:,2])).T # n x 3 array of n cones and dx, dy, color   -- input for update_graph
             print("CONES: ", cartesian_cones[:, 0:2])
         else: 
@@ -165,11 +167,11 @@ class GraphSLAM_MWEKF(Node):
                     cone_matrix[2].append(cones.color[idx])
         
             cone_matrix = np.array(cone_matrix).T
-            cone_dx = cone_matrix[:,0] * np.cos(cone_matrix[:,1]+self.mwekf.state[3])# r * cos(theta) element wise
-            cone_dy = cone_matrix[:,0] * np.sin(cone_matrix[:,1]+self.mwekf.state[3]) # r * sin(theta) element_wise
+            cone_dx = cone_matrix[:,0] * np.cos(cone_matrix[:,1]+state[3])# r * cos(theta) element wise
+            cone_dy = cone_matrix[:,0] * np.sin(cone_matrix[:,1]+state[3]) # r * sin(theta) element_wise
             cartesian_cones = np.vstack((cone_dx, cone_dy, cone_matrix[:,2])).T # n x 3 array of n cones and dx, dy, color   -- input for update_graph
         
-        distance_solve_condition = np.linalg.norm(self.last_slam_update-self.mwekf.state[0:2]) > 1.0
+        distance_solve_condition = np.linalg.norm(self.last_slam_update-state[0:2]) > 1.0
         time_solve_condition = time.time() - self.time > 0.3
         # Check depending on if ready to solve based on whether you're solving by time or by condition
         ready_to_solve = (settings.solve_by_time and time_solve_condition) or (not settings.solve_by_time and distance_solve_condition)
@@ -177,16 +179,16 @@ class GraphSLAM_MWEKF(Node):
         if ready_to_solve:
             if self.last_slam_update[0] > 9999999999:
                 # If this is the first solve
-                dx = self.mwekf.state[0:2]
+                dx = state[0:2]
             else: 
-                dx = self.mwekf.state[0:2] - self.last_slam_update
+                dx = state[0:2] - self.last_slam_update
 
             print("DX: ", dx)
             self.slam.update_graph(dx, cartesian_cones[:, :2], cartesian_cones[:, 2].flatten())
 
             self.time = time.time()
             self.slam.solve_graph()
-            self.last_slam_update = self.mwekf.state[0:2]
+            self.last_slam_update = state[0:2]
         else:
             return
     
@@ -197,7 +199,7 @@ class GraphSLAM_MWEKF(Node):
 
         pos = np.array(x_guess[-1])
         self.mwekf.update(pos, 4)
-        print("POST SLAM POSE: ", pos[0:2])
+        print("POST SLAM POSE: ", pos)
         #x and lm guess come out as lists, so change to numpy arrays
         x_guess = np.array(x_guess)
         lm_guess = np.array(lm_guess)

@@ -152,7 +152,7 @@ class GraphSLAM_MWEKF(Node):
             cone_dx = cone_matrix[:,0] * np.cos(cone_matrix[:,1]+self.mwekf.state[3]) # r * cos(theta) element wise
             cone_dy = cone_matrix[:,0] * np.sin(cone_matrix[:,1]+self.mwekf.state[3]) # r * sin(theta) element_wise
             cartesian_cones = np.vstack((cone_dx, cone_dy, cone_matrix[:,2])).T # n x 3 array of n cones and dx, dy, color   -- input for update_graph
-
+            print("CONES: ", cartesian_cones[:, 0:2])
         else: 
             cone_matrix = [[], [], []]
             array_len = len(cones.r)
@@ -175,12 +175,15 @@ class GraphSLAM_MWEKF(Node):
         ready_to_solve = (settings.solve_by_time and time_solve_condition) or (not settings.solve_by_time and distance_solve_condition)
 
         if ready_to_solve:
-            # last_slam_update initialized to infinity, so set current state x,y to 0 in the case. otherwise, update graph with relative position from last update graph
-            print("SLAM DX: ", self.mwekf.state[0:2]-self.last_slam_update)
-            self.slam.update_graph(
-                np.array(self.mwekf.state[0:2])-self.last_slam_update if self.last_slam_update[0]<999999999.0 else np.array([0.0, 0.0]), 
-                                   cartesian_cones[:, :2], 
-                                   cartesian_cones[:, 2].flatten())
+            if self.last_slam_update[0] > 9999999999:
+                # If this is the first solve
+                dx = self.mwekf.state[0:2]
+            else: 
+                dx = self.mwekf.state[0:2] - self.last_slam_update
+
+            print("DX: ", dx)
+            self.slam.update_graph(dx, cartesian_cones[:, :2], cartesian_cones[:, 2].flatten())
+
             self.time = time.time()
             self.slam.solve_graph()
             self.last_slam_update = self.mwekf.state[0:2]

@@ -36,8 +36,6 @@ class GraphSLAM_MWEKF(Node):
         self.window_initialized = False
         self.global_map = [[], [], []]
 
-        self.queue_cones = np.array([])
-
         # SUBSCRIBERS
         # SIMULATOR SPECIFIC SUBSCRIBERS 
         if (settings.using_simulator):
@@ -108,32 +106,33 @@ class GraphSLAM_MWEKF(Node):
         # Cones to send to MWEKF in form: 
         # (map_idx, cone_x, cone_y)
         mwekf_measurement_cones = []
+        mwekf_new_cones = []
 
         if self.window_initialized:
             for msg_idx, map_idx in matched_cones:
                 # Check which cones are in window
                 # Not actually how you check if the cone is in global map but will fix later
                 if map_idx in self.mwekf.cone_indices:
-                    # If this is in window, send it as measurement
+                    # If this is in window, add it as measurement
                     mwekf_measurement_cones.append((map_idx, msg.x[msg_idx], msg.y[msg_idx]))
                 else: 
-                    # If it's not in the window, but in the global map, check if it's already in the queue 
-                    # NOTE: What do we do with cones in the queue? Do we not aggregate any information about them whatsoever ?
-                    if self.map_idx not in self.queue_cones[:, 0]:
-                        self.queue_cones = self.queue_cones.vstack([map_idx, msg.x[msg_idx], msg.y[msg_idx]])
+                    # If it's not in the window, but in the global map, we add it to the window
+                    mwekf_new_cones.append((map_idx, msg.x[msg_idx], msg.y[msg_idx]))
 
-        cones_to_be_queued = np.array([])
+            for idx in new_cones:
+                mwekf_new_cones.append((map_idx, msg.x[idx], msg.y[idx]))
+            
+            self.mwekf.update(np.array([mwekf_measurement_cones]))
+            self.mwekf.add_cones(mwekf_new_cones)
+
         # Add new cones to queue of cones to be added to the MWEKF
-        for cone in new_cones
         # Get cones behind the car 
         passed_cones = self.get_behind_cones()
         
         # Check if any cones in mwekf are behind the car 
 
         # if cones behind the car: 
-            # Check if we have cones in queue 
-            # if we do, remove cones behind the car, add queue cones
-
+            # Remove them LMAO
 
     def lidar_callback(self, msg: ConesCartesian):
         # NOTE: Thinking of doing LiDAR cannot initialize new cones

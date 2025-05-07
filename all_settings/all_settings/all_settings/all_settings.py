@@ -109,7 +109,7 @@ class GraphSLAMSettings(metaclass=Settings):
     using_mwekf: bool = True
 
 class MWEKFSettings(metaclass=Settings):
-    window_size: int = 10 # num of cones in window
+    pass
 
 class SimulatorPerceptionSettings(metaclass=Settings):
     camera_noise_std: float = 0.35

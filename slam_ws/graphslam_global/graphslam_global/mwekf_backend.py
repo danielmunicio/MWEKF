@@ -235,3 +235,9 @@ class MWEKF_Backend():
         Change cones window with new cones
         """
         pass
+
+    def remove_cones(self, cone_indices):
+        """
+        Args: cone_indices: index of cones in global map to remove from the mwekf
+        Should remove the cones from the MWEKF, update everything accordingly
+        """

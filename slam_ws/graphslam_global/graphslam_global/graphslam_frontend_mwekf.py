@@ -33,7 +33,6 @@ class GraphSLAM_MWEKF(Node):
         self.mwekf = MWEKF_Backend(self, np.array([0., 0., 0., 0.]), mwekf_settings.window_size)
         # Do we want window to have color ? 
         self.window = np.zeros([mwekf_settings.window_size, 3])
-        self.window_initialized = False
         self.global_map = [[], [], []]
 
         # SUBSCRIBERS
@@ -108,31 +107,26 @@ class GraphSLAM_MWEKF(Node):
         mwekf_measurement_cones = []
         mwekf_new_cones = []
 
-        if self.window_initialized:
-            for msg_idx, map_idx in matched_cones:
-                # Check which cones are in window
-                # Not actually how you check if the cone is in global map but will fix later
-                if map_idx in self.mwekf.cone_indices:
-                    # If this is in window, add it as measurement
-                    mwekf_measurement_cones.append((map_idx, msg.x[msg_idx], msg.y[msg_idx]))
-                else: 
-                    # If it's not in the window, but in the global map, we add it to the window
-                    mwekf_new_cones.append((map_idx, msg.x[msg_idx], msg.y[msg_idx]))
+        for msg_idx, map_idx in matched_cones:
+            # Check which cones are in window
+            # Not actually how you check if the cone is in global map but will fix later
+            if map_idx in self.mwekf.cone_indices:
+                # If this is in window, add it as measurement
+                mwekf_measurement_cones.append((map_idx, msg.x[msg_idx], msg.y[msg_idx]))
+            else: 
+                # If it's not in the window, but in the global map, we add it to the window
+                mwekf_new_cones.append((map_idx, msg.x[msg_idx], msg.y[msg_idx]))
 
-            for idx in new_cones:
-                mwekf_new_cones.append((map_idx, msg.x[idx], msg.y[idx]))
-            
-            self.mwekf.update(np.array([mwekf_measurement_cones]))
-            self.mwekf.add_cones(mwekf_new_cones)
-
-        # Add new cones to queue of cones to be added to the MWEKF
-        # Get cones behind the car 
-        passed_cones = self.get_behind_cones()
+        for idx in new_cones:
+            mwekf_new_cones.append((map_idx, msg.x[idx], msg.y[idx]))
         
-        # Check if any cones in mwekf are behind the car 
+        self.mwekf.update(np.array([mwekf_measurement_cones]))
+        self.mwekf.add_cones(mwekf_new_cones)
 
-        # if cones behind the car: 
-            # Remove them LMAO
+        # Get cones behind the car and remove them
+        passed_cones_indices = self.get_behind_cones()
+        self.mwekf.remove_cones(passed_cones_indices)
+
 
     def lidar_callback(self, msg: ConesCartesian):
         # NOTE: Thinking of doing LiDAR cannot initialize new cones
@@ -151,7 +145,6 @@ class GraphSLAM_MWEKF(Node):
         map_colors = self.global_map[:, 2].astype(int)
 
         # First, check if each cone can be matched to a cone in the global map
-        # Much more susceptible to false positives than the cameras
         matched_cones = []
         new_cones = []
 
@@ -200,177 +193,17 @@ class GraphSLAM_MWEKF(Node):
         cones = self.mwekf.state[3:self.mwekf.num_cones]
         pass
 
-    def cones_callback(self, cones) -> None:
+    def get_behind_cones(self):
         """
-        Function that takes the list of cones, updates and solves the graph
-    
+        returns the indices of the cones that are behind the car
         """
-        state = self.mwekf.state.flatten()
-        if settings.using_simulator: 
-            cone_matrix = [[], [], []]
-            for cone in cones.blue_cones:
-                r, theta = cartesian_to_polar([0.0, 0.0], (cone.point.x, cone.point.y))
-                cone_matrix[0].append(r)
-                cone_matrix[1].append(theta)
-                cone_matrix[2].append(2)
-            for cone in cones.yellow_cones:
-                r, theta = cartesian_to_polar([0.0, 0.0], (cone.point.x, cone.point.y))
-                cone_matrix[0].append(r)
-                cone_matrix[1].append(theta)
-                cone_matrix[2].append(1)
- 
+        state = self.mwekf.state.flatten()[0:4]
+        heading_vec = np.array([np.cos(state[3]), np.sin(state)])
+        # Get vector from car to cones 
+        cone_vectors = self.global_map[:, :2] - np.array([state[0], state[1]])
+        # Take dot product wrt car heading
+        dot_prod = np.dot(cone_vectors, heading_vec)
+        # Cones that are behind have negative dot product
 
-            cone_matrix = np.array(cone_matrix).T
-            cone_dx = cone_matrix[:,0] * np.cos(cone_matrix[:,1]+state[3]) # r * cos(theta) element wise
-            cone_dy = cone_matrix[:,0] * np.sin(cone_matrix[:,1]+state[3]) # r * sin(theta) element_wise
-            cartesian_cones = np.vstack((cone_dx, cone_dy, cone_matrix[:,2])).T # n x 3 array of n cones and dx, dy, color   -- input for update_graph
-        else: 
-            cone_matrix = [[], [], []]
-            array_len = len(cones.r)
-            for idx in range(array_len): 
-                if cones.r[idx] >  self.local_radius: 
-                    pass
-                else:
-                    cone_matrix[0].append(cones.r[idx])
-                    cone_matrix[1].append(cones.theta[idx])
-                    cone_matrix[2].append(cones.color[idx])
-        
-            cone_matrix = np.array(cone_matrix).T
-            cone_dx = cone_matrix[:,0] * np.cos(cone_matrix[:,1]+state[3])# r * cos(theta) element wise
-            cone_dy = cone_matrix[:,0] * np.sin(cone_matrix[:,1]+state[3]) # r * sin(theta) element_wise
-            cartesian_cones = np.vstack((cone_dx, cone_dy, cone_matrix[:,2])).T # n x 3 array of n cones and dx, dy, color   -- input for update_graph
-        
-        distance_solve_condition = np.linalg.norm(self.last_slam_update-state[0:2]) > 1.0
-        time_solve_condition = time.time() - self.time > 0.3
-        # Check depending on if ready to solve based on whether you're solving by time or by condition
-        ready_to_solve = (settings.solve_by_time and time_solve_condition) or (not settings.solve_by_time and distance_solve_condition)
+        return np.where(dot_prod < 0)[0]
 
-        if ready_to_solve:
-            if self.last_slam_update[0] > 9999999999:
-                # If this is the first solve
-                dx = state[0:2]
-            else: 
-                dx = state[0:2] - self.last_slam_update
-
-            self.slam.update_graph(dx, cartesian_cones[:, :2], cartesian_cones[:, 2].flatten())
-
-            self.time = time.time()
-            self.slam.solve_graph()
-            self.last_slam_update = state[0:2]
-        else:
-            return
-    
-        
-        x_guess, lm_guess = self.slam.xhat, np.hstack((self.slam.lhat, self.slam.color[:, np.newaxis]))
-
-        # Publish Running Estimate of Car Positions & Cone Positions in respective messages: positionguess & cone_vis_pub
-
-        pos = np.array(x_guess[-1])
-        self.mwekf.update(pos, 4)
-        #x and lm guess come out as lists, so change to numpy arrays
-        x_guess = np.array(x_guess)
-        lm_guess = np.array(lm_guess)
-        
-        left_cones = lm_guess[np.round(lm_guess[:,2]) == 2][:,:2] # blue
-        right_cones = lm_guess[np.round(lm_guess[:,2]) == 1][:,:2] # yellow
-
-        #filter local conesfor sim & publihs in local_map_pub
-
-        local_left, local_right = self.localCones(settings.local_radius, left_cones, right_cones)
-        if (len(np.array(local_left)) == 0 or len(np.array(local_right)) == 0):
-            return
-        #update map message with new map data 
-        local_map = Map()
-        local_map.left_cones_x = np.array(local_left)[:,0].tolist()
-        local_map.left_cones_y = np.array(local_left)[:,1].tolist()
-        local_map.right_cones_x = np.array(local_right)[:,0].tolist()
-        local_map.right_cones_y = np.array(local_right)[:,1].tolist()
-        local_map.header.stamp = self.get_clock().now().to_msg()
-        local_map.header.frame_id = "map"
-        self.local_map_pub.publish(local_map)
-
-        if settings.publish_to_rviz:
-            # Publish SLAM Position visual
-            position_guess = PointCloud()
-            positions = []
-            for pos in x_guess: 
-                positions.append(Point32())
-                positions[-1].x = pos[0]
-                positions[-1].y = pos[1]
-                positions[-1].z = 0.0
-            position_guess.points = positions
-            position_guess.header.frame_id = "map"
-            position_guess.header.stamp = self.get_clock().now().to_msg()
-            self.positionguess.publish(position_guess)   
-
-            # Publish SLAM Map visual
-            blue_array = np.array([2 for i in range(len(lm_guess[:,2]))])
-            left_cones = lm_guess[np.round(lm_guess[:,2]) == 2][:,:2] # blue
-            right_cones = lm_guess[np.round(lm_guess[:,2]) == 1][:,:2] # yellow
-            total_cones = np.vstack((left_cones,right_cones))
-            cones_msg = PointCloud()
-            cones_to_send = []
-            for cone in lm_guess: 
-                cones_to_send.append(Point32())
-                cones_to_send[-1].x = cone[0]
-                cones_to_send[-1].y = cone[1]
-                cones_to_send[-1].z = 0.0
-            cones_msg.points = cones_to_send
-            cones_msg.header.frame_id = "map"
-            cones_msg.header.stamp = self.get_clock().now().to_msg()
-            self.cones_vis_pub.publish(cones_msg)
-
-
-    # publishes all cones within given radius
-    def localCones(self, radius, left, right):
-        """
-        Find cones within a given radius around the car's current position.
-
-        Parameters:
-            radius (float): The radius within which to search for cones.
-            left (list): List of left cones.
-            right (list): List of right cones.
-
-        Returns:
-            tuple: A tuple containing lists of left and right cones found within the radius.
-        """
-        left = np.array(left)
-        right = np.array(right)
-        curpos = self.mwekf.state[0:2].flatten()
-        heading = self.mwekf.state[3][0]
-        # Cones within radius
-        close_left = left[((left - curpos) ** 2).sum(axis=1) < radius * radius]
-        close_right = right[((right - curpos) ** 2).sum(axis=1) < radius * radius]
-
-
-        # Concatenate close_left and close_right
-        close = np.concatenate((close_left, close_right), axis=0)
-        left_len = len(close_left)
-
-        # Calculate delta vectors
-        # take positions of the cones relative to the car - and then rotates it by heading to get true location
-        delta_vecs = close - curpos
-        delta_vecs = (np.array([[np.cos(-heading), -np.sin(-heading)],
-                                 [np.sin(-heading), np.cos(-heading)]])@(delta_vecs.T)).T
-
-        #take cones in front of the car
-        mask = delta_vecs[:, 0]>0
-
-        to_plot = close[mask]
-        if settings.publish_to_rviz:
-            cones_msg = PointCloud()
-            cones_to_send = []
-            for cone in to_plot: 
-                cones_to_send.append(Point32())
-                cones_to_send[-1].x = cone[0]
-                cones_to_send[-1].y = cone[1]
-                cones_to_send[-1].z = 0.0
-            cones_msg.points = cones_to_send
-            cones_msg.header.frame_id = "map"
-            cones_msg.header.stamp = self.get_clock().now().to_msg()
-            self.cones_vis_pub.publish(cones_msg)
-
-
-
-        return close[:left_len][mask[:left_len]], close[left_len:][mask[left_len:]]
-        

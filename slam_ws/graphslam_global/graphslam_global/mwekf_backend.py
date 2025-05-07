@@ -33,8 +33,8 @@ class MWEKF_Backend():
         self.P = np.eye(self.n)
         self.C = None
 
-        self.R_lidar = np.eye(10000000000)
-        self.R_camera = np.eye(109000000)
+        self.R_lidar = np.eye(1)
+        self.R_camera = np.eye(1)
         self.R_imu = np.eye(1)
         self.R_wheelspeeds = np.eye(1)
         self.R_SLAM = np.eye(2)
@@ -181,6 +181,7 @@ class MWEKF_Backend():
         return A
 
     def update(self, measurement, measurement_type):
+        return
         """
         Updates EKF, based on measurement
         Measurement Types: 
@@ -239,12 +240,13 @@ class MWEKF_Backend():
         # num = -1 represents the fact that they are NOT in global map yet
         # num = map_idx means that they ARE in the global map
         """
+        print("CONES: ", cones)
         if self.cones is None:
             self.cones = cones[:, 1:4]
             self.cone_indices = cones[:, 0]
 
         self.cones = np.vstack([self.cones, cones[:, 1:4]])
-        self.cones_indices = np.hstack([self.cones_indices, cones[:, 0]])
+        self.cone_indices = np.hstack([self.cone_indices, cones[:, 0]])
 
     def remove_cones(self, cone_indices):
         """

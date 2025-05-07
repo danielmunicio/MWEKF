@@ -205,6 +205,7 @@ class GraphSLAMSolve:
             for i in range(len(z_c)):
                 # if we haven't seen thihs landmark before, add it
                 if l_dists[i] > self.max_landmark_distance:
+                    print("NEW LANDMARK")
                     self.l.append(self.nvars)
                     self.nvars += 2
                     self.lhat = np.append(self.lhat, z[color==c][i][np.newaxis], axis=0)

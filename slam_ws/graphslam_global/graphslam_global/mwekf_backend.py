@@ -181,7 +181,6 @@ class MWEKF_Backend():
         return A
 
     def update(self, measurement, measurement_type):
-        return
         """
         Updates EKF, based on measurement
         Measurement Types: 
@@ -191,6 +190,8 @@ class MWEKF_Backend():
         3 = Wheelspeeds - velocity measurement ? 
         4 = SLAM update
         """
+        if (measurement_type == 0) or (measurement_type == 4) or (measurement_type == 1):
+            return
         time = perf_counter()
         dt = time - self.last_u[2]
         self.last_u[2] = perf_counter()
@@ -243,6 +244,10 @@ class MWEKF_Backend():
         if self.cones is None:
             self.cones = cones[:, 1:4]
             self.cone_indices = cones[:, 0]
+            print("ADDED CONES")
+            print("CONESFIRST: ", self.cones)
+            print("INDICESFIRST: ", self.cone_indices)
+            return
 
         self.cones = np.vstack([self.cones, cones[:, 1:4]])
         self.cone_indices = np.hstack([self.cone_indices, cones[:, 0]])
@@ -251,12 +256,14 @@ class MWEKF_Backend():
         """
         Args: cone_indices: index of cones in global map to remove from the mwekf
         Should remove the cones from the MWEKF, update everything accordingly
+        Should go through self.cones_indices, and remove the cone in self.cones_indices and self.cones
+        If its index is in cone_indices
         """
-        cone_indices_set = set(cone_indices)
-    
         # Create mask, True = keep cone
-        keep_mask = ~np.isin(self.cone_indices, cone_indices_set)
-    
+        keep_mask = ~np.isin(self.cone_indices, cone_indices)
+        print("CONES MASK: ", keep_mask)
+        print("self.cone_indices:", self.cone_indices)
+        print("cone_indices to remove:", cone_indices)
         self.cones = self.cones[keep_mask]
         self.cone_indices = self.cone_indices[keep_mask]
 
@@ -276,7 +283,7 @@ class MWEKF_Backend():
         # 
         # self.cones - nx3 array of cones, (x, y, color)
         # self.cones_indices - cones index in the global map, updating all values of -1
-
+        print("UPDATING GLOBAL MAP: ")
         mask = (self.cone_indices == -1)
         cones_to_update = self.cones[mask]
 

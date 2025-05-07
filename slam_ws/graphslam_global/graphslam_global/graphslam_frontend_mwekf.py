@@ -99,8 +99,11 @@ class GraphSLAM_MWEKF(Node):
             # make n x 4 array of (idx, x, y, color)
             mwekf_cones = np.vstack([np.arange(len(msg.x)), msg.x, msg.y, msg.color]).T
             self.mwekf.add_cones(mwekf_cones)
+            print("FIRST UPDATE DONE")
             return
-
+        print("GLOBAL MAP? ", self.global_map)
+        print("CURRENT CONES: ", self.mwekf.get_cones())
+        print("CONE INDICES: ", self.mwekf.cone_indices)
         # Returns matched_cones in tuple of form 
         # (index_in_cone_message, index in global map)
         # New cones is list of indices in cone message
@@ -131,17 +134,23 @@ class GraphSLAM_MWEKF(Node):
 
         # Add new cones to mwekf, and SLAM map
         if len(mwekf_new_cones) > 0:
+            print("NEW CONES LLENGTH: ", len(mwekf_new_cones))
+            print("------------------")
+            print("LOADING TO SLAM!")
+            print('---------------------')
             self.mwekf.add_cones(np.array(mwekf_new_cones))
             self.load_mwekf_to_slam()
 
         # Get cones behind the car and remove them
         passed_cones_indices = self.get_behind_cones()
-        self.mwekf.remove_cones(passed_cones_indices)
+        if len(passed_cones_indices) > 0:
+            print("REMOVING BEHIND CONES: ", passed_cones_indices)
+            self.mwekf.remove_cones(np.array(passed_cones_indices))
 
 
     def lidar_callback(self, msg: ConesCartesian):
         # NOTE: Thinking of doing LiDAR cannot initialize new cones
-        matched_cones, new_cones = self.data_association(msg)
+        #matched_cones, new_cones = self.data_association(msg)
         return
 
     def data_association(self, msg: ConesCartesian):
@@ -152,9 +161,12 @@ class GraphSLAM_MWEKF(Node):
         ])
         
         cones_message_local = np.vstack([msg.x, msg.y])
+        print("CONES LOCAL: ", cones_message_local.T)
         cones_message_global = R @ cones_message_local + pos[:2, np.newaxis]
+        print("CONES GLOBAL: ", cones_message_global.T)
         cones_message_color = np.array(msg.color)
 
+        print("COMPARING WITH GLOBAL MAP: ", self.global_map[:, :2])
         map_pos = self.global_map[:, :2]
         map_colors = self.global_map[:, 2].astype(int)
 
@@ -170,11 +182,15 @@ class GraphSLAM_MWEKF(Node):
             mask = (dists < solver_settings.max_landmark_distance) & (map_colors == message_color)
 
             if np.any(mask):
-                map_index = np.argmin(dists + (~mask) * 1e6) # don't ask
+                # Only consider distances where mask is True
+                map_index = np.argmin(dists[mask])
+                # Recover the true index in the global map
+                map_index = np.where(mask)[0][map_index]
                 matched_cones.append((map_index, i))
             else:
                 new_cones.append(i)
 
+        print("NEW CONES: ", new_cones)
         return matched_cones, new_cones
 
     
@@ -215,6 +231,9 @@ class GraphSLAM_MWEKF(Node):
         #       add them all as if we have no matching
         
         x_guess, lm_guess = self.slam.xhat[-1], np.hstack((self.slam.lhat, self.slam.color[:, np.newaxis]))
+        self.mwekf.state[0] = x_guess.flatten()[0]
+        self.mwekf.state[1] = x_guess.flatten()[1]
+
         self.global_map = np.array(lm_guess)
         self.mwekf.update_global_map(lm_guess)
         self.mwekf.update((np.array(x_guess), lm_guess), 4)
@@ -226,10 +245,11 @@ class GraphSLAM_MWEKF(Node):
         state = self.mwekf.state.flatten()[0:4]
         heading_vec = np.array([np.cos(state[3]), np.sin(state[3])])
         # Get vector from car to cones 
-        cone_vectors = self.global_map[:, :2] - np.array([state[0], state[1]])
+        cone_vectors = self.mwekf.get_cones()[:, :2] - np.array([state[0], state[1]])
+        print("CONES: ", self.mwekf.get_cones())
+        print("CONES LENGTH: ", len(self.mwekf.get_cones()[:, 0]))
         # Take dot product wrt car heading
         dot_prod = np.dot(cone_vectors, heading_vec)
         # Cones that are behind have negative dot product
-
         return np.where(dot_prod < 0)[0]
 

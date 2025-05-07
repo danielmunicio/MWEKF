@@ -6,6 +6,7 @@ from eufs_msgs.msg import WheelSpeedsStamped, CarState, ConeArrayWithCovariance,
 from geometry_msgs.msg import Quaternion, Vector3, PoseStamped, Pose, Point, Point32
 from sensor_msgs.msg import PointCloud, Imu
 from feb_msgs.msg import State, FebPath, Map, Cones, ConesCartesian
+from dynamics import *
 
 # Python Libraries
 import numpy as np
@@ -24,7 +25,7 @@ class MWEKF_Backend():
         self.state = x0[:, np.newaxis]
         self.start_time = perf_counter()
         self.last_called_time = perf_counter()
-
+        self.dynamics = BicycleModel()
         # Dynamics Model
         self.num_cones = 0
         self.n = 4 # num state

@@ -1,5 +1,5 @@
 import numpy as np
-from .GraphSLAMSolve import GraphSLAMSolve
+from graphslamrs import GraphSLAMSolve
 from all_settings.all_settings import GraphSLAMSolverSettings as solver_settings
 from all_settings.all_settings import GraphSLAMSettings as settings
 from all_settings.all_settings import MWEKFSettings as mwekf_settings
@@ -151,7 +151,7 @@ class GraphSLAM_MWEKF(Node):
     def lidar_callback(self, msg: ConesCartesian):
         # NOTE: Thinking of doing LiDAR cannot initialize new cones
         #matched_cones, new_cones = self.data_association(msg)
-        return
+        self.camera_callback(msg)
 
     def data_association(self, msg: ConesCartesian):
         pos = self.mwekf.state[0:4].flatten()  # [x, y, velocity, heading]
@@ -226,7 +226,7 @@ class GraphSLAM_MWEKF(Node):
         dx = pos.flatten() - self.last_slam_update
         print("DX: ", dx)
         print("CONE DELTAS: ", cone_deltas)
-        self.slam.update_graph(dx, cone_deltas, cones[:, 2])
+        idxs = self.slam.update_graph(dx, cone_deltas, cones[:, 2])
 
         self.last_slam_update = pos
         self.slam.solve_graph()
@@ -234,8 +234,8 @@ class GraphSLAM_MWEKF(Node):
         # NOTE: We SHOULD do data association differently based on the fact that we 
         #       already have some cones matched to the global map, but for now we will
         #       add them all as if we have no matching
-        
-        x_guess, lm_guess = self.slam.xhat[-1], np.hstack((self.slam.lhat, self.slam.color[:, np.newaxis]))
+        lm_guess = np.hstack((np.array(self.slam.get_cones(indices = idxs)), cones[:, 3]))
+        x_guess = self.slam.get_positions()[-1]
         print("OLD POSE: ", pos)
         print("NEW POSE: ", x_guess)
 

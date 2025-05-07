@@ -136,12 +136,12 @@ class BicycleModel(DynamicsModel):
                 k4 = h*self._f(x+h*k3, self._u)
                 x += (k1 + 2*k2 + 2*k3 + k4)/6
         if isinstance(self._dt, ca.MatrixCommon):
-            inputs = [self._q, self._u, self._dt]
+            inputs = [self._q._q, self._u._u, self._dt]
         else:
-            inputs = [self._q, self._u]
-        self._F = Function[BicycleModel]('F', inputs, [x])
-        self._A_discrete = ca.Function('A_discrete', inputs, ca.jacobian(self._F(*inputs), self._q))
-        self._B_discrete = ca.Function('B_discrete', inputs, ca.jacobian(self._F(*inputs), self._u))
+            inputs = [self._q._q, self._u._u]
+        self._F = Function[BicycleModelState]('F', inputs, [x])
+        self._A_discrete = ca.Function('A_discrete', inputs, [ca.jacobian(self._F(*inputs), self._q)])
+        self._B_discrete = ca.Function('B_discrete', inputs, [ca.jacobian(self._F(*inputs), self._u)])
     
     @property
     def xdot(self): return BicycleModelState(self.xdot)

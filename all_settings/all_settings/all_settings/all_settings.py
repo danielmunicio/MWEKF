@@ -78,14 +78,17 @@ class MPCSettings(metaclass=Settings):
 
 class GraphSLAMSolverSettings(metaclass=Settings):
     x0: np.ndarray = np.array([0.0, 0.0])
-    initial_rows: int = int(1e4)
-    initial_cols: int = int(1e4)
-    local_radius: int = int(10)
+    # initial_rows: int = int(1e4)
+    # initial_cols: int = int(1e4)
+    # local_radius: int = int(10)
     
     max_landmark_distance: float = 0.35
+    dclip={1: 0.3, 2: 0.3, 3: 10.0, 0: 10.0}
+    max_icp_steps = 0
+    max_newton_steps = 0
+    data_association_strategy = 1
     dx_weight: float = 1.0
     z_weight: float = 1.0
-
 class GraphSLAMSettings(metaclass=Settings):
     publish_to_rviz: bool = True
     local_radius: int = int(1e5)

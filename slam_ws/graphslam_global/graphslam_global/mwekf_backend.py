@@ -19,34 +19,36 @@ from .utility_functions import compute_timediff, quat_to_euler, compute_delta_ve
 from .icp import run_icp, plot_icp
 
 class MWEKF_Backend():
-    def __init__(self, SLAM, x0, num_cones):
+    def __init__(self, SLAM, x0):
         self.SLAM = SLAM
         self.state = x0[:, np.newaxis]
         self.start_time = perf_counter()
         self.last_called_time = perf_counter()
-        # Dynamics Model
-        self.num_cones = num_cones
-        self.n = 4 # num states
 
-        #m = 4 # num measurements - camera, lidar, ws, imu
+        # Dynamics Model
+        self.num_cones = 0
+        self.n = 4 # num state
+
         self.Q = np.eye(self.n)
         self.P = np.eye(self.n)
         self.C = None
 
-        self.R_lidar = np.eye(num_cones)
-        self.R_camera = np.eye(num_cones)
+        self.R_lidar = np.eye(10000000000)
+        self.R_camera = np.eye(109000000)
         self.R_imu = np.eye(1)
         self.R_wheelspeeds = np.eye(1)
         self.R_SLAM = np.eye(2)
 
         self.l_f = mpc_settings.L_F
         self.l_r = mpc_settings.L_R
+
         # Last control input NOTE: last element is time it was recieved at!!!
         self.last_u = np.array([0., 0., perf_counter()])
 
-        # What cones we have, stored as indicies in the global map
+        # What cones we have, stored as indices in the global map
         self.cone_indices = []
-
+        # the actual cone positions
+        self.cones = []
 
     #################
     # Different Measurement Models 
@@ -236,13 +238,30 @@ class MWEKF_Backend():
         """
         pass
 
+    def add_cones(self, cones):
+        """
+        Add cones to MWEKF window
+        Cones: list of elements (-1, x, y, color)
+        # -1 represents the fact that they are NOT in global map yet
+        """
+        pass
+
     def remove_cones(self, cone_indices):
         """
         Args: cone_indices: index of cones in global map to remove from the mwekf
         Should remove the cones from the MWEKF, update everything accordingly
         """
+        pass
+
     def get_cones(self):
         """
         Returns the cones to add to SLAM Graph
         n x 3 array of n cones, x, y, color
+        """
+        pass
+
+    def update_global_map(self, global_map):
+        """
+        Assign all -1 map index cones their proper map index
+        This is only called after a fresh solve, so every -1 cone should be in the global map
         """

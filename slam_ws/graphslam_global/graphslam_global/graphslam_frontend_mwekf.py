@@ -30,7 +30,7 @@ class GraphSLAM_MWEKF(Node):
         super().__init__('graphslam_global_node')
         
         self.slam = GraphSLAMSolve(**solver_settings)
-        self.mwekf = MWEKF_Backend(self, np.array([0., 0., 0., 0.]), mwekf_settings.window_size)
+        self.mwekf = MWEKF_Backend(self, np.array([0., 0., 0., 0.]))
         # Do we want window to have color ? 
         self.window = np.zeros([mwekf_settings.window_size, 3])
         self.global_map = [[], [], []]
@@ -123,7 +123,9 @@ class GraphSLAM_MWEKF(Node):
         
         self.mwekf.update(np.array([mwekf_measurement_cones]))
         self.mwekf.add_cones(mwekf_new_cones)
-
+        # if we have cones that aren't in the SLAM map, solve graph, to add them to the SLAM map
+        if len(mwekf_new_cones) > 0:
+            self.load_mwekf_to_slam()
         # Get cones behind the car and remove them
         passed_cones_indices = self.get_behind_cones()
         self.mwekf.remove_cones(passed_cones_indices)
@@ -207,6 +209,7 @@ class GraphSLAM_MWEKF(Node):
         
         x_guess, lm_guess = self.slam.xhat[-1], np.hstack((self.slam.lhat, self.slam.color[:, np.newaxis]))
 
+        self.mwekf.update_global_map(lm_guess)
         self.mwekf.update((x_guess, lm_guess), 4)
 
     def get_behind_cones(self):

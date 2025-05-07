@@ -24,7 +24,6 @@ class BicycleModelState(ca.MX):
     def nx(self): return 5
 
 
-@dataclass
 class BicycleModelControl(ca.MX):
     def __init__(self, var = None):
         if var is None:

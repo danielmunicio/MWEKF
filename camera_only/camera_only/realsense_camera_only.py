@@ -34,18 +34,19 @@ CAMERA_MODEL = image_geometry.PinholeCameraModel()
 PKG_PATH = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 CALIB_PATH = 'calibration_data/lidar_camera_calibration'
 UTILITIES_PATH = '/home/daniel/feb-system-integration/sensor_fusion/Extrinsic_Camera_Calibration/src/lidar_camera_calibration/utilities'
+
 # UTILITIES_PATH = os.path.join(PKG_PATH, 'utilities')
 
 class RealsenseCameraOnly(Node):
     def __init__(self):
         super().__init__('sensor_fusion_node')
 
-        realsense_camera_topic = '/camera/camera/color/image_raw'
-        realsense_depth_camera_topic = '/camera/camera/aligned_depth_to_color/image_raw'
+        realsense_camera_topic = '/camera/realsense2/color/image_raw'
+        realsense_depth_camera_topic = '/camera/realsense2/depth/image_rect_raw'
 
         self.image_sub_realsense = self.create_subscription(Image, realsense_camera_topic, self.realsense_callback, qos_profile_sensor_data)
         self.depth_sub_realsense = self.create_subscription(Image, realsense_depth_camera_topic, self.realsense_depth_callback, qos_profile_sensor_data)
-        self.cones_cartesian_pub = self.create_publisher(ConesCartesian, '/realsense/d435i/cones', 1)
+        self.cones_cartesian_pub = self.create_publisher(ConesCartesian, '/realsense/d435/cones', 1)
         self.perception_visual_pub = self.create_publisher(PointCloud, '/perception_cones_viz', 1)
 
         self.camera_info_msg = None
@@ -55,6 +56,7 @@ class RealsenseCameraOnly(Node):
 
         self.model_operator = ModelOperations(UTILITIES_PATH)
         self.setup()
+        self.bridge = CvBridge
         self.get_logger().info('Successfully Initialized Realsense Camera-Only')
 
     def realsense_callback(self, msg):
@@ -63,6 +65,7 @@ class RealsenseCameraOnly(Node):
             self.process()
 
     def realsense_depth_callback(self, msg):
+        print('recieved depth')
         self.realsense_depth_msg = msg
         start = perf_counter()
         self.process()
@@ -90,8 +93,8 @@ class RealsenseCameraOnly(Node):
         h, w = 480, 640
         camera_matrix = np.array(camera_matrix, dtype=np.float64).reshape(3, 3)
         inv_camera_matrix = np.linalg.inv(camera_matrix)
-        img_flipped = cv2.flip(CV_BRIDGE.imgmsg_to_cv2(self.realsense_image_msg, 'bgr8'), -1)
-        segmentation_outputs, classes, conf = self.model_operator.predict(self.realsense_image_msg, CV_BRIDGE)
+        img = CV_BRIDGE.imgmsg_to_cv2(self.realsense_image_msg, 'bgr8')
+        segmentation_outputs, classes, conf = self.model_operator.predict(img)
         depth_image = ros2_numpy.numpify(self.realsense_depth_msg)  # shape (480, 640), dtype=uint16
         depth_image = depth_image.astype(np.float32) / 1000.0  # Convert to meters
 
@@ -126,3 +129,46 @@ class RealsenseCameraOnly(Node):
             if settings.publish_visual:
                 publish_perception_visual(self, cones_msg.x, cones_msg.y, cones_msg.color)
 
+
+    def align_depth_to_color(self, depth_msg, color_msg, depth_info_msg, color_info_msg):
+        # Convert ROS Image messages to OpenCV format
+        depth_image = bridge.imgmsg_to_cv2(depth_msg, desired_encoding='passthrough')
+        color_image = bridge.imgmsg_to_cv2(color_msg, desired_encoding='bgr8')
+
+        # Set up camera models
+        depth_model = PinholeCameraModel()
+        color_model = PinholeCameraModel()
+        depth_model.fromCameraInfo(depth_info_msg)
+        color_model.fromCameraInfo(color_info_msg)
+
+        height, width = color_image.shape[:2]
+        aligned_depth = np.zeros((height, width), dtype=np.uint16)  # same type as original depth
+
+        fx_d, fy_d = depth_model.fx(), depth_model.fy()
+        cx_d, cy_d = depth_model.cx(), depth_model.cy()
+        fx_c, fy_c = color_model.fx(), color_model.fy()
+        cx_c, cy_c = color_model.cx(), color_model.cy()
+
+        # Extrinsics from depth frame to color frame
+        R = np.eye(3)  # Replace with actual rotation matrix if known
+        T = np.zeros(3)  # Replace with actual translation if known
+
+        for v in range(depth_image.shape[0]):
+            for u in range(depth_image.shape[1]):
+                z = depth_image[v, u] * 0.001  # convert to meters if needed (depends on depth scale)
+                if z == 0:
+                    continue
+                # backproject to 3D (in depth camera frame)
+                x = (u - cx_d) * z / fx_d
+                y = (v - cy_d) * z / fy_d
+                point_d = np.array([x, y, z])
+
+                # transform to color camera frame
+                point_c = R @ point_d + T
+                u_c = int((point_c[0] * fx_c / point_c[2]) + cx_c)
+                v_c = int((point_c[1] * fy_c / point_c[2]) + cy_c)
+
+                if 0 <= u_c < width and 0 <= v_c < height:
+                    aligned_depth[v_c, u_c] = int(point_c[2] * 1000)  # convert back to mm if needed
+
+        return aligned_depth

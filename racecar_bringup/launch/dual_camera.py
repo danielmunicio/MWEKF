@@ -14,7 +14,7 @@ def generate_launch_description():
                 'enable_gyro': True,
                 'enable_accel': True,
                 'enable_infra': False,
-                'align_depth': True,
+                'align_depth.enable': True,
                 'gyro_fps': 200,
                 'accel_fps': 200,
                 'serial_no': '344422072170',
@@ -29,7 +29,7 @@ def generate_launch_description():
                 'enable_color': True,
                 'enable_depth': True,
                 'enable_infra': False,
-                'align_depth': True,
+                'align_depth.enable': True,
                 'serial_no': '042222071145',
             }]
         ),

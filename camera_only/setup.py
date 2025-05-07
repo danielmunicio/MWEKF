@@ -21,6 +21,7 @@ setup(
     entry_points={
         'console_scripts': [
             'camera_only = camera_only.main:main',
+            'align_depth = camera_only.depth_aligner:main'
         ],
     },
 )

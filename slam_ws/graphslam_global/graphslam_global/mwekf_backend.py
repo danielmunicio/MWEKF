@@ -48,7 +48,7 @@ class MWEKF_Backend():
         # What cones we have, stored as indices in the global map
         self.cone_indices = []
         # the actual cone positions, stored as 
-        self.cones = []
+        self.cones = None
 
     #################
     # Different Measurement Models 
@@ -232,12 +232,6 @@ class MWEKF_Backend():
         if measurement_type == 4:
             return self.h_SLAM
 
-    def update_window(self, cones):
-        """
-        Change cones window with new cones
-        """
-        pass
-
     def add_cones(self, cones):
         """
         Add cones to MWEKF window
@@ -245,24 +239,50 @@ class MWEKF_Backend():
         # num = -1 represents the fact that they are NOT in global map yet
         # num = map_idx means that they ARE in the global map
         """
-        pass
+        if self.cones is None:
+            self.cones = cones[:, 1:4]
+            self.cone_indices = cones[:, 0]
+
+        self.cones = np.vstack([self.cones, cones[:, 1:4]])
+        self.cones_indices = np.hstack([self.cones_indices, cones[:, 0]])
 
     def remove_cones(self, cone_indices):
         """
         Args: cone_indices: index of cones in global map to remove from the mwekf
         Should remove the cones from the MWEKF, update everything accordingly
         """
-        pass
+        cone_indices_set = set(cone_indices)
+    
+        # Create mask, True = keep cone
+        keep_mask = ~np.isin(self.cone_indices, cone_indices_set)
+    
+        self.cones = self.cones[keep_mask]
+        self.cone_indices = self.cone_indices[keep_mask]
 
     def get_cones(self):
         """
         Returns the cones to add to SLAM Graph
         n x 3 array of n cones, x, y, color
         """
-        pass
+        return self.cones
 
     def update_global_map(self, global_map):
         """
         Assign all -1 map index cones their proper map index
         This is only called after a fresh solve, so every -1 cone should be in the global map
+        global_map: n x 3 of [x y color]
         """
+        # 
+        # self.cones - nx3 array of cones, (x, y, color)
+        # self.cones_indices - cones index in the global map, updating all values of -1
+
+        mask = self.cone_indices == -1
+        cones_to_update = self.cones[mask]
+
+        for i, cone in enumerate(cones_to_update):
+            distances = np.linalg.norm(global_map[:, 0:2] - cone[0:2], axis=1)
+        
+            closest_idx = np.argmin(distances)
+        
+            self.cone_indices[mask][i] = closest_idx
+

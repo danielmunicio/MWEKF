@@ -241,3 +241,8 @@ class MWEKF_Backend():
         Args: cone_indices: index of cones in global map to remove from the mwekf
         Should remove the cones from the MWEKF, update everything accordingly
         """
+    def get_cones(self):
+        """
+        Returns the cones to add to SLAM Graph
+        n x 3 array of n cones, x, y, color
+        """

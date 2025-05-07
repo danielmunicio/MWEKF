@@ -34,7 +34,7 @@ class GraphSLAM_MWEKF(Node):
         # Do we want window to have color ? 
         self.window = np.zeros([mwekf_settings.window_size, 3])
         self.global_map = [[], [], []]
-
+        self.last_slam_solve = np.array([0., 0.])
         # SUBSCRIBERS
         # SIMULATOR SPECIFIC SUBSCRIBERS 
         if (settings.using_simulator):
@@ -107,7 +107,7 @@ class GraphSLAM_MWEKF(Node):
         mwekf_measurement_cones = []
         mwekf_new_cones = []
 
-        for msg_idx, map_idx in matched_cones:
+        for map_idx, msg_idx, in matched_cones:
             # Check which cones are in window
             # Not actually how you check if the cone is in global map but will fix later
             if map_idx in self.mwekf.cone_indices:
@@ -115,10 +115,11 @@ class GraphSLAM_MWEKF(Node):
                 mwekf_measurement_cones.append((map_idx, msg.x[msg_idx], msg.y[msg_idx]))
             else: 
                 # If it's not in the window, but in the global map, we add it to the window
-                mwekf_new_cones.append((map_idx, msg.x[msg_idx], msg.y[msg_idx]))
+                mwekf_new_cones.append((map_idx, msg.x[msg_idx], msg.y[msg_idx], msg.color[msg_idx]))
 
         for idx in new_cones:
-            mwekf_new_cones.append((map_idx, msg.x[idx], msg.y[idx]))
+            # Cones with -1 as their map index have NOT been added to the SLAM map
+            mwekf_new_cones.append((-1, msg.x[idx], msg.y[idx], msg.color[msg_idx]))
         
         self.mwekf.update(np.array([mwekf_measurement_cones]))
         self.mwekf.add_cones(mwekf_new_cones)
@@ -134,37 +135,38 @@ class GraphSLAM_MWEKF(Node):
         return
 
     def data_association(self, msg: ConesCartesian):
-        pos = self.mwekf.state[0:4].flatten() # array of [x, y, velocity, heading]
-        R = np.array([[np.cos(pos[3]), -np.sin(pos[3])],
-                       [np.sin(pos[3]), np.cos(pos[3])]])
+        pos = self.mwekf.state[0:4].flatten()  # [x, y, velocity, heading]
+        R = np.array([
+            [np.cos(pos[3]), -np.sin(pos[3])],
+            [np.sin(pos[3]),  np.cos(pos[3])]
+        ])
+        
         cones_message_local = np.vstack([msg.x, msg.y])
-        cones_message_global = R @ cones_message_local + pos[:, np.newaxis] # should be (2, N)
+        cones_message_global = R @ cones_message_local + pos[:2, np.newaxis]
         cones_message_color = np.array(msg.color)
 
-        map_pos = self.global_map[:, :2] # should be (M, 2)
+        map_pos = self.global_map[:, :2] 
         map_colors = self.global_map[:, 2].astype(int)
 
-        # First, check if each cone can be matched to a cone in the global map
         matched_cones = []
         new_cones = []
 
-        for i in range(map_pos.shape[0]):
-            message_pos = cones_message_global[i]
+        for i in range(cones_message_global.shape[1]):
+            message_pos = cones_message_global[:, i]
             message_color = cones_message_color[i]
 
             diffs = map_pos - message_pos
             dists = np.linalg.norm(diffs, axis=1)
             mask = (dists < solver_settings.max_landmark_radius) & (map_colors == message_color)
 
-            # For each cone that's not close enough to a cone in the global map, throw it in a list for now 
-            # For each cone that IS in the global map, throw it in a list
             if np.any(mask):
-                matched_cones.append((message_pos[0], message_pos[1], message_pos[2]))
-
-            else: 
-                new_cones.append((message_pos[0], message_pos[1], message_pos[2]))
+                map_index = np.argmin(dists + (~mask) * 1e6) # don't ask
+                matched_cones.append((map_index, i))
+            else:
+                new_cones.append((-1, i))
 
         return matched_cones, new_cones
+
     
 
     def publish_pose(self):
@@ -189,9 +191,23 @@ class GraphSLAM_MWEKF(Node):
             self.pose_pub.publish(pose_msg)
 
     def load_mwekf_to_slam(self):
-        state = self.mwekf.state[0:4]
-        cones = self.mwekf.state[3:self.mwekf.num_cones]
-        pass
+        pos = self.mwekf.state[0:2].flatten()
+        cones = self.mwekf.get_cones() # n x 3 of x, y, color
+        cone_deltas = cones[:, 0:1] - pos
+        dx = pos.flatten() - self.last_slam_update
+
+        self.slam.update_graph(dx, cone_deltas, cones[:, 2])
+
+        self.last_slam_update = pos
+        self.slam.solve_graph()
+
+        # NOTE: We SHOULD do data association differently based on the fact that we 
+        #       already have some cones matched to the global map, but for now we will
+        #       add them all as if we have no matching
+        
+        x_guess, lm_guess = self.slam.xhat[-1], np.hstack((self.slam.lhat, self.slam.color[:, np.newaxis]))
+
+        self.mwekf.update((x_guess, lm_guess), 4)
 
     def get_behind_cones(self):
         """

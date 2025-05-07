@@ -47,7 +47,7 @@ class MWEKF_Backend():
 
         # What cones we have, stored as indices in the global map
         self.cone_indices = []
-        # the actual cone positions
+        # the actual cone positions, stored as 
         self.cones = []
 
     #################
@@ -241,8 +241,9 @@ class MWEKF_Backend():
     def add_cones(self, cones):
         """
         Add cones to MWEKF window
-        Cones: list of elements (-1, x, y, color)
-        # -1 represents the fact that they are NOT in global map yet
+        Cones: list of elements (num, x, y, color)
+        # num = -1 represents the fact that they are NOT in global map yet
+        # num = map_idx means that they ARE in the global map
         """
         pass
 

@@ -33,7 +33,7 @@ class GraphSLAM_MWEKF(Node):
         self.mwekf = MWEKF_Backend(self, np.array([0., 0., 0., 0.]))
         # Do we want window to have color ? 
         self.window = np.zeros([mwekf_settings.window_size, 3])
-        self.global_map = [[], [], []]
+        self.global_map = None
         self.last_slam_solve = np.array([0., 0.])
         # SUBSCRIBERS
         # SIMULATOR SPECIFIC SUBSCRIBERS 
@@ -96,10 +96,18 @@ class GraphSLAM_MWEKF(Node):
         self.camera_callback(rotate_and_translate_cones(msg, 'd435'))
 
     def camera_callback(self, msg: ConesCartesian):
+
+        # If we haven't created a map yet, create one 
+        if self.global_map is None:
+            self.global_map = np.vstack([msg.x, msg.y, msg.color]).T
+            # make n x 4 array of (idx, x, y, color)
+            mwekf_cones = np.vstack([np.arange(len(msg.x)), msg.x, msg.y, msg.color]).T
+            self.mwekf.add_cones(mwekf_cones)
+            return
+
         # Returns matched_cones in tuple of form 
         # (index_in_cone_message, index in global map)
         # New cones is list of indices in cone message
-
         matched_cones, new_cones = self.data_association(msg)
 
         # Cones to send to MWEKF in form: 
@@ -120,12 +128,16 @@ class GraphSLAM_MWEKF(Node):
         for idx in new_cones:
             # Cones with -1 as their map index have NOT been added to the SLAM map
             mwekf_new_cones.append((-1, msg.x[idx], msg.y[idx], msg.color[msg_idx]))
-        
-        self.mwekf.update(np.array([mwekf_measurement_cones]))
-        self.mwekf.add_cones(mwekf_new_cones)
-        # if we have cones that aren't in the SLAM map, solve graph, to add them to the SLAM map
+
+        # Send cones we have in our MWEKF as measurements
+        if len(mwekf_measurement_cones) > 0:
+            self.mwekf.update(np.array([mwekf_measurement_cones]))
+
+        # Add new cones to mwekf, and SLAM map
         if len(mwekf_new_cones) > 0:
+            self.mwekf.add_cones(mwekf_new_cones)
             self.load_mwekf_to_slam()
+
         # Get cones behind the car and remove them
         passed_cones_indices = self.get_behind_cones()
         self.mwekf.remove_cones(passed_cones_indices)
@@ -209,8 +221,9 @@ class GraphSLAM_MWEKF(Node):
         
         x_guess, lm_guess = self.slam.xhat[-1], np.hstack((self.slam.lhat, self.slam.color[:, np.newaxis]))
 
+        self.global_map = np.array(lm_guess)
         self.mwekf.update_global_map(lm_guess)
-        self.mwekf.update((x_guess, lm_guess), 4)
+        self.mwekf.update((np.array(x_guess), lm_guess), 4)
 
     def get_behind_cones(self):
         """

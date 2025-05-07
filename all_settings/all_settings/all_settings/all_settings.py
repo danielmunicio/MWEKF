@@ -112,7 +112,7 @@ class MWEKFSettings(metaclass=Settings):
     pass
 
 class SimulatorPerceptionSettings(metaclass=Settings):
-    camera_noise_std: float = 0.35
+    camera_noise_std: float = 0.1
     lidar_noise_std: float = 0.2
 
     # Delay for Camera and LiDAR BETWEEN measurement and send

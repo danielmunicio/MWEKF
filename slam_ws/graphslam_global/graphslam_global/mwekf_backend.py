@@ -240,7 +240,6 @@ class MWEKF_Backend():
         # num = -1 represents the fact that they are NOT in global map yet
         # num = map_idx means that they ARE in the global map
         """
-        print("CONES: ", cones)
         if self.cones is None:
             self.cones = cones[:, 1:4]
             self.cone_indices = cones[:, 0]
@@ -278,7 +277,7 @@ class MWEKF_Backend():
         # self.cones - nx3 array of cones, (x, y, color)
         # self.cones_indices - cones index in the global map, updating all values of -1
 
-        mask = self.cone_indices == -1
+        mask = (self.cone_indices == -1)
         cones_to_update = self.cones[mask]
 
         for i, cone in enumerate(cones_to_update):

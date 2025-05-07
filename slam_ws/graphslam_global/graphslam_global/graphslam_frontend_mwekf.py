@@ -32,7 +32,7 @@ class GraphSLAM_MWEKF(Node):
         self.slam = GraphSLAMSolve(**solver_settings)
         self.mwekf = MWEKF_Backend(self, np.array([0., 0., 0., 0.]))
         self.global_map = None
-        self.last_slam_solve = np.array([0., 0.])
+        self.last_slam_update = np.array([0., 0.])
         # SUBSCRIBERS
         # SIMULATOR SPECIFIC SUBSCRIBERS 
         if (settings.using_simulator):
@@ -64,7 +64,6 @@ class GraphSLAM_MWEKF(Node):
 
         self.get_logger().info("Initialized le MWEKF")
         self.last_mpc_time = perf_counter()
-        self.last_slam_update = np.array([np.Inf, np.Inf])
         self.time = time.time()
 
     def mpc_callback(self, msg: AckermannDriveStamped):
@@ -156,7 +155,7 @@ class GraphSLAM_MWEKF(Node):
         cones_message_global = R @ cones_message_local + pos[:2, np.newaxis]
         cones_message_color = np.array(msg.color)
 
-        map_pos = self.global_map[:, :2] 
+        map_pos = self.global_map[:, :2]
         map_colors = self.global_map[:, 2].astype(int)
 
         matched_cones = []
@@ -206,7 +205,6 @@ class GraphSLAM_MWEKF(Node):
         cones = self.mwekf.get_cones() # n x 3 of x, y, color
         cone_deltas = cones[:, 0:1] - pos
         dx = pos.flatten() - self.last_slam_update
-
         self.slam.update_graph(dx, cone_deltas, cones[:, 2])
 
         self.last_slam_update = pos
@@ -217,7 +215,6 @@ class GraphSLAM_MWEKF(Node):
         #       add them all as if we have no matching
         
         x_guess, lm_guess = self.slam.xhat[-1], np.hstack((self.slam.lhat, self.slam.color[:, np.newaxis]))
-
         self.global_map = np.array(lm_guess)
         self.mwekf.update_global_map(lm_guess)
         self.mwekf.update((np.array(x_guess), lm_guess), 4)

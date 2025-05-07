@@ -217,10 +217,15 @@ class GraphSLAM_MWEKF(Node):
             self.pose_pub.publish(pose_msg)
 
     def load_mwekf_to_slam(self):
+        print("------------------------------------")
+        print("LOADING TO SLAM")
         pos = self.mwekf.state[0:2].flatten()
         cones = self.mwekf.get_cones() # n x 3 of x, y, color
-        cone_deltas = cones[:, 0:1] - pos
+        print("CONES: ", cones)
+        cone_deltas = cones[:, 0:2] - pos
         dx = pos.flatten() - self.last_slam_update
+        print("DX: ", dx)
+        print("CONE DELTAS: ", cone_deltas)
         self.slam.update_graph(dx, cone_deltas, cones[:, 2])
 
         self.last_slam_update = pos
@@ -231,6 +236,11 @@ class GraphSLAM_MWEKF(Node):
         #       add them all as if we have no matching
         
         x_guess, lm_guess = self.slam.xhat[-1], np.hstack((self.slam.lhat, self.slam.color[:, np.newaxis]))
+        print("OLD POSE: ", pos)
+        print("NEW POSE: ", x_guess)
+
+        print("OLD MAP: ", self.global_map)
+        print("NEW MAP: ", lm_guess)
         self.mwekf.state[0] = x_guess.flatten()[0]
         self.mwekf.state[1] = x_guess.flatten()[1]
 

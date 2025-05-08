@@ -123,9 +123,7 @@ class GraphSLAM_MWEKF(Node):
                 # If it's not in the window, but in the global map, we add it to the window
                 mwekf_new_cones.append((map_idx, msg.x[msg_idx], msg.y[msg_idx], msg.color[msg_idx]))
 
-        for idx in new_cones:
-            # Cones with -1 as their map index have NOT been added to the SLAM map
-            mwekf_new_cones.append((-1, msg.x[idx], msg.y[idx], msg.color[idx]))
+        mwekf_new_cones = mwekf_new_cones + new_cones
 
         # Send cones we have in our MWEKF as measurements
         if len(mwekf_measurement_cones) > 0:
@@ -134,6 +132,7 @@ class GraphSLAM_MWEKF(Node):
         # Add new cones to mwekf, and SLAM map
         if len(mwekf_new_cones) > 0:
             print("NEW CONES LLENGTH: ", len(mwekf_new_cones))
+            print("NEW CONES IN QUESTION: ", (mwekf_new_cones))
             print("------------------")
             print("LOADING TO SLAM!")
             print('---------------------')
@@ -159,12 +158,13 @@ class GraphSLAM_MWEKF(Node):
             [np.cos(pos[3]), -np.sin(pos[3])],
             [np.sin(pos[3]),  np.cos(pos[3])]
         ])
-        
+        print("POSE: ", pos)
         cones_message_local = np.stack([msg.x, msg.y], axis=1)
         cones_message_global = cones_message_local @ R.T + pos[:2]
         cones_message_color = np.array(msg.color)
-
-        print("COMPARING WITH GLOBAL MAP: ", self.global_map[:, :2])
+        print("LOCAL MAP: ", cones_message_local)
+        print("CONVERTED TO GLOBAL MAP: ", cones_message_global)
+        print("COMPARING WITH GRAPHSLAM GLOBAL MAP: ", self.global_map[:, :2])
         map_pos = self.global_map[:, :2]
         map_colors = self.global_map[:, 2].astype(int)
 
@@ -179,7 +179,7 @@ class GraphSLAM_MWEKF(Node):
             dists = np.linalg.norm(diffs, axis=1)
             mask1 = (dists < solver_settings.max_landmark_distance)
             mask2 = (map_colors == message_color)
-            mask = mask1
+            mask = mask1 & mask2
             if np.any(mask):
                 # Only consider distances where mask is True
                 map_index = np.argmin(dists[mask])
@@ -187,8 +187,10 @@ class GraphSLAM_MWEKF(Node):
                 map_index = np.where(mask)[0][map_index]
                 matched_cones.append((map_index, i))
             else:
-                new_cones.append(i)
-
+                print("NEW CONE")
+                new_cones.append((-1, message_pos[0], message_pos[1], message_color))
+            if len(new_cones) > 6:
+                bonk
         return matched_cones, new_cones
 
     

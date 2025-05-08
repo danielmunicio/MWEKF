@@ -208,7 +208,6 @@ class MWEKF_Backend():
         x_diff = x_new[0] - self.state[0]
         self.P = (np.eye(self.n) - K @ C) @ P
         self.state = x_new
-        print("POSE: ", self.state)
 
     def choose_R(self, measurement_type):
         if measurement_type == 0:

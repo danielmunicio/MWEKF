@@ -70,7 +70,9 @@ class MWEKF_Backend():
         # Still need to figure out the masking logic or something
         Returns: 2n x 1 array of cones
         """
-        pass
+        idxs = cones[:, 0]
+        pts = cones[:, 1:3]
+        
 
     def jac_cones(self, state, cones):
         pass

@@ -21,6 +21,7 @@ setup(
     entry_points={
         'console_scripts': [
             'graphslam_global = graphslam_global.main:main',
+            'linear_tester = graphslam_global.linear_tester:main',
         ],
     },
 )

@@ -118,9 +118,11 @@ class GraphSLAM_MWEKF(Node):
             # Not actually how you check if the cone is in global map but will fix later
             if map_idx in self.mwekf.cone_indices:
                 # If this is in window, add it as measurement
-                mwekf_measurement_cones.append((map_idx, msg.x[msg_idx], msg.y[msg_idx]))
+                mwekf_measurement_cones.append((map_idx, msg.x[msg_idx], msg.y[msg_idx], msg.color[msg_idx]))
             else: 
                 # If it's not in the window, but in the global map, we add it to the window
+                print("BLAHHH")
+                print("HERE")
                 mwekf_new_cones.append((map_idx, msg.x[msg_idx], msg.y[msg_idx], msg.color[msg_idx]))
 
         mwekf_new_cones = mwekf_new_cones + new_cones
@@ -187,7 +189,8 @@ class GraphSLAM_MWEKF(Node):
                 map_index = np.where(mask)[0][map_index]
                 matched_cones.append((map_index, i))
             else:
-                print("NEW CONE")
+                cone = (message_pos[0], message_pos[1])
+                print("NEW CONE: ",)
                 new_cones.append((-1, message_pos[0], message_pos[1], message_color))
             if len(new_cones) > 6:
                 bonk
@@ -259,18 +262,21 @@ class GraphSLAM_MWEKF(Node):
         returns the indices of the cones that are behind the car
         """
         state = self.mwekf.state.flatten()[0:4]
+        print("STATE: ", state)
         heading_vec = np.array([np.cos(state[3]), np.sin(state[3])])
         # Get vector from car to cones 
+
         cone_vectors = self.mwekf.get_cones()[:, :2] - np.array([state[0], state[1]])
-        print("CONES: ", self.mwekf.get_cones())
-        print("CONES LENGTH: ", len(self.mwekf.get_cones()[:, 0]))
         # Take dot product wrt car heading
         dot_prod = np.dot(cone_vectors, heading_vec)
+        mwekf_indices = np.where(dot_prod < 0)[0]
+
+        global_indices = self.mwekf.cone_indices[mwekf_indices].astype(int)
         # Cones that are behind have negative dot product
-        return np.where(dot_prod < 0)[0]
+        return global_indices
+
 
     def publish_cone_map(self, lm_guess):   
-        print("PUBLISHING GUESS")
         cones_msg = PointCloud()
         cones_to_send = []
         for cone in lm_guess: 

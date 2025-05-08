@@ -103,7 +103,7 @@ class MWEKF_Backend():
     def jac_SLAM(self, state):
         jac = np.zeros((2, len(state)))
         jac[0, 0] = 1
-        jac[1, 1] = 1
+        jac[1, 1] = 2
         return jac
 
     def approximate_measurement(self, state, measurement, measurement_type):
@@ -240,6 +240,7 @@ class MWEKF_Backend():
         # num = -1 represents the fact that they are NOT in global map yet
         # num = map_idx means that they ARE in the global map
         """
+        print("CONES ADDED TO WINDOW: ", cones)
         if self.cones is None:
             self.cones = cones[:, 1:4]
             self.cone_indices = cones[:, 0]
@@ -254,14 +255,20 @@ class MWEKF_Backend():
         Should go through self.cones_indices, and remove the cone in self.cones_indices and self.cones
         If its index is in cone_indices
         """
-        # Create mask, True = keep cone
+        cone_indices = np.array(cone_indices, dtype=int)
+        self.cone_indices = self.cone_indices.astype(int)
+        print("CONES PRE REMOVAL: ", self.cones)
+        print("CONES TO REMOVE: ", cone_indices)
         keep_mask = ~np.isin(self.cone_indices, cone_indices)
         print("CONES MASK: ", keep_mask)
         print("self.cone_indices:", self.cone_indices)
         print("cone_indices to remove:", cone_indices)
+
         self.cones = self.cones[keep_mask]
         self.cone_indices = self.cone_indices[keep_mask]
 
+        print("NEW CONES: ", self.cones)
+        print("NEW CONE INDICES: ", self.cone_indices)
     def get_cones(self):
         """
         Returns the cones to add to SLAM Graph
@@ -279,13 +286,18 @@ class MWEKF_Backend():
         # self.cones - nx3 array of cones, (x, y, color)
         # self.cones_indices - cones index in the global map, updating all values of -1
         print("UPDATING GLOBAL MAP: ")
-        mask = (self.cone_indices == -1)
-        cones_to_update = self.cones[mask]
+        print("GLOBAL MAP: ", global_map)
+        print("CONE INDICES: ", self.cone_indices)
+        print("CONES: ", self.cones)
+
+        masked_indices = np.where(self.cone_indices == -1)[0]
+        cones_to_update = self.cones[masked_indices]
 
         for i, cone in enumerate(cones_to_update):
             distances = np.linalg.norm(global_map[:, 0:2] - cone[0:2], axis=1)
-        
             closest_idx = np.argmin(distances)
-        
-            self.cone_indices[mask][i] = closest_idx
+            self.cone_indices[masked_indices[i]] = closest_idx
 
+
+        print("MWEKF CONES: ", self.cones)
+        print("MWEKF INDICES: ", self.cone_indices)

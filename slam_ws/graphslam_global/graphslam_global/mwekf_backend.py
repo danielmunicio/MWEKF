@@ -244,11 +244,7 @@ class MWEKF_Backend():
         if self.cones is None:
             self.cones = cones[:, 1:4]
             self.cone_indices = cones[:, 0]
-            print("ADDED CONES")
-            print("CONESFIRST: ", self.cones)
-            print("INDICESFIRST: ", self.cone_indices)
             return
-
         self.cones = np.vstack([self.cones, cones[:, 1:4]])
         self.cone_indices = np.hstack([self.cone_indices, cones[:, 0]])
 

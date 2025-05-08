@@ -92,7 +92,6 @@ class GraphSLAM_MWEKF(Node):
         self.camera_callback(rotate_and_translate_cones(msg, 'd435'))
 
     def camera_callback(self, msg: ConesCartesian):
-        print("RAW UNTOUTCHERD CONES MSG: ", msg)
         # If we haven't created a map yet, create one 
         if self.global_map is None:
             self.global_map = np.vstack([msg.x, msg.y, msg.color]).T
@@ -104,7 +103,6 @@ class GraphSLAM_MWEKF(Node):
         print("GLOBAL MAP? ", self.global_map)
         print("CURRENT CONES: ", self.mwekf.get_cones())
         print("CONE INDICES: ", self.mwekf.cone_indices)
-        print("LITERAL CONES MSG: ", msg)
         # Returns matched_cones in tuple of form 
         # (index_in_cone_message, index in global map)
         # New cones is list of indices in cone message
@@ -152,7 +150,8 @@ class GraphSLAM_MWEKF(Node):
     def lidar_callback(self, msg: ConesCartesian):
         # NOTE: Thinking of doing LiDAR cannot initialize new cones
         #matched_cones, new_cones = self.data_association(msg)
-        self.camera_callback(msg)
+        #self.camera_callback(msg)
+        pass
 
     def data_association(self, msg: ConesCartesian):
         pos = self.mwekf.state[0:4].flatten()  # [x, y, velocity, heading]
@@ -162,11 +161,7 @@ class GraphSLAM_MWEKF(Node):
         ])
         
         cones_message_local = np.stack([msg.x, msg.y], axis=1)
-        print("CONES LOCAL: ", cones_message_local)
-        print("R: ", R)
-        print("POSE: ", pos[:2, np.newaxis])
         cones_message_global = cones_message_local @ R.T + pos[:2]
-        print("CONES GLOBAL: ", cones_message_global)
         cones_message_color = np.array(msg.color)
 
         print("COMPARING WITH GLOBAL MAP: ", self.global_map[:, :2])
@@ -182,11 +177,8 @@ class GraphSLAM_MWEKF(Node):
 
             diffs = map_pos - message_pos
             dists = np.linalg.norm(diffs, axis=1)
-            print("DISTS: ", dists)
             mask1 = (dists < solver_settings.max_landmark_distance)
             mask2 = (map_colors == message_color)
-            print("MASK 1: ", mask1)
-            print("MASK2: ", mask2)
             mask = mask1
             if np.any(mask):
                 # Only consider distances where mask is True
@@ -197,7 +189,6 @@ class GraphSLAM_MWEKF(Node):
             else:
                 new_cones.append(i)
 
-        print("NEW CONES: ", new_cones)
         return matched_cones, new_cones
 
     
@@ -227,6 +218,7 @@ class GraphSLAM_MWEKF(Node):
         print("------------------------------------")
         print("LOADING TO SLAM")
         print("-------------------------------------")
+        print("MWEKF STATE")
         pos = self.mwekf.state[0:2].flatten()
         cones = self.mwekf.get_cones() # n x 3 of x, y, color
         print("CONES: ", cones)
@@ -243,8 +235,9 @@ class GraphSLAM_MWEKF(Node):
         # NOTE: We SHOULD do data association differently based on the fact that we 
         #       already have some cones matched to the global map, but for now we will
         #       add them all as if we have no matching
-        lm_guess = np.hstack((np.array(self.slam.get_cones(indices = idxs)), cones[:, 3]))
-        x_guess = self.slam.get_positions()[-1]
+        lm_guess = np.hstack((np.array(self.slam.get_cones(indices = idxs)), cones[:, 2].reshape(-1, 1)))
+        x_guess = np.array(self.slam.get_positions()[-1]).reshape(-1, 1)
+
         print("OLD POSE: ", pos)
         print("NEW POSE: ", x_guess)
 

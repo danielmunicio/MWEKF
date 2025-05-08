@@ -115,9 +115,13 @@ class RealsenseCameraOnly(Node):
                     pixels = np.vstack((in_segmentation[1], in_segmentation[0], np.ones_like(in_segmentation[1])))
                     camera_coords = (inv_camera_matrix @ pixels) * depths
                     cone_position = np.median(camera_coords, axis=1)
-
-                    cones_msg.x.append(cone_position[0])
-                    cones_msg.y.append(cone_position[2])
+                    cone_pos = np.array([cone_position[2], cone_position[0]])
+                    angle = -14 * np.pi / 180
+                    R = np.array([[np.cos(angle), -np.sin(angle)],
+                                   [np.sin(angle), np.cos(angle)]])
+                    cone_pos_global = cone_pos @ R.T
+                    cones_msg.x.append(cone_pos_global[0])
+                    cones_msg.y.append(cone_pos_global[1])
                     cones_msg.color.append(yolo_class_to_feb_class[classesToActual[classes[idx]]])
                     # Z attribute not part of cones message 
                     #cones_msg.z.append(cone_position[2])
@@ -126,49 +130,9 @@ class RealsenseCameraOnly(Node):
         chosen_classes = []
         if len(cones_msg.x) != 0:
             self.cones_cartesian_pub.publish(cones_msg)
+            print("there")
             if settings.publish_visual:
+                print("HERE")
                 publish_perception_visual(self, cones_msg.x, cones_msg.y, cones_msg.color)
 
 
-    def align_depth_to_color(self, depth_msg, color_msg, depth_info_msg, color_info_msg):
-        # Convert ROS Image messages to OpenCV format
-        depth_image = bridge.imgmsg_to_cv2(depth_msg, desired_encoding='passthrough')
-        color_image = bridge.imgmsg_to_cv2(color_msg, desired_encoding='bgr8')
-
-        # Set up camera models
-        depth_model = PinholeCameraModel()
-        color_model = PinholeCameraModel()
-        depth_model.fromCameraInfo(depth_info_msg)
-        color_model.fromCameraInfo(color_info_msg)
-
-        height, width = color_image.shape[:2]
-        aligned_depth = np.zeros((height, width), dtype=np.uint16)  # same type as original depth
-
-        fx_d, fy_d = depth_model.fx(), depth_model.fy()
-        cx_d, cy_d = depth_model.cx(), depth_model.cy()
-        fx_c, fy_c = color_model.fx(), color_model.fy()
-        cx_c, cy_c = color_model.cx(), color_model.cy()
-
-        # Extrinsics from depth frame to color frame
-        R = np.eye(3)  # Replace with actual rotation matrix if known
-        T = np.zeros(3)  # Replace with actual translation if known
-
-        for v in range(depth_image.shape[0]):
-            for u in range(depth_image.shape[1]):
-                z = depth_image[v, u] * 0.001  # convert to meters if needed (depends on depth scale)
-                if z == 0:
-                    continue
-                # backproject to 3D (in depth camera frame)
-                x = (u - cx_d) * z / fx_d
-                y = (v - cy_d) * z / fy_d
-                point_d = np.array([x, y, z])
-
-                # transform to color camera frame
-                point_c = R @ point_d + T
-                u_c = int((point_c[0] * fx_c / point_c[2]) + cx_c)
-                v_c = int((point_c[1] * fy_c / point_c[2]) + cy_c)
-
-                if 0 <= u_c < width and 0 <= v_c < height:
-                    aligned_depth[v_c, u_c] = int(point_c[2] * 1000)  # convert back to mm if needed
-
-        return aligned_depth

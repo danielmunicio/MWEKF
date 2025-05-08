@@ -191,8 +191,9 @@ class MWEKF_Backend():
         3 = Wheelspeeds - velocity measurement ? 
         4 = SLAM update
         """
+        num_cones = 0
         if (measurement_type == 0) or (measurement_type == 4) or (measurement_type == 1):
-            return
+            num_cones = len(measurement[:, 0])
         time = perf_counter()
         dt = time - self.last_u[2]
         self.last_u[2] = perf_counter()
@@ -211,7 +212,7 @@ class MWEKF_Backend():
         self.P = (np.eye(self.n) - K @ C) @ P
         self.state = x_new
 
-    def choose_R(self, measurement_type):
+    def choose_R(self, measurement_type, measurement_length=0):
         if measurement_type == 0:
             return self.R_camera
         if measurement_type == 1:

@@ -139,7 +139,7 @@ class LiDARCones(Node):
         xyz = points[:, :3]  # Shape (N, 3)
         x, y, z = xyz[:, 0], xyz[:, 1], xyz[:, 2]
 
-        distance_to_plane = np.abs(self.a * x + self.b * y + self.c * z + self.d) / self.plane_normal
+        distance_to_plane = (self.a * x + self.b * y + self.c * z + self.d) / self.plane_normal
 
         distance_from_origin = np.sqrt(x**2 + y**2 + z**2)
 

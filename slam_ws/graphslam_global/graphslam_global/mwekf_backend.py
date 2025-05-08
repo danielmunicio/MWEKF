@@ -276,28 +276,39 @@ class MWEKF_Backend():
         """
         return self.cones
 
-    def update_global_map(self, global_map):
+    def update_mwekf_to_global_map(self, global_map):
         """
-        Assign all -1 map index cones their proper map index
-        This is only called after a fresh solve, so every -1 cone should be in the global map
-        global_map: n x 3 of [x y color]
+        Assign all -1 map index cones their proper map index.
+        If a global map index is already assigned to another cone, remove that old cone.
         """
-        # 
-        # self.cones - nx3 array of cones, (x, y, color)
-        # self.cones_indices - cones index in the global map, updating all values of -1
-        print("UPDATING GLOBAL MAP: ")
-        print("GLOBAL MAP: ", global_map)
-        print("CONE INDICES: ", self.cone_indices)
-        print("CONES: ", self.cones)
+        print("UPDATING GLOBAL MAP:")
+        print("GLOBAL MAP:", global_map)
+        print("CONE INDICES:", self.cone_indices)
+        print("CONES:", self.cones)
 
         masked_indices = np.where(self.cone_indices == -1)[0]
         cones_to_update = self.cones[masked_indices]
 
-        for i, cone in enumerate(cones_to_update):
+        # Track indices to remove (in self.cones and self.cone_indices)
+        to_remove = []
+
+        for i, cone in zip(masked_indices, cones_to_update):
             distances = np.linalg.norm(global_map[:, 0:2] - cone[0:2], axis=1)
             closest_idx = np.argmin(distances)
-            self.cone_indices[masked_indices[i]] = closest_idx
 
+            # Check if this global map index is already used
+            if closest_idx in self.cone_indices:
+                existing_idx = np.where(self.cone_indices == closest_idx)[0][0]
+                print(f"Will remove cone at index {existing_idx} already using global idx {closest_idx}")
+                to_remove.append(existing_idx)
 
-        print("MWEKF CONES: ", self.cones)
-        print("MWEKF INDICES: ", self.cone_indices)
+            # Assign the new map index
+            self.cone_indices[i] = closest_idx
+
+        # Remove duplicates **after** updating to avoid invalidating indices
+        if to_remove:
+            self.cones = np.delete(self.cones, to_remove, axis=0)
+            self.cone_indices = np.delete(self.cone_indices, to_remove)
+
+        print("MWEKF CONES:", self.cones)
+        print("MWEKF INDICES:", self.cone_indices)

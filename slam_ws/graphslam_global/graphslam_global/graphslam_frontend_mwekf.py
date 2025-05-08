@@ -94,10 +94,10 @@ class GraphSLAM_MWEKF(Node):
     def camera_callback(self, msg: ConesCartesian):
         # If we haven't created a map yet, create one 
         if self.global_map is None:
-            self.global_map = np.vstack([msg.x, msg.y, msg.color]).T
             # make n x 4 array of (idx, x, y, color)
             mwekf_cones = np.vstack([np.arange(len(msg.x)), msg.x, msg.y, msg.color]).T
             self.mwekf.add_cones(mwekf_cones)
+            self.load_mwekf_to_slam()
             print("FIRST UPDATE DONE")
             return
         print("GLOBAL MAP? ", self.global_map)
@@ -113,7 +113,7 @@ class GraphSLAM_MWEKF(Node):
         mwekf_measurement_cones = []
         mwekf_new_cones = []
 
-        for map_idx, msg_idx, in matched_cones:
+        for map_idx, msg_idx, x, y, color, in matched_cones:
             # Check which cones are in window
             # Not actually how you check if the cone is in global map but will fix later
             if map_idx in self.mwekf.cone_indices:
@@ -121,9 +121,18 @@ class GraphSLAM_MWEKF(Node):
                 mwekf_measurement_cones.append((map_idx, msg.x[msg_idx], msg.y[msg_idx], msg.color[msg_idx]))
             else: 
                 # If it's not in the window, but in the global map, we add it to the window
-                print("BLAHHH")
-                print("HERE")
-                mwekf_new_cones.append((map_idx, msg.x[msg_idx], msg.y[msg_idx], msg.color[msg_idx]))
+                if x < self.mwekf.state[0]:
+                    print("--------------------------")
+                    print ("SOMETHIGN VERY VERY WRONG")
+                    print("-------------------------")
+                    print("LSKJDF:LSKDJF;l")
+                print("INWOEINFSDOIFJS:DLKF")
+                print("INWINDOWNOTINMAP")
+                print("-------------------------")
+                bonk
+                print('---------------------------------')
+                print("BRATATATATA")
+                mwekf_new_cones.append((map_idx, x, y, color))
 
         mwekf_new_cones = mwekf_new_cones + new_cones
 
@@ -184,16 +193,15 @@ class GraphSLAM_MWEKF(Node):
             mask = mask1 & mask2
             if np.any(mask):
                 # Only consider distances where mask is True
-                map_index = np.argmin(dists[mask])
+                dists[~mask] = np.inf
+                map_index = np.argmin(dists)
                 # Recover the true index in the global map
-                map_index = np.where(mask)[0][map_index]
-                matched_cones.append((map_index, i))
+                #map_index = np.where(mask)[0][map_index]
+                matched_cones.append((map_index, i, message_pos[0], message_pos[1], message_color))
             else:
                 cone = (message_pos[0], message_pos[1])
                 print("NEW CONE: ",)
                 new_cones.append((-1, message_pos[0], message_pos[1], message_color))
-            if len(new_cones) > 6:
-                bonk
         return matched_cones, new_cones
 
     
@@ -249,12 +257,20 @@ class GraphSLAM_MWEKF(Node):
         print("NEW POSE: ", x_guess)
 
         print("OLD MAP: ", self.global_map)
-        print("NEW MAP: ", lm_guess)
         self.mwekf.state[0] = x_guess.flatten()[0]
         self.mwekf.state[1] = x_guess.flatten()[1]
 
-        self.global_map = np.array(lm_guess)
-        self.mwekf.update_global_map(lm_guess)
+        #self.global_map = np.array(lm_guess)
+        #print("CONES: " np.array())
+        global_solve_cones = np.array(self.slam.get_cones())
+        global_solve_colors = np.array(self.slam.get_colors())
+
+        print("GLOBAL SLAM SOLVE CONES: ", global_solve_cones)
+        print("GLOBAL SOLVE COLORS: ", global_solve_colors)
+        self.global_map = np.hstack([np.array(self.slam.get_cones()), np.array(self.slam.get_colors()).reshape(-1, 1)])
+        print("GLOBAL MAP AFTER SLAM SOLVE BETTER: ", self.global_map)
+        self.mwekf.cones = np.array(lm_guess)
+        self.mwekf.update_mwekf_to_global_map(self.global_map)
         self.mwekf.update((np.array(x_guess), lm_guess), 4)
 
     def get_behind_cones(self):

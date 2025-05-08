@@ -48,7 +48,7 @@ class GraphSLAM_MWEKF(Node):
             self.realsense_d435i_sub = self.create_subscription(ConesCartesian, '/realsense/d435i/cones', self.d435i_cones_callback, 1)
             self.realsense_d435_sub = self.create_subscription(ConesCartesian, '/realsense/d435/cones', self.d435_cones_callback, 1)
 
-
+        self.timer = self.create_timer(0.5, self.load_mwekf_to_slam)
         self.imu_sub = self.create_subscription(Imu, '/imu', self.imu_callback, 1)
         self.cones_lidar_sub = self.create_subscription(ConesCartesian, '/lidar/cones', self.lidar_callback, 1)
         self.mpc_sub = self.create_subscription(AckermannDriveStamped, '/cmd', self.mpc_callback, 1)
@@ -238,6 +238,8 @@ class GraphSLAM_MWEKF(Node):
         #       already have some cones matched to the global map, but for now we will
         #       add them all as if we have no matching
         lm_guess = np.hstack((np.array(self.slam.get_cones(indices = idxs)), cones[:, 2].reshape(-1, 1)))
+        self.publish_cone_map(lm_guess)
+
         x_guess = np.array(self.slam.get_positions()[-1]).reshape(-1, 1)
 
         print("OLD POSE: ", pos)
@@ -267,3 +269,16 @@ class GraphSLAM_MWEKF(Node):
         # Cones that are behind have negative dot product
         return np.where(dot_prod < 0)[0]
 
+    def publish_cone_map(self, lm_guess):   
+        print("PUBLISHING GUESS")
+        cones_msg = PointCloud()
+        cones_to_send = []
+        for cone in lm_guess: 
+            cones_to_send.append(Point32())
+            cones_to_send[-1].x = cone[0]
+            cones_to_send[-1].y = cone[1]
+            cones_to_send[-1].z = 0.0
+        cones_msg.points = cones_to_send
+        cones_msg.header.frame_id = "map"
+        cones_msg.header.stamp = self.get_clock().now().to_msg()
+        self.cones_vis_pub.publish(cones_msg)

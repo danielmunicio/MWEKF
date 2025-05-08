@@ -82,7 +82,7 @@ class GraphSLAMSolverSettings(metaclass=Settings):
     # initial_cols: int = int(1e4)
     # local_radius: int = int(10)
     
-    max_landmark_distance: float = 0.35
+    max_landmark_distance: float = 0.5
     dclip={1: 0.3, 2: 0.3, 3: 10.0, 0: 10.0}
     max_icp_steps = 0
     max_newton_steps = 0

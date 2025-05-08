@@ -25,8 +25,10 @@ class ConeNoiseSimulator(Node):
     def add_gaussian_noise(self, x, y, is_camera):
         """Add Gaussian noise to x, y coordinates."""
         if is_camera: 
-            x += np.random.normal(0, settings.camera_noise_std)
-            y += np.random.normal(0, settings.camera_noise_std)
+            #x += np.random.normal(0, settings.camera_noise_std)
+            #y += np.random.normal(0, settings.camera_noise_std)
+            x = x
+            y=y
         else:
             x += np.random.normal(0, settings.lidar_noise_std)
             y += np.random.normal(0, settings.lidar_noise_std)
@@ -42,8 +44,6 @@ class ConeNoiseSimulator(Node):
         cone_types = [
             (msg.blue_cones, 2, -1),
             (msg.yellow_cones, 1, -1),
-            (msg.orange_cones, 0, -1),
-            (msg.big_orange_cones, 3, -1)
         ]
 
         for cones, camera_color, lidar_color in cone_types:

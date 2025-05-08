@@ -92,7 +92,7 @@ class GraphSLAM_MWEKF(Node):
         self.camera_callback(rotate_and_translate_cones(msg, 'd435'))
 
     def camera_callback(self, msg: ConesCartesian):
-
+        print("RAW UNTOUTCHERD CONES MSG: ", msg)
         # If we haven't created a map yet, create one 
         if self.global_map is None:
             self.global_map = np.vstack([msg.x, msg.y, msg.color]).T
@@ -104,6 +104,7 @@ class GraphSLAM_MWEKF(Node):
         print("GLOBAL MAP? ", self.global_map)
         print("CURRENT CONES: ", self.mwekf.get_cones())
         print("CONE INDICES: ", self.mwekf.cone_indices)
+        print("LITERAL CONES MSG: ", msg)
         # Returns matched_cones in tuple of form 
         # (index_in_cone_message, index in global map)
         # New cones is list of indices in cone message
@@ -160,10 +161,12 @@ class GraphSLAM_MWEKF(Node):
             [np.sin(pos[3]),  np.cos(pos[3])]
         ])
         
-        cones_message_local = np.vstack([msg.x, msg.y])
-        print("CONES LOCAL: ", cones_message_local.T)
-        cones_message_global = R @ cones_message_local + pos[:2, np.newaxis]
-        print("CONES GLOBAL: ", cones_message_global.T)
+        cones_message_local = np.stack([msg.x, msg.y], axis=1)
+        print("CONES LOCAL: ", cones_message_local)
+        print("R: ", R)
+        print("POSE: ", pos[:2, np.newaxis])
+        cones_message_global = cones_message_local @ R.T + pos[:2]
+        print("CONES GLOBAL: ", cones_message_global)
         cones_message_color = np.array(msg.color)
 
         print("COMPARING WITH GLOBAL MAP: ", self.global_map[:, :2])
@@ -173,14 +176,18 @@ class GraphSLAM_MWEKF(Node):
         matched_cones = []
         new_cones = []
 
-        for i in range(cones_message_global.shape[1]):
-            message_pos = cones_message_global[:, i]
+        for i in range(cones_message_global.shape[0]):
+            message_pos = cones_message_global[i]
             message_color = cones_message_color[i]
 
             diffs = map_pos - message_pos
             dists = np.linalg.norm(diffs, axis=1)
-            mask = (dists < solver_settings.max_landmark_distance) & (map_colors == message_color)
-
+            print("DISTS: ", dists)
+            mask1 = (dists < solver_settings.max_landmark_distance)
+            mask2 = (map_colors == message_color)
+            print("MASK 1: ", mask1)
+            print("MASK2: ", mask2)
+            mask = mask1
             if np.any(mask):
                 # Only consider distances where mask is True
                 map_index = np.argmin(dists[mask])
@@ -219,6 +226,7 @@ class GraphSLAM_MWEKF(Node):
     def load_mwekf_to_slam(self):
         print("------------------------------------")
         print("LOADING TO SLAM")
+        print("-------------------------------------")
         pos = self.mwekf.state[0:2].flatten()
         cones = self.mwekf.get_cones() # n x 3 of x, y, color
         print("CONES: ", cones)
@@ -226,7 +234,8 @@ class GraphSLAM_MWEKF(Node):
         dx = pos.flatten() - self.last_slam_update
         print("DX: ", dx)
         print("CONE DELTAS: ", cone_deltas)
-        idxs = self.slam.update_graph(dx, cone_deltas, cones[:, 2])
+        print("COLORS: ", cones[:, 2].astype(int))
+        idxs = self.slam.update_graph(dx, cone_deltas, cones[:, 2].astype(int))
 
         self.last_slam_update = pos
         self.slam.solve_graph()

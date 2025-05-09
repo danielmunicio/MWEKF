@@ -160,7 +160,7 @@ class LiDAROnlySettings(metaclass=Settings):
     ground_plane_coefficients: list = [0.0, 0.002, 1.0, 0.20]
     ground_filter_threshold: float = 0.04
     ground_filter_top_threshold: float = 0.5
-    max_distance: float = 6.0
+    max_distance: float = 3.7
 
     # DB Scan 
     eps: float = 0.1

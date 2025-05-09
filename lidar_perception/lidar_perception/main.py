@@ -26,7 +26,7 @@ class LiDARCones(Node):
         self.lidar_sub = self.create_subscription(PointCloud2, 'rslidar_points', self.lidar_callback, 1)
         self.filtered_pub = self.create_publisher(PointCloud2, '/filtered_pointcloud', 1)
         self.perception_pub = self.create_publisher(ConesCartesian, '/lidar/cones', 1)
-        self.perception_vis_pub = self.create_publisher(PointCloud, 'cones/viz/lidar', 1)
+        self.perception_vis_pub = self.create_publisher(PointCloud, 'cones/viz/lidar/new', 1)
 
         self.a, self.b, self.c, self.d = settings.ground_plane_coefficients
         self.plane_normal = np.sqrt(self.a**2 + self.b**2 + self.c**2)
@@ -93,8 +93,10 @@ class LiDARCones(Node):
             pt.x = float(cone_pose[0])
             pt.y = float(cone_pose[1])
             pt.z = 0.0
-            positions.append(pt)
-
+            if pt.y < 0 and pt.y > -1.0:
+                positions.append(pt)
+            else: 
+                print("REMOVING CONE")
         self.perception_pub.publish(cone_msg)
 
         cones_guess.points = positions

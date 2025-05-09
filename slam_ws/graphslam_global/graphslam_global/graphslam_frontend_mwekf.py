@@ -110,7 +110,7 @@ class GraphSLAM_MWEKF(Node):
 
         # Cones to send to MWEKF in form: 
         # (map_idx, cone_x, cone_y)
-        mwekf_measurement_cones = []
+        mwekf_measurement_cones = None
         mwekf_new_cones = []
 
         for map_idx, msg_idx, x, y, color, in matched_cones:
@@ -118,27 +118,18 @@ class GraphSLAM_MWEKF(Node):
             # Not actually how you check if the cone is in global map but will fix later
             if map_idx in self.mwekf.cone_indices:
                 # If this is in window, add it as measurement
-                mwekf_measurement_cones.append((map_idx, msg.x[msg_idx], msg.y[msg_idx], msg.color[msg_idx]))
+                if mwekf_measurement_cones is None: 
+                    mwekf_measurement_cones = np.array([map_idx, msg.x[msg_idx], msg.y[msg_idx], msg.color[msg_idx]])
+                mwekf_measurement_cones = np.vstack([mwekf_measurement_cones, np.array([map_idx, msg.x[msg_idx], msg.y[msg_idx], msg.color[msg_idx]])])
             else: 
                 # If it's not in the window, but in the global map, we add it to the window
-                if x < self.mwekf.state[0]:
-                    print("--------------------------")
-                    print ("SOMETHIGN VERY VERY WRONG")
-                    print("-------------------------")
-                    print("LSKJDF:LSKDJF;l")
-                print("INWOEINFSDOIFJS:DLKF")
-                print("INWINDOWNOTINMAP")
-                print("-------------------------")
-                bonk
-                print('---------------------------------')
-                print("BRATATATATA")
                 mwekf_new_cones.append((map_idx, x, y, color))
 
         mwekf_new_cones = mwekf_new_cones + new_cones
 
         # Send cones we have in our MWEKF as measurements
         if len(mwekf_measurement_cones) > 0:
-            self.mwekf.update(np.array([mwekf_measurement_cones]), 1)
+            self.mwekf.update(np.array(mwekf_measurement_cones), 0)
 
         # Add new cones to mwekf, and SLAM map
         if len(mwekf_new_cones) > 0:

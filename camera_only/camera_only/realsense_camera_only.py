@@ -42,7 +42,7 @@ class RealsenseCameraOnly(Node):
         super().__init__('sensor_fusion_node')
 
         realsense_camera_topic = '/camera/realsense2/color/image_raw'
-        realsense_depth_camera_topic = '/camera/realsense2/depth/image_rect_raw'
+        realsense_depth_camera_topic = '/camera/realsense2/aligned_depth_to_color/image_raw'
 
         self.image_sub_realsense = self.create_subscription(Image, realsense_camera_topic, self.realsense_callback, qos_profile_sensor_data)
         self.depth_sub_realsense = self.create_subscription(Image, realsense_depth_camera_topic, self.realsense_depth_callback, qos_profile_sensor_data)

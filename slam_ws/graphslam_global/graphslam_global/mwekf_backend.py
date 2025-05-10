@@ -44,9 +44,8 @@ class MWEKF_Backend():
         # Last control input NOTE: last element is time it was recieved at!!!
         self.last_u = np.array([0., 0., perf_counter()])
 
-        # What cones we have, stored as indices in the global map
-        self.cone_indices = []
-        # the actual cone positions, stored as 
+
+        # n x 3 array of [x, y, color]
         self.cones = None
         self.current_cones_message = None
     #################
@@ -264,7 +263,8 @@ class MWEKF_Backend():
         1 = cones_lidar - Nx2 Array of [x y]
         2 = IMU - idk yet
         3 = Wheelspeeds - velocity measurement ? 
-        4 = SLAM update
+        4 = SLAM state array of [x y]
+        5 = SLAM cones
         """
         if (measurement_type == 0) or (measurement_type == 1):
             self.update_cones(measurement, measurement_type)
@@ -282,8 +282,6 @@ class MWEKF_Backend():
         C = self.approximate_measurement(x_next, measurement, measurement_type)
         # Get R based on whichever measurement we're using
         R = self.choose_R(measurement_type)
-        print("P: ", P.shape)
-        print("C: ", C.shape)
         K = P @ C.T @ np.linalg.inv(C @ P @ C.T + R)
         h = self.choose_h(measurement_type)
         x_new = x_next + K @ (measurement.reshape(-1, 1) - h(x_next).reshape(-1, 1))
@@ -292,6 +290,7 @@ class MWEKF_Backend():
         self.state = x_new
 
     def update_cones(self, measurement, measurement_type):
+        return
         print("CONES MEASUREMENT: ", measurement.shape)
         print("CURRENT CONES: ", self.cones.shape)
         self.num_cones_in_measurement = len(measurement[:, 0])
@@ -377,79 +376,18 @@ class MWEKF_Backend():
     def add_cones(self, cones):
         """
         Add cones to MWEKF window
-        Cones: list of elements (num, x, y, color)
-        # num = -1 represents the fact that they are NOT in global map yet
-        # num = map_idx means that they ARE in the global map
+        Cones: list of elements (x, y, color)
         """
-        print("CONES ADDED TO WINDOW: ", cones)
+        print("ADDING CONES")
         if self.cones is None:
-            self.cones = cones[:, 1:4]
-            self.cone_indices = cones[:, 0]
+            self.cones = cones
             return
-        self.cones = np.vstack([self.cones, cones[:, 1:4]])
-        self.cone_indices = np.hstack([self.cone_indices, cones[:, 0]])
+        self.cones = np.vstack([self.cones, cones])
 
-    def remove_cones(self, cone_indices):
-        """
-        Args: cone_indices: index of cones in global map to remove from the mwekf
-        Should remove the cones from the MWEKF, update everything accordingly
-        Should go through self.cones_indices, and remove the cone in self.cones_indices and self.cones
-        If its index is in cone_indices
-        """
-        cone_indices = np.array(cone_indices, dtype=int)
-        self.cone_indices = self.cone_indices.astype(int)
-        print("CONES PRE REMOVAL: ", self.cones)
-        print("CONES TO REMOVE: ", cone_indices)
-        keep_mask = ~np.isin(self.cone_indices, cone_indices)
-        print("CONES MASK: ", keep_mask)
-        print("self.cone_indices:", self.cone_indices)
-        print("cone_indices to remove:", cone_indices)
 
-        self.cones = self.cones[keep_mask]
-        self.cone_indices = self.cone_indices[keep_mask]
-
-        print("NEW CONES: ", self.cones)
-        print("NEW CONE INDICES: ", self.cone_indices)
     def get_cones(self):
         """
         Returns the cones to add to SLAM Graph
         n x 3 array of n cones, x, y, color
         """
         return self.cones
-
-    def update_mwekf_to_global_map(self, global_map):
-        """
-        Assign all -1 map index cones their proper map index.
-        If a global map index is already assigned to another cone, remove that old cone.
-        """
-        print("UPDATING GLOBAL MAP:")
-        print("GLOBAL MAP:", global_map)
-        print("CONE INDICES:", self.cone_indices)
-        print("CONES:", self.cones)
-
-        masked_indices = np.where(self.cone_indices == -1)[0]
-        cones_to_update = self.cones[masked_indices]
-
-        # Track indices to remove (in self.cones and self.cone_indices)
-        to_remove = []
-
-        for i, cone in zip(masked_indices, cones_to_update):
-            distances = np.linalg.norm(global_map[:, 0:2] - cone[0:2], axis=1)
-            closest_idx = np.argmin(distances)
-
-            # Check if this global map index is already used
-            if closest_idx in self.cone_indices:
-                existing_idx = np.where(self.cone_indices == closest_idx)[0][0]
-                print(f"Will remove cone at index {existing_idx} already using global idx {closest_idx}")
-                to_remove.append(existing_idx)
-
-            # Assign the new map index
-            self.cone_indices[i] = closest_idx
-
-        # Remove duplicates **after** updating to avoid invalidating indices
-        if to_remove:
-            self.cones = np.delete(self.cones, to_remove, axis=0)
-            self.cone_indices = np.delete(self.cone_indices, to_remove)
-
-        print("MWEKF CONES:", self.cones)
-        print("MWEKF INDICES:", self.cone_indices)

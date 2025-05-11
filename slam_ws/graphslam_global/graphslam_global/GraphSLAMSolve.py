@@ -57,7 +57,7 @@ class GraphSLAMSolve:
         return (np.array([[np.cos(x[2]), -np.sin(x[2])],
                           [np.sin(x[2]), np.cos(x[2])]])@((z - center).T)).T + center + x[:2]
     
-    def data_association(self, z: np.ndarray, color: np.ndarray) -> np.ndarray:
+    def icp(self, z: np.ndarray, color: np.ndarray) -> np.ndarray:
         """rudimentary data association method that tries to rotate and translate `z` until it optimally lines up with self.lhat
 
         Args:
@@ -123,8 +123,6 @@ class GraphSLAMSolve:
         """
         pass
 
-
-    
     def update_graph(self, dx: np.ndarray, z: np.ndarray, color: np.ndarray) -> None:
         """add edges to the graph corresponding to a movement and new vision data
 
@@ -186,43 +184,58 @@ class GraphSLAMSolve:
         # first we try to rotate and translate z
         # so that it best lines up with the cones
         # we've already seen
-        #zprime = self.data_association(z+self.xhat[-1, :], color)
+        #zprime = self.icp(z+self.xhat[-1, :], color)
         zprime = z+self.xhat[-1, :]
         # then we can check which cones are closest and which are within/outside
         # of the max landmark distance
-        
-        # dists has one row per measurement and one column for each landmark
-        # can probably do this faster if we norm at the same time as broadcasting but can't do that easily
-        for c in np.unique(color):
-            z_c = zprime[color==c]
-            if len(self.lhat[self.color==c])==0:
-                l_idxs=np.zeros(len(z_c), dtype=int)
-                l_dists=np.zeros(len(z_c))+np.Inf
-            else:
-                dists = np.linalg.norm(z_c[:, np.newaxis, :] - self.lhat[self.color==c], axis=2)
-                l_idxs = np.argmin(dists, axis=1)
-                l_dists = np.min(dists, axis=1)
-            for i in range(len(z_c)):
-                # if we haven't seen thihs landmark before, add it
-                if l_dists[i] > self.max_landmark_distance:
-                    print("NEW LANDMARK")
-                    self.l.append(self.nvars)
-                    self.nvars += 2
-                    self.lhat = np.append(self.lhat, z[color==c][i][np.newaxis], axis=0)
-                    self.color = np.append(self.color, c)
-                    l_idxs[i] = np.sum(self.color==c)-1 # len(self.l[self.color==c])-1  but self.l is a list so not bool mask indexable
+       
+        idxs = self.data_association(z, zprime, color, add_to_graph=True)
+        return idxs
+    def data_association(self, z, zprime, color, add_to_graph):
+        print("Z: ", z)
+        print("ZPRIME: ", zprime)
+        idxs = np.full(len(zprime), -1, dtype=int)
+        print("IDXS START: ", idxs)
+        for idx, (cone, c) in enumerate(zip(zprime, color)):
+            l_idx = None
+            min_dist = np.inf
 
-                l = np.array(self.l)[self.color==c]
-                # now we write the equation l-x=z
+            for i, (landmark, landmark_color) in enumerate(zip(self.lhat, self.color)):
+                if landmark_color == c:
+                    dist = np.linalg.norm(landmark - cone)
+                    if dist < min_dist:
+                        l_idx = i
+                        min_dist = dist
+
+            print("L IDX: ", l_idx)
+            if l_idx is None or min_dist > self.max_landmark_distance:
+                print("made it here")
+                self.l.append(self.nvars)
+                self.nvars += 2
+                self.lhat = np.append(self.lhat, cone[np.newaxis], axis=0)
+                self.color = np.append(self.color, c)
+                l_idx = len(self.lhat) - 1
+                print("L IDX: ", l_idx)
+
+            idxs[idx] = l_idx
+
+            if add_to_graph:
+                # Now update A and b with the observation equations
                 self.z.append(self.neqns)
                 self.neqns += 2
-                self.A[self.z[-1], l[l_idxs[i]]]     = 1 * self.z_weight
-                self.A[self.z[-1]+1, l[l_idxs[i]]+1] = 1* self.z_weight
-                self.A[self.z[-1], self.x[-1]]       = -1 * self.z_weight
-                self.A[self.z[-1]+1, self.x[-1]+1]   = -1 * self.z_weight
-                self.b[self.z[-1]]                   = z[color==c][i, 0]*self.z_weight
-                self.b[self.z[-1]+1]                 = z[color==c][i, 1]*self.z_weight
-    
+
+                self.A[self.z[-1],     self.l[l_idx]]     = self.z_weight
+                self.A[self.z[-1] + 1, self.l[l_idx] + 1] = self.z_weight
+                self.A[self.z[-1],     self.x[-1]]        = -self.z_weight
+                self.A[self.z[-1] + 1, self.x[-1] + 1]    = -self.z_weight
+
+                original_z = z[idx]
+                self.b[self.z[-1]]     = original_z[0] * self.z_weight
+                self.b[self.z[-1] + 1] = original_z[1] * self.z_weight
+                print("IDXS IN THE LOOP? ", idxs)
+        print("IDXS LEAVING UPDATE GRAPH: ", idxs)
+        return idxs
+
     def solve_graph(self) -> None:
         """solve graph. does not return results.
         """
@@ -260,9 +273,26 @@ class GraphSLAMSolve:
         # self.xhat = np.array([soln[i:i+2] for i in self.x])
         # self.lhat = np.array([soln[i:i+2] for i in self.l])
 
-    def get_cones(self, color: Union[np.uint8, None]) -> np.ndarray:
-        if color is None: return self.lhat
-        return self.lhat[self.color==color]
+    def get_cones(self, color=None, indices=None) -> np.ndarray:
+        print("GETTING CONES AT INDICES: ", indices)
+        mask1 = np.ones(len(self.lhat), dtype=bool)
+        mask2 = np.ones(len(self.lhat), dtype=bool)
+
+        if indices is not None:
+            mask1 = np.zeros(len(self.lhat), dtype=bool)
+            mask1[indices] = True
+        if color is not None:
+            mask2 = self.color == color
+        print("SLAM MAP: ", self.lhat)
+        return self.lhat[mask1 & mask2]
+
     def get_positions(self) -> np.ndarray:
         return self.xhat
 
+    def get_colors(self, indices=None):
+        mask1 = np.ones(len(self.lhat), dtype=bool)
+        if indices is not None:
+            mask1 = np.zeroes(len(self.lhat, dtype=bool))
+            mask1[indices] = True
+
+        return self.color[mask1]

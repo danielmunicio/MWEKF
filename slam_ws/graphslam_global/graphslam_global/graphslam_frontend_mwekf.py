@@ -1,5 +1,6 @@
 import numpy as np
-from graphslamrs import GraphSLAMSolve
+#from graphslamrs import GraphSLAMSolve
+from .GraphSLAMSolve import GraphSLAMSolve
 from all_settings.all_settings import GraphSLAMSolverSettings as solver_settings
 from all_settings.all_settings import GraphSLAMSettings as settings
 from all_settings.all_settings import MWEKFSettings as mwekf_settings
@@ -104,11 +105,13 @@ class GraphSLAM_MWEKF(Node):
         # New cones is n x 3 array of form (global_x, global_y, color)
         matched_cones, new_cones = self.data_association(msg, color=True)
 
-        # Send matched cones to MWEKF
-        self.mwekf.update(matched_cones, 0)
+        if len(matched_cones > 0):
+            # Send matched cones to MWEKF
+            self.mwekf.update(matched_cones, 0)
 
         # Put new cones in SLAM and solve
         if len(new_cones > 0):
+            print("LOADING NEW CONES FROM CAMERA: ", new_cones)
             self.load_new_cones_to_slam(new_cones)
 
     def lidar_callback(self, msg: ConesCartesian):
@@ -170,6 +173,9 @@ class GraphSLAM_MWEKF(Node):
         self.last_slam_update = pos
         self.slam.solve_graph()
 
+        print("INDICES: ", idxs)
+        print("SLAM GET CONES: ", np.array(self.slam.get_cones(indices = idxs)))
+
         lm_guess = np.hstack((np.array(self.slam.get_cones(indices = idxs)), cones[:, 2].reshape(-1, 1)))
         self.publish_cone_map(lm_guess)
 
@@ -193,14 +199,19 @@ class GraphSLAM_MWEKF(Node):
     def load_new_cones_to_slam(self, cones):
         pos = self.mwekf.state[0:2].flatten()
         
-        print("CONES: ", cones)
+        print("LOADING NEW CONES: ", cones)
         cone_deltas = cones[:, 0:2] - pos
         dx = pos.flatten() - self.last_slam_update
         idxs = self.slam.update_graph(dx, cone_deltas, cones[:, 2].astype(int))
+        print("IDXS IN LOAD NEW CONES: ", idxs)
 
         self.last_slam_update = pos
         self.slam.solve_graph()
-        
+        print("---------------------------")
+        print("INDICES: ", idxs)
+        print("SLAM GET CONES: ", np.array(self.slam.get_cones(indices = idxs)))
+        print("---------------------------")
+        print("ERROR ABOUT TO HAPPEn")
         # lm guess should be ONLY the new cones
         lm_guess = np.hstack((np.array(self.slam.get_cones(indices = idxs)), cones[:, 2].reshape(-1, 1)))
 

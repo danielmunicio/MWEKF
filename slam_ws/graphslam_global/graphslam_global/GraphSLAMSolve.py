@@ -246,9 +246,11 @@ class GraphSLAMSolve:
         else:
             new_cones_indices = None
             total_cones = matched_cones
+            print("MATCHED CONES: ", matched_cones)
 
         # Now add all the cones to the slam matrix
         for cone in total_cones:
+            print("ADDING CONE: ", cone)
             l_idx = int(cone[0])
             cone_pos = cone[1:3]
 

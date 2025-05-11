@@ -158,36 +158,6 @@ class GraphSLAM_MWEKF(Node):
 
         return np.array(matched_cones), np.array(new_cones)
 
-    # def data_association(self, msg: ConesCartesian, color: bool):
-    #     pos = self.mwekf.state[0:4].flatten()  # [x, y, velocity, heading]
-    #     R = np.array([
-    #         [np.cos(pos[3]), -np.sin(pos[3])],
-    #         [np.sin(pos[3]),  np.cos(pos[3])]
-    #     ])
-    #     cones_message_local = np.stack([msg.x, msg.y], axis=1)
-    #     cones_message_global = cones_message_local @ R.T + pos[:2]
-    #     cones_message_color = np.array(msg.color)
-
-    #     idxs = np.full(len(cones_message_global), -1, dtype=int)
-    #     for idx, (cone, c) in enumerate(zip(cones_message_global, cones_message_color)):
-    #         l_idx = None
-    #         min_dist = np.inf
-
-    #         for i, (landmark, landmark_color) in enumerate(zip(self.slam.lhat, self.slam.color)):
-    #             if landmark_color == c:
-    #                 dist = np.linalg.norm(landmark - cone)
-    #                 if dist < min_dist:
-    #                     l_idx = i
-    #                     min_dist = dist
-    #         if l_idx is None or min_dist > self.max_landmark_distance:
-    #             self.l.append(self.nvars)
-    #             self.nvars += 2
-    #             self.lhat = np.append(self.lhat, cone[np.newwaxis], axis=0)
-    #             self.color = np.append(self.color, c)
-    #             l_idx = len(self.lhat) - 1
-
-    #         idxs[idx] = l_idx
-
     def load_mwekf_to_slam(self):
         print("-------------------------------------------")
         print("LOADING MWEKF TO SLAM")
@@ -198,8 +168,9 @@ class GraphSLAM_MWEKF(Node):
 
         if cones is None:
             return
-
+        print("CONES: ", cones)
         local_cones = self.local_cones(cones, return_local_frame=True, return_indices=True)
+        print("LOCAL CONES: ", local_cones)
         idxs = local_cones[:, 0].astype(int)
         dx = pos.flatten() - self.last_slam_update
         self.slam.update_graph_new(dx, new_cones=None, matched_cones=local_cones)
@@ -208,8 +179,10 @@ class GraphSLAM_MWEKF(Node):
         self.slam.solve_graph()
 
         print("INDICES: ", idxs)
-        print("CONES: ", np.array(self.slam.get_cones(indices = idxs)))
-        lm_guess = np.hstack((np.array(self.slam.get_cones(indices = idxs)), local_cones[:, 2].reshape(-1, 1)))
+        print("CONES: ", np.array(self.slam.get_cones()))
+        #NOTE: SHOUDL USE THIS ONE, BUT NEED WHOLE MAP
+        #lm_guess = np.hstack((np.array(self.slam.get_cones(indices = idxs)), local_cones[:, 2].reshape(-1, 1)))
+        lm_guess = np.hstack((np.array(self.slam.get_cones()), cones[:, 2].reshape(-1, 1)))
         self.publish_cone_map(lm_guess)
 
         x_guess = np.array(self.slam.get_positions()[-1]).reshape(-1, 1)

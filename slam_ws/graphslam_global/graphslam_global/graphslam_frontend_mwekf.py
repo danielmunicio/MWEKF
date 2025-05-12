@@ -50,7 +50,7 @@ class GraphSLAM_MWEKF(Node):
             self.realsense_d435i_sub = self.create_subscription(ConesCartesian, '/realsense/d435i/cones', self.d435i_cones_callback, 1)
             self.realsense_d435_sub = self.create_subscription(ConesCartesian, '/realsense/d435/cones', self.d435_cones_callback, 1)
 
-        self.timer = self.create_timer(0.01, self.load_mwekf_to_slam)
+        self.timer = self.create_timer(0.01, self.publish_pose)
         self.imu_sub = self.create_subscription(Imu, '/imu', self.imu_callback, 1)
         self.cones_lidar_sub = self.create_subscription(ConesCartesian, '/lidar/cones', self.lidar_callback, 1)
         self.mpc_sub = self.create_subscription(AckermannDriveStamped, '/cmd', self.mpc_callback, 1)
@@ -262,10 +262,12 @@ class GraphSLAM_MWEKF(Node):
             assert slam_map_len - mwekf_cones_len == cones_len
 
         self.mwekf.add_cones(updated_new_cones)
+        self.publish_cone_map(self.slam.get_cones())
         print("UPDATED CONES: ", self.slam.get_cones())
         x_guess = np.array(self.slam.get_positions()[-1]).reshape(-1, 1)
-        #self.mwekf.state[0] = x_guess.flatten()[0]
-        #self.mwekf.state[1] = x_guess.flatten()[1]
+        self.mwekf.state[0] = x_guess.flatten()[0]
+        self.mwekf.state[1] = x_guess.flatten()[1]
+        self.publish_pose()
 
     def publish_cone_map(self, lm_guess):   
         cones_msg = PointCloud()

@@ -156,7 +156,11 @@ class GraphSLAMSolve:
         # Start by adding new cones into slam map
         # initialize array of length of new_cones
 
-        if new_cones is not None:
+        if new_cones is None:
+            cones_indices = matched_cones[:, 0]
+            total_cones = matched_cones
+        
+        else:
             new_cones_indices = np.zeros((len(new_cones), 1), dtype=int)
             for idx, cone in enumerate(new_cones):
                 self.l.append(self.nvars)
@@ -168,25 +172,18 @@ class GraphSLAMSolve:
 
             # Now combine them all into one big z message, each having their own index
             # updated new cones becomes [map index, x, y, color]
-            print("NEW CONES INDICES: ", new_cones_indices)
-            print("NEW CONES: ", new_cones)
-            print("COMPARED TO SLAM CONES: ", self.lhat)
             updated_new_cones = np.hstack([new_cones_indices, new_cones])
-            print("MATCHED CONES: ", matched_cones)
-            print("NEW CONES: ", updated_new_cones)
-
-            if not first_update:
-                total_cones = np.vstack([matched_cones, updated_new_cones])
-            else: 
+            if first_update:
                 total_cones = updated_new_cones
-        else:
-            new_cones_indices = None
-            total_cones = matched_cones
-            print("MATCHED CONES: ", matched_cones)
+                cones_indices = new_cones_indices
+            else: 
+                print("MATCHED CONES: ", matched_cones)
+                print("UPDATED NEW CONES: ",updated_new_cones)
+                total_cones = np.vstack([matched_cones, updated_new_cones])
+                cones_indices = total_cones[:, 0]
 
         # Now add all the cones to the slam matrix
         for cone in total_cones:
-            print("ADDING CONE: ", cone)
             l_idx = int(cone[0])
             cone_pos = cone[1:3]
 
@@ -201,44 +198,8 @@ class GraphSLAMSolve:
             self.b[self.z[-1]]     = cone_pos[0] * self.z_weight
             self.b[self.z[-1] + 1] = cone_pos[1] * self.z_weight
 
-        return new_cones_indices 
+        return np.array(cones_indices)
 
-    def data_association(self, z, zprime, color, add_to_graph):
-        idxs = np.full(len(zprime), -1, dtype=int)
-        for idx, (cone, c) in enumerate(zip(zprime, color)):
-            l_idx = None
-            min_dist = np.inf
-
-            for i, (landmark, landmark_color) in enumerate(zip(self.lhat, self.color)):
-                if landmark_color == c:
-                    dist = np.linalg.norm(landmark - cone)
-                    if dist < min_dist:
-                        l_idx = i
-                        min_dist = dist
-
-            if l_idx is None or min_dist > self.max_landmark_distance:
-                self.l.append(self.nvars)
-                self.nvars += 2
-                self.lhat = np.append(self.lhat, cone[np.newaxis], axis=0)
-                self.color = np.append(self.color, c)
-                l_idx = len(self.lhat) - 1
-
-            idxs[idx] = l_idx
-
-            if add_to_graph:
-                # Now update A and b with the observation equations
-                self.z.append(self.neqns)
-                self.neqns += 2
-
-                self.A[self.z[-1],     self.l[l_idx]]     = self.z_weight
-                self.A[self.z[-1] + 1, self.l[l_idx] + 1] = self.z_weight
-                self.A[self.z[-1],     self.x[-1]]        = -self.z_weight
-                self.A[self.z[-1] + 1, self.x[-1] + 1]    = -self.z_weight
-
-                original_z = z[idx]
-                self.b[self.z[-1]]     = original_z[0] * self.z_weight
-                self.b[self.z[-1] + 1] = original_z[1] * self.z_weight
-        return idxs
 
     def solve_graph(self) -> None:
         """solve graph. does not return results.

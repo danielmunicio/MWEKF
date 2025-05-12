@@ -95,7 +95,7 @@ class GraphSLAM_MWEKF(Node):
         # If we haven't created a map yet, create one 
         if self.first_solve is True:
             cones = np.stack([msg.x, msg.y, msg.color], axis=1)
-            self.load_first_cones_to_slam(cones)
+            self.load_new_cones_to_slam(cones, matched_cones=None, first_update=True)
             self.first_solve = False
             return
 
@@ -155,31 +155,43 @@ class GraphSLAM_MWEKF(Node):
             else:
                 cone = (message_pos[0], message_pos[1])
                 new_cones.append((message_pos_local[0], message_pos_local[1], message_color))
-
+        if len(new_cones) > 0:
+            print("NEW CONES AT END OF DATA ASSOCIATION: ", np.array(new_cones)[:, 0:2] + pos[:2])
         return np.array(matched_cones), np.array(new_cones)
 
     def load_mwekf_to_slam(self):
+        """
+        Important variables:
+            self.mwekf.get_cones() - returns n x 3 array of [global_x, global_y, color]
+        """
         print("-------------------------------------------")
         print("LOADING MWEKF TO SLAM")
         #NOTE: determine best update strategy
         pos = self.mwekf.state[0:2].flatten()
         print("POSE: ", pos)
-        cones = self.mwekf.get_cones() # n x 3 of x, y, color
+        cones = self.mwekf.get_cones() # n x 3 of [global_x, global_y, color]
 
         if cones is None:
             return
+
         print("CONES: ", cones)
+        # local cones gets turned into the local frame of the car
+        # also adds their indices from the global map
+        #NOTE: DOESNT WORK TO SOME EXTENT? 
         local_cones = self.local_cones(cones, return_local_frame=True, return_indices=True)
-        print("LOCAL CONES: ", local_cones)
         idxs = local_cones[:, 0].astype(int)
+
+        print("LOCAL CONES: ", local_cones)
+
         dx = pos.flatten() - self.last_slam_update
-        self.slam.update_graph_new(dx, new_cones=None, matched_cones=local_cones)
+        self.slam.update_graph(dx, new_cones=None, matched_cones=local_cones)
 
         self.last_slam_update = pos
         self.slam.solve_graph()
 
         print("INDICES: ", idxs)
         print("CONES: ", np.array(self.slam.get_cones()))
+
         #NOTE: SHOUDL USE THIS ONE, BUT NEED WHOLE MAP
         #lm_guess = np.hstack((np.array(self.slam.get_cones(indices = idxs)), local_cones[:, 2].reshape(-1, 1)))
         lm_guess = np.hstack((np.array(self.slam.get_cones()), cones[:, 2].reshape(-1, 1)))
@@ -194,102 +206,69 @@ class GraphSLAM_MWEKF(Node):
         self.mwekf.state[1] = x_guess.flatten()[1]
         self.mwekf.cones = np.array(lm_guess)
         print("NEW POSE: ", (self.mwekf.state[0], self.mwekf.state[1]))
+
         mwekf_cones = self.local_cones(lm_guess, return_local_frame=True)
         new_local_cones = self.local_cones(lm_guess, return_local_frame=False)
         #self.mwekf.update(x_guess.flatten()[0:2], 4)
         #self.mwekf.update(mwekf_cones, 5)
 
-        self.publish_cone_map(new_local_cones)
+        self.publish_cone_map(lm_guess)
         self.publish_pose()
         print("---------------------------------------------")
 
-    def load_new_cones_to_slam(self, new_cones, matched_cones):
+    def load_new_cones_to_slam(self, new_cones, matched_cones, first_update=False):
+        """
+        Args:
+            new_cones (ndarray): cones not in SLAM map, [local_x, local_y, color]
+            matched_cones (ndarray): cones matched to map [map_idx, local_x, local_y, color]
+        """
         print("------------------------------------")
         print("LOADING NEW CONES")
-        # New cones in local frame (localx, localy, color)
-        # Matched cones in form (map_index, localx, localy, color)
-
         pos = self.mwekf.state[0:2].flatten()
         dx = pos - self.last_slam_update
-        idxs = self.slam.update_graph_new(dx, new_cones, matched_cones)
+        idxs = self.slam.update_graph(dx, new_cones, matched_cones, first_update=first_update)
+
+        # filter out to make just indices of new cones:
+
         print("NEW CONE INDICES: ", idxs)
         self.last_slam_update = pos
         self.slam.solve_graph()
-        print("SLAM LM CONES: ", np.array(self.slam.get_cones(indices = idxs)))
+
+        if not first_update:
+            matched_idxs = matched_cones[:, 0].astype(int)
+            new_idxs = [idx for idx in idxs if idx not in matched_idxs]
+        else:
+            new_idxs = idxs
+
+        assert len(new_idxs) == len(new_cones[:, 0])
+
+        print("SLAM LM CONES: ", np.array(self.slam.get_cones(indices = new_idxs)))
         print("COLORS: ", new_cones[:, 2].reshape(-1, 1))
-        updated_new_cones = np.hstack((np.array(self.slam.get_cones(indices = idxs)), new_cones[:, 2].reshape(-1, 1)))
+        updated_new_cones = np.hstack((np.array(self.slam.get_cones(indices = new_idxs)), new_cones[:, 2].reshape(-1, 1)))
 
         # There's probably a better way to do this, but this code
         # should add all the cones that haven't been added to the mwekf map, to the mwekf map
         if self.mwekf.get_cones() is not None:
+            # num cones we got from SLAM at idx's
             lm_guess_len = len(updated_new_cones[:, 0])
+            # num new cones via data association
             cones_len = len(new_cones[:, 0])
+            # slam mao length
             slam_map_len = len(np.array(self.slam.get_cones())[:, 0])
+            # mwekf map length
             mwekf_cones_len = len(np.array(self.mwekf.get_cones()[:, 0]))
 
+            # num cones we got back from slam via idx should be the same as cones we added
             assert lm_guess_len == cones_len
+            # the num cones in slam map, minus the num cones we have in the mwekf, should just be the cones we just added
             assert slam_map_len - mwekf_cones_len == cones_len
 
         self.mwekf.add_cones(updated_new_cones)
+
+        x_guess = np.array(self.slam.get_positions()[-1]).reshape(-1, 1)
+        self.mwekf.state[0] = x_guess.flatten()[0]
+        self.mwekf.state[1] = x_guess.flatten()[1]
         print("-------------------------------------------")
-
-
-    def load_first_cones_to_slam(self, cones):
-        pos = self.mwekf.state[0:2].flatten()
-        cones_dx = cones[:, 0:2]
-        print("LOADING CONES: ", cones_dx + pos)
-        dx = pos.flatten() - self.last_slam_update
-        idxs = self.slam.update_graph(dx, cones_dx, cones[:, 2].astype(int))
-        print("IDXS IN LOAD NEW CONES: ", idxs)
-
-        self.last_slam_update = pos
-        self.slam.solve_graph()
-        print("---------------------------")
-        print("INDICES: ", idxs)
-        print("SLAM GET CONES: ", np.array(self.slam.get_cones(indices = idxs)))
-        print("---------------------------")
-        print("ERROR ABOUT TO HAPPEn")
-        # lm guess should be ONLY the new cones
-        lm_guess = np.hstack((np.array(self.slam.get_cones(indices = idxs)), cones[:, 2].reshape(-1, 1)))
-
-        # There's probably a better way to do this, but this code
-        # should add all the cones that haven't been added to the mwekf map, to the mwekf map
-        if self.mwekf.get_cones() is not None:
-            lm_guess_len = len(lm_guess[:, 0])
-            cones_len = len(cones[:, 0])
-            slam_map_len = len(np.array(self.slam.get_cones())[:, 0])
-            mwekf_cones_len = len(np.array(self.mwekf.get_cones()[:, 0]))
-
-            print("LM GUESS LEN: ", lm_guess_len)
-            print("SLAM MAP LEN: ", slam_map_len)
-            print("MWEKF CONES LEN", mwekf_cones_len)
-            print("MWEKF CONES: ", self.mwekf.get_cones())
-            print("SLAM MAP: ", np.array(self.slam.get_cones()))
-            assert lm_guess_len == cones_len
-            assert slam_map_len - mwekf_cones_len == cones_len
-        print("X POSE: ", pos)
-        self.mwekf.add_cones(lm_guess)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     def publish_cone_map(self, lm_guess):   
         cones_msg = PointCloud()
@@ -326,7 +305,14 @@ class GraphSLAM_MWEKF(Node):
             self.pose_pub.publish(pose_msg)
 
     def local_cones(self, cones, radius=10, return_local_frame=True, return_indices=False):
-        # cones: (n x 3) array of [x, y, color]
+        """
+        Args: 
+            cones: (n x 3) array of [globalx, global_y, color]
+            radius: radius to filter out cones (duh)
+            return_local_frame: to give the cones back in coordinates relative to the car 
+            return_indices: to return [global_idx, x, y, color], instead of just [x, y, color]
+                where global_idx is just the cones idx in the original cones array
+        """
         cones_xy = cones[:, 0:2]
         colors = cones[:, 2]
 

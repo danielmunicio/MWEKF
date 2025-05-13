@@ -275,8 +275,6 @@ class MWEKF_Backend():
         4 = SLAM state array of [x y]
         5 = SLAM cones
         """
-        if measurement_type == 4:
-            return
         time = perf_counter()
         dt = time - self.last_u[2]
         self.last_u[2] = perf_counter()

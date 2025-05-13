@@ -230,7 +230,6 @@ class GraphSLAM_MWEKF(Node):
         """
         pos = self.mwekf.state[0:2].flatten()
         dx = pos - self.last_slam_update
-        print("MATCHED CONES: ", matched_cones)
         idxs = self.slam.update_graph(dx, new_cones, matched_cones, first_update=first_update)
 
         self.last_slam_update = pos
@@ -266,10 +265,8 @@ class GraphSLAM_MWEKF(Node):
 
         self.mwekf.add_cones(updated_new_cones)
         self.publish_cone_map(self.slam.get_cones())
-        print("UPDATED CONES: ", self.slam.get_cones())
         x_guess = np.array(self.slam.get_positions()[-1]).reshape(-1, 1)
-        self.mwekf.state[0] = x_guess.flatten()[0]
-        self.mwekf.state[1] = x_guess.flatten()[1]
+        self.mwekf.update(x_guess, measurement_type=4)
         self.publish_pose()
 
     def publish_cone_map(self, lm_guess):   

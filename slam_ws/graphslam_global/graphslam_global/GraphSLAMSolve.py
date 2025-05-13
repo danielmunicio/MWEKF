@@ -57,7 +57,7 @@ class GraphSLAMSolve:
         return (np.array([[np.cos(x[2]), -np.sin(x[2])],
                           [np.sin(x[2]), np.cos(x[2])]])@((z - center).T)).T + center + x[:2]
     
-    def data_association(self, z: np.ndarray, color: np.ndarray) -> np.ndarray:
+    def icp(self, z: np.ndarray, color: np.ndarray) -> np.ndarray:
         """rudimentary data association method that tries to rotate and translate `z` until it optimally lines up with self.lhat
 
         Args:
@@ -123,106 +123,84 @@ class GraphSLAMSolve:
         """
         pass
 
-
-    
-    def update_graph(self, dx: np.ndarray, z: np.ndarray, color: np.ndarray) -> None:
+    def update_graph(self, dx: np.ndarray, new_cones: np.ndarray, matched_cones: np.ndarray, first_update=False) -> None:
         """add edges to the graph corresponding to a movement and new vision data
 
         Args:
             dx (ndarray): difference in position from last update. [dx, dy]
-            z (ndarray): measurements to landmarks. [[zx1, zy1], [zx2, zy2], ..., [zxn, zyn]]
-            color (ndarray): categorical array of which color each of the measurements are. Elements should be dtype=np.uint8, or they'll be cast.
+            new_cones(ndarray): cones not yet in slam map, in local frame to car [x y color]
+            matched_cones(ndarray): cones in slam map, with indices in map, in local frame [map index, x, y, color]
         """
-        color = color.astype(np.uint8)
-        # resize = (self.neqns, self.nvars)
-
 
         # Grow A and b matrix to account for # measurements and # variables >100 = initial_rows = initial_cols or updates beyond that
-        cols = self.nvars + 2 + len(z)*2 > self.maxcols
-        rows = self.neqns + 2 + len(z)*2 > self.maxrows
-        if rows or cols:
-            if cols: 
-                self.maxcols = int(self.maxcols*1.5)
-            if rows: 
-                self.maxrows = int(self.maxrows*1.5)
-                self.b = np.append(self.b, np.zeros(self.maxrows-len(self.b)))
-                # self.b = np.pad(self.b, self.maxrows-len(self.b), constant_values=0.0, mode='constant')
-                
-            
-            self.A.resize((self.maxrows, self.maxcols))
-            
-        # first add two equations and two variables
-        # for the next position and the dx
-
-        self.x.append(self.nvars)
-        self.d.append(self.neqns)
-        self.nvars += 2
-        self.neqns += 2
-
-        #localization update equations for new car position 
-
-        #d[-1], d[-1]+1 are last two rows in A, representing x & y equations for the latest measurement
-        #x[-1], x[-1] +1 are the last two columns in A, representing x& y variables for car at the 
-        # last timestep, but why aren't the variables for car position just the first two in A
-
-        self.A[self.d[-1], self.x[-1]] = 1 * self.dx_weight   
-        self.A[self.d[-1]+1, self.x[-1]+1] = 1 * self.dx_weight
-        self.A[self.d[-1], self.x[-2]] = -1 * self.dx_weight
-        self.A[self.d[-1]+1, self.x[-2]+1] = -1 * self.dx_weight
-
-        #
-
-        self.b[self.d[-1]] = dx[0]*self.dx_weight
-        self.b[self.d[-1]+1] = dx[1]*self.dx_weight
-
-        # now add the guess for this position to xhat
-        self.xhat = np.append(self.xhat, self.xhat[-1:, :] + dx, axis=0)
-
-
-        # now do data association
-        # to find the which landmarks correspond
-        # to which measurements
-
-        # first we try to rotate and translate z
-        # so that it best lines up with the cones
-        # we've already seen
-        #zprime = self.data_association(z+self.xhat[-1, :], color)
-        zprime = z+self.xhat[-1, :]
-        # then we can check which cones are closest and which are within/outside
-        # of the max landmark distance
-        
-        # dists has one row per measurement and one column for each landmark
-        # can probably do this faster if we norm at the same time as broadcasting but can't do that easily
-        for c in np.unique(color):
-            z_c = zprime[color==c]
-            if len(self.lhat[self.color==c])==0:
-                l_idxs=np.zeros(len(z_c), dtype=int)
-                l_dists=np.zeros(len(z_c))+np.Inf
+        if not first_update:
+            if new_cones is not None:
+                len_message = (len(new_cones) + len(matched_cones))
             else:
-                dists = np.linalg.norm(z_c[:, np.newaxis, :] - self.lhat[self.color==c], axis=2)
-                l_idxs = np.argmin(dists, axis=1)
-                l_dists = np.min(dists, axis=1)
-            for i in range(len(z_c)):
-                # if we haven't seen thihs landmark before, add it
-                if l_dists[i] > self.max_landmark_distance:
-                    print("NEW LANDMARK")
-                    self.l.append(self.nvars)
-                    self.nvars += 2
-                    self.lhat = np.append(self.lhat, z[color==c][i][np.newaxis], axis=0)
-                    self.color = np.append(self.color, c)
-                    l_idxs[i] = np.sum(self.color==c)-1 # len(self.l[self.color==c])-1  but self.l is a list so not bool mask indexable
+                len_message = len(matched_cones)
 
-                l = np.array(self.l)[self.color==c]
-                # now we write the equation l-x=z
-                self.z.append(self.neqns)
-                self.neqns += 2
-                self.A[self.z[-1], l[l_idxs[i]]]     = 1 * self.z_weight
-                self.A[self.z[-1]+1, l[l_idxs[i]]+1] = 1* self.z_weight
-                self.A[self.z[-1], self.x[-1]]       = -1 * self.z_weight
-                self.A[self.z[-1]+1, self.x[-1]+1]   = -1 * self.z_weight
-                self.b[self.z[-1]]                   = z[color==c][i, 0]*self.z_weight
-                self.b[self.z[-1]+1]                 = z[color==c][i, 1]*self.z_weight
-    
+            self.check_resize(len_message)
+
+        self.update_position(dx)
+        idxs = self.update_cones(new_cones, matched_cones, first_update)
+        return idxs
+
+    def update_cones(self, new_cones, matched_cones, first_update=False):
+        """
+        Args:
+            new_cones(ndarray): cones not yet in slam map, in local frame to car [x y color]
+            matched_cones(ndarray): cones in slam map, with indices in map, in local frame [map index, x, y, color]
+
+        Returns: indices of new cones in global slam map
+        """
+        # Start by adding new cones into slam map
+        # initialize array of length of new_cones
+
+        if new_cones is None:
+            cones_indices = matched_cones[:, 0]
+            total_cones = matched_cones
+        
+        else:
+            new_cones_indices = np.zeros((len(new_cones), 1), dtype=int)
+            for idx, cone in enumerate(new_cones):
+                self.l.append(self.nvars)
+                self.nvars += 2
+                self.lhat = np.append(self.lhat, cone[0:2][np.newaxis], axis=0)
+                self.color = np.append(self.color, cone[2])
+                l_idx = len(self.lhat) - 1
+                new_cones_indices[idx] = l_idx
+
+            # Now combine them all into one big z message, each having their own index
+            # updated new cones becomes [map index, x, y, color]
+            updated_new_cones = np.hstack([new_cones_indices, new_cones])
+            if first_update:
+                total_cones = updated_new_cones
+                cones_indices = new_cones_indices
+            else: 
+                print("MATCHED CONES: ", matched_cones)
+                print("UPDATED NEW CONES: ",updated_new_cones)
+                total_cones = np.vstack([matched_cones, updated_new_cones])
+                cones_indices = total_cones[:, 0]
+
+        # Now add all the cones to the slam matrix
+        for cone in total_cones:
+            l_idx = int(cone[0])
+            cone_pos = cone[1:3]
+
+            self.z.append(self.neqns)
+            self.neqns += 2
+
+            self.A[self.z[-1],     self.l[l_idx]]     = self.z_weight
+            self.A[self.z[-1] + 1, self.l[l_idx] + 1] = self.z_weight
+            self.A[self.z[-1],     self.x[-1]]        = -self.z_weight
+            self.A[self.z[-1] + 1, self.x[-1] + 1]    = -self.z_weight
+
+            self.b[self.z[-1]]     = cone_pos[0] * self.z_weight
+            self.b[self.z[-1] + 1] = cone_pos[1] * self.z_weight
+
+        return np.array(cones_indices)
+
+
     def solve_graph(self) -> None:
         """solve graph. does not return results.
         """
@@ -260,9 +238,62 @@ class GraphSLAMSolve:
         # self.xhat = np.array([soln[i:i+2] for i in self.x])
         # self.lhat = np.array([soln[i:i+2] for i in self.l])
 
-    def get_cones(self, color: Union[np.uint8, None]) -> np.ndarray:
-        if color is None: return self.lhat
-        return self.lhat[self.color==color]
+    def get_cones(self, color=None, indices=None) -> np.ndarray:
+        mask1 = np.ones(len(self.lhat), dtype=bool)
+        mask2 = np.ones(len(self.lhat), dtype=bool)
+
+        if indices is not None:
+            mask1 = np.zeros(len(self.lhat), dtype=bool)
+            mask1[indices] = True
+        if color is not None:
+            mask2 = self.color == color
+        return self.lhat[mask1 & mask2]
+
     def get_positions(self) -> np.ndarray:
         return self.xhat
 
+    def get_colors(self, indices=None):
+        mask1 = np.ones(len(self.lhat), dtype=bool)
+        if indices is not None:
+            mask1 = np.zeroes(len(self.lhat, dtype=bool))
+            mask1[indices] = True
+
+        return self.color[mask1]
+
+    
+
+    def check_resize(self, len_message):
+        cols = self.nvars + 2 + len_message*2 > self.maxcols
+        rows = self.neqns + 2 + len_message*2 > self.maxrows
+        if rows or cols:
+            if cols: 
+                self.maxcols = int(self.maxcols*1.5)
+            if rows: 
+                self.maxrows = int(self.maxrows*1.5)
+                self.b = np.append(self.b, np.zeros(self.maxrows-len(self.b)))
+
+            self.A.resize((self.maxrows, self.maxcols))
+
+    def update_position(self, dx):
+        # first add two equations and two variables
+        # for the next position and the dx
+        self.x.append(self.nvars)
+        self.d.append(self.neqns)
+        self.nvars += 2
+        self.neqns += 2
+
+        #localization update equations for new car position 
+        #d[-1], d[-1]+1 are last two rows in A, representing x & y equations for the latest measurement
+        #x[-1], x[-1] +1 are the last two columns in A, representing x& y variables for car at the 
+        # last timestep, but why aren't the variables for car position just the first two in A
+
+        self.A[self.d[-1], self.x[-1]] = 1 * self.dx_weight   
+        self.A[self.d[-1]+1, self.x[-1]+1] = 1 * self.dx_weight
+        self.A[self.d[-1], self.x[-2]] = -1 * self.dx_weight
+        self.A[self.d[-1]+1, self.x[-2]+1] = -1 * self.dx_weight
+
+        self.b[self.d[-1]] = dx[0]*self.dx_weight
+        self.b[self.d[-1]+1] = dx[1]*self.dx_weight
+
+        # now add the guess for this position to xhat
+        self.xhat = np.append(self.xhat, self.xhat[-1:, :] + dx, axis=0)

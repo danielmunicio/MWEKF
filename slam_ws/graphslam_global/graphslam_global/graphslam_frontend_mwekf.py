@@ -109,7 +109,7 @@ class GraphSLAM_MWEKF(Node):
             self.load_new_cones_to_slam(new_cones, matched_cones)
         else:
             if len(matched_cones > 0):
-                self.mwekf.update(matched_cones, 0)
+                self.mwekf.update_cones(matched_cones, 0)
 
     def lidar_callback(self, msg: ConesCartesian):
         # NOTE: Thinking of doing LiDAR cannot initialize new cones
@@ -164,12 +164,7 @@ class GraphSLAM_MWEKF(Node):
             else:
                 cone = (message_pos[0], message_pos[1])
                 new_cones.append((message_pos_rotated[0], message_pos_rotated[1], message_color))
-        #if len(new_cones) > 0:
-            #print("NEW CONES AT END OF DATA ASSOCIATION: ", np.array(new_cones)[:, 0:2] + pos[:2])
         if len(new_cones) > 0:
-            print("SENDING ROTATED CONES! ", np.array(matched_cones_rotated))
-            print("Matched_cones in Global Frame: ", np.array(matched_cones))
-            print("NEW CONES: ", new_cones)
             return np.array(matched_cones_rotated), np.array(new_cones)
         return np.array(matched_cones), np.array(new_cones)
 

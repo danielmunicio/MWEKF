@@ -70,11 +70,9 @@ class MWEKF_Backend():
         cones = self.current_cones_message # n x 4 of global index, x, y, color
         cones_to_grab = []
         for idx in self.current_cones_message[:, 0]:
-            idx_in_mwekf = np.where(self.cone_indices == idx)[0][0]
-            cones_to_grab.append(self.cones[idx_in_mwekf, 0:2])
+            cones_to_grab.append(cones[int(idx), 1:3])
         
         cones_to_grab = np.array(cones_to_grab)
-        print("CONES TO GRAB: ", cones_to_grab)
         # translate them into the local frame of the car
         x, y, = state[0:2]
         heading = state[3]
@@ -96,7 +94,7 @@ class MWEKF_Backend():
         
         Inputs:
             - state: (4,) array with [x, y, velocity, heading]
-            - cones: (n, ≥3) array with cone info (only x, y used)
+            - cones: (n, 4) array with cone info (idx, x, y color)
         
         Returns:
             - H: (2n, 4 + 2n) Jacobian matrix
@@ -108,16 +106,12 @@ class MWEKF_Backend():
         # Grab only x, y positions of cones
         cones_organized = cones[:, 1:3]  # shape (n, 2)
         num_cones = cones_organized.shape[0]
-        print("CONES MEASUREMENT: ", cones)
+
         # Augment the state vector
         cone_flat = cones_organized.flatten()  # shape (2n,)
-        print("STATE: ", state.flatten())
-        print("CONES FLAT: ", cone_flat)
         full_state = np.concatenate([state.flatten(), cone_flat])  # shape (4 + 2n,)
-        print("FULL STATE: ", full_state)
-        print("SELF.CONES: ", self.cones)
+
         H = np.zeros((2 * num_cones, 4 + 2 * num_cones))  # Jacobian
-        print("H SHAPE: ", H.shape)
         for i in range(num_cones):
             cone_x = cones_organized[i, 0]
             cone_y = cones_organized[i, 1]
@@ -127,7 +121,7 @@ class MWEKF_Backend():
 
             row = 2 * i
             col_x = 4 + 2 * i
-            col_y = 4 + 2 * i + 1
+            col_y = 5 + 2 * i
 
             # ∂h/∂x
             H[row, 0] = -cos_theta
@@ -138,8 +132,8 @@ class MWEKF_Backend():
             H[row + 1, 1] = -cos_theta
 
             # ∂h/∂theta
-            H[row, 3] = -sin_theta * dx + cos_theta * dy
-            H[row + 1, 3] = -cos_theta * dx - sin_theta * dy
+            H[row, 3] = (-sin_theta * dx) + (cos_theta * dy)
+            H[row + 1, 3] = (-cos_theta * dx) - (sin_theta * dy)
 
             # ∂h/∂cone_x
             H[row, col_x] = cos_theta
@@ -148,6 +142,7 @@ class MWEKF_Backend():
             # ∂h/∂cone_y
             H[row, col_y] = sin_theta
             H[row + 1, col_y] = cos_theta
+
         return H
 
 
@@ -242,17 +237,28 @@ class MWEKF_Backend():
 
         return A
     
-    def compute_A_fd(self, x, u, dt, eps=1e-5):
-        n = len(x)
-        A = np.zeros((n, n))
-        fx = self.g(x, u, dt)
-        for i in range(n):
-            dx = np.zeros((n, 1))
-            dx[i] = eps
-            fx_plus = self.g((x + dx), u, dt)
-            fx_minus = self.g((x - dx), u, dt)
-            A[:, i] = ((fx_plus - fx_minus) / (2 * eps)).flatten()
-
+    def approximate_A_2(self, state, u):
+        x, y, v, theta = state
+        a, delta = u  # acceleration and steering angle
+        
+        A = np.zeros((4, 4))
+        
+        # ∂(dot_x)/∂theta = -v * sin(theta)
+        A[0, 2] = -v * np.sin(theta)  
+        # ∂(dot_x)/∂v = cos(theta)
+        A[0, 3] = np.cos(theta)  
+        
+        # ∂(dot_y)/∂theta = v * cos(theta)
+        A[1, 2] = v * np.cos(theta)  
+        # ∂(dot_y)/∂v = sin(theta)
+        A[1, 3] = np.sin(theta)  
+        
+        # ∂(dot_theta)/∂v = tan(delta) / (l_f + l_r)
+        A[2, 3] = np.tan(delta) / (self.l_f + self.l_r)  
+        
+        # ∂(dot_v)/∂v = 0 (since dot_v = a, no state dependence)
+        A[3, 3] = 0  
+    
         return A
 
     def update(self, measurement, measurement_type):
@@ -266,9 +272,6 @@ class MWEKF_Backend():
         4 = SLAM state array of [x y]
         5 = SLAM cones
         """
-        if (measurement_type == 0) or (measurement_type == 1):
-            self.update_cones(measurement, measurement_type)
-            return
         if measurement_type == 4:
             return
         time = perf_counter()
@@ -290,7 +293,12 @@ class MWEKF_Backend():
         self.state = x_new
 
     def update_cones(self, measurement, measurement_type):
-        return
+        """
+        Updates EKF with cones measurements
+        0 = cones_camera
+        1 = cones_lidar
+        2 = SLAM cones
+        """
         print("CONES MEASUREMENT: ", measurement.shape)
         print("CURRENT CONES: ", self.cones.shape)
         self.num_cones_in_measurement = len(measurement[:, 0])
@@ -299,23 +307,22 @@ class MWEKF_Backend():
         dt = time - self.last_u[2]
         self.last_u[2] = perf_counter()
         x_next = self.g(self.state, self.last_u[0:2], dt)
-        A = self.approximate_A(self.state, u=self.last_u[0:2])
+        A = self.approximate_A_2(self.state, u=self.last_u[0:2])
         
         # Create the zero matrix for cones' movement
         A_cones = np.zeros((2 * self.num_cones_in_measurement, 2 * self.num_cones_in_measurement))
-        
-        # Extend A to account for cone states (zeros for cone states, A for vehicle states)
-        A_part_1 = np.hstack([A, np.zeros((4, 2 * self.num_cones_in_measurement))])
-        A_part_2 = np.hstack([np.zeros((2 * self.num_cones_in_measurement, 4)), A_cones])
-        
-        # Combine both parts into the final A matrix
-        A_extended = np.vstack([A_part_1, A_part_2])
+
+        A_extended = np.block([
+            [A, np.zeros((4, 2 * self.num_cones_in_measurement))],
+            [np.zeros((2 * self.num_cones_in_measurement, 4)), A_cones]
+        ])       
 
         print("NUM CONES: ", self.num_cones_in_measurement)
         print("A SHAPE: ", A_extended.shape)
         # NOTE: A is 4x4, because the original state is only x y v heading
         # Add cones approximation (Cones in global frame so they wont move at all)
         Q = self.get_Q_cones()
+        print("A: ", A)
         print("Q SHAPE: ", Q.shape)
         print("P SHAPE: ", self.P_cones.shape)
         P = A_extended @ self.P_cones @ A_extended.T + Q
@@ -323,15 +330,25 @@ class MWEKF_Backend():
         C = self.approximate_measurement(x_next, measurement, measurement_type)
         # Get R based on whichever measurement we're using
         R = self.choose_R(measurement_type)
-        print("P: ", P.shape)
-        print("C: ", C.shape)
+        print("P: ", P)
+        print("C: ", C)
+        print("R: ", R)
+        print("BEFORE INVERTING: ", C @ P @ C.T + R)
+        print("AFTER INVERTING: ", np.linalg.inv(C @ P @ C.T + R))
         K = P @ C.T @ np.linalg.inv(C @ P @ C.T + R)
         h = self.choose_h(measurement_type)
         print("MEASUREMENT SHAPE: ", measurement[:, 0:2].reshape(-1, 1).shape)
         print("OTHER SHAPE: ", h(x_next).reshape(-1, 1).shape)
-        print("K SHAPE: ", K.shape)
-        x_adding =  K @ (measurement[:, 0:2].reshape(-1, 1) - h(x_next).reshape(-1, 1))
-        print("X ADDING: ", x_adding.shape)
+        print("K SHAPE: ", K)
+
+        print("MEASUREMENT: ", measurement[:, 1:3].reshape(-1, 1))
+        print("PREDICTED MEASUREMENT: ", h(x_next).reshape(-1, 1))
+
+        x_diff = measurement[:, 1:3].reshape(-1, 1) - h(x_next).reshape(-1, 1)
+        print("X DIFF: ", x_diff)
+
+        x_adding =  K @ (measurement[:, 1:3].reshape(-1, 1) - h(x_next).reshape(-1, 1))
+        print("X ADDING: ", x_adding)
         x_new = x_adding[0:4, :] + x_next
         # Add the x and y to cones, have to do some funny stuff
         # self.cones[:, 1:3] gives all the cones in x y pairs, while x_adding is x y x y x y as one long array
@@ -340,7 +357,10 @@ class MWEKF_Backend():
         print("SELF.CONES SHAPE: ", self.cones.shape)
         cones_new = self.cones[:, 1:3] + cone_corrections
 
-        self.P = (np.eye(self.n) - K @ C) @ P
+        print("K SHAPE: ", K.shape)
+        print("C SHAPE: ", C.shape)
+        #self.P = (np.eye(self.n) - K @ C) @ P
+        print("X NEW: ", x_new)
         self.state = x_new
         self.cones[:, 1:3] = cones_new
 
@@ -351,7 +371,7 @@ class MWEKF_Backend():
 
     def choose_R(self, measurement_type):
         if measurement_type == 0:
-            return np.eye(2 * self.num_cones_in_measurement) 
+            return np.eye(2 * self.num_cones_in_measurement)
         if measurement_type == 1:
             return np.eye(2 * self.num_cones_in_measurement)
         if measurement_type == 2:
@@ -378,12 +398,10 @@ class MWEKF_Backend():
         Add cones to MWEKF window
         Cones: list of elements (x, y, color)
         """
-        print("ADDING CONES")
         if self.cones is None:
             self.cones = cones
             return
         self.cones = np.vstack([self.cones, cones])
-
 
     def get_cones(self):
         """

@@ -68,11 +68,14 @@ class MWEKF_Backend():
         Returns: 2n x 1 array of cones
         """
         cones = self.current_cones_message # n x 4 of global index, x, y, color
+        print("CONES: ", self.cones)
+        print("CURR CONES MESSAGE: ", self.current_cones_message)
         cones_to_grab = []
         for idx in self.current_cones_message[:, 0]:
-            cones_to_grab.append(cones[int(idx), 1:3])
+            cones_to_grab.append(self.cones[int(idx), 0:2])
         
         cones_to_grab = np.array(cones_to_grab)
+        print("GRABBED CONES: ", cones_to_grab)
         # translate them into the local frame of the car
         x, y, = state[0:2]
         heading = state[3]
@@ -307,9 +310,10 @@ class MWEKF_Backend():
         dt = time - self.last_u[2]
         self.last_u[2] = perf_counter()
         x_next = self.g(self.state, self.last_u[0:2], dt)
+
+        # Create A as MPC linearization, along with 0's to represent lack of cones movement in global map
         A = self.approximate_A_2(self.state, u=self.last_u[0:2])
         
-        # Create the zero matrix for cones' movement
         A_cones = np.zeros((2 * self.num_cones_in_measurement, 2 * self.num_cones_in_measurement))
 
         A_extended = np.block([
@@ -317,52 +321,33 @@ class MWEKF_Backend():
             [np.zeros((2 * self.num_cones_in_measurement, 4)), A_cones]
         ])       
 
-        print("NUM CONES: ", self.num_cones_in_measurement)
-        print("A SHAPE: ", A_extended.shape)
-        # NOTE: A is 4x4, because the original state is only x y v heading
-        # Add cones approximation (Cones in global frame so they wont move at all)
         Q = self.get_Q_cones()
-        print("A: ", A)
-        print("Q SHAPE: ", Q.shape)
-        print("P SHAPE: ", self.P_cones.shape)
         P = A_extended @ self.P_cones @ A_extended.T + Q
-        # Take jacobian of whichever measurement we're using
+
         C = self.approximate_measurement(x_next, measurement, measurement_type)
-        # Get R based on whichever measurement we're using
         R = self.choose_R(measurement_type)
-        print("P: ", P)
-        print("C: ", C)
         print("R: ", R)
-        print("BEFORE INVERTING: ", C @ P @ C.T + R)
-        print("AFTER INVERTING: ", np.linalg.inv(C @ P @ C.T + R))
         K = P @ C.T @ np.linalg.inv(C @ P @ C.T + R)
+
         h = self.choose_h(measurement_type)
-        print("MEASUREMENT SHAPE: ", measurement[:, 0:2].reshape(-1, 1).shape)
-        print("OTHER SHAPE: ", h(x_next).reshape(-1, 1).shape)
-        print("K SHAPE: ", K)
-
-        print("MEASUREMENT: ", measurement[:, 1:3].reshape(-1, 1))
-        print("PREDICTED MEASUREMENT: ", h(x_next).reshape(-1, 1))
-
         x_diff = measurement[:, 1:3].reshape(-1, 1) - h(x_next).reshape(-1, 1)
         print("X DIFF: ", x_diff)
-
+        print("K SHAPE: ", K.shape)
         x_adding =  K @ (measurement[:, 1:3].reshape(-1, 1) - h(x_next).reshape(-1, 1))
-        print("X ADDING: ", x_adding)
+        print("GAINS: ", x_adding)
         x_new = x_adding[0:4, :] + x_next
+
         # Add the x and y to cones, have to do some funny stuff
         # self.cones[:, 1:3] gives all the cones in x y pairs, while x_adding is x y x y x y as one long array
-        print("SHAPE: ", x_adding[4:].shape)
         cone_corrections = x_adding[4:].reshape(-1, 2)
-        print("SELF.CONES SHAPE: ", self.cones.shape)
-        cones_new = self.cones[:, 1:3] + cone_corrections
-
-        print("K SHAPE: ", K.shape)
-        print("C SHAPE: ", C.shape)
+        print("CONE CORRECTRIONS: ", cone_corrections)
+        print("SELF.CONES: ", self.cones[:, 0:2])
+        # NOTE: IDK IF THIS WILL ACTUALLY KEEP THE ORDER THOUGH 
+        cones_new = self.get_cones(indices=measurement[:, 0].astype(int))[:, 0:2] + cone_corrections
+        print("CONES NEW: ", cones_new)
         #self.P = (np.eye(self.n) - K @ C) @ P
-        print("X NEW: ", x_new)
         self.state = x_new
-        self.cones[:, 1:3] = cones_new
+        self.cones[measurement[:, 0].astype(int), 0:2] = cones_new
 
 
     def get_Q_cones(self):
@@ -403,9 +388,12 @@ class MWEKF_Backend():
             return
         self.cones = np.vstack([self.cones, cones])
 
-    def get_cones(self):
+    def get_cones(self, indices=None):
         """
         Returns the cones to add to SLAM Graph
         n x 3 array of n cones, x, y, color
         """
-        return self.cones
+        if indices is None:
+            return self.cones
+        else:
+            return self.cones[indices]

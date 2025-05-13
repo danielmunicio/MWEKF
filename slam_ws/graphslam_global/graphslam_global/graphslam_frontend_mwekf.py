@@ -50,7 +50,7 @@ class GraphSLAM_MWEKF(Node):
             self.realsense_d435i_sub = self.create_subscription(ConesCartesian, '/realsense/d435i/cones', self.d435i_cones_callback, 1)
             self.realsense_d435_sub = self.create_subscription(ConesCartesian, '/realsense/d435/cones', self.d435_cones_callback, 1)
 
-        self.timer = self.create_timer(0.01, self.publish_pose)
+        #self.timer = self.create_timer(0.1, self.publish_pose)
         self.imu_sub = self.create_subscription(Imu, '/imu', self.imu_callback, 1)
         self.cones_lidar_sub = self.create_subscription(ConesCartesian, '/lidar/cones', self.lidar_callback, 1)
         self.mpc_sub = self.create_subscription(AckermannDriveStamped, '/cmd', self.mpc_callback, 1)
@@ -109,7 +109,11 @@ class GraphSLAM_MWEKF(Node):
             self.load_new_cones_to_slam(new_cones, matched_cones)
         else:
             if len(matched_cones > 0):
-                self.mwekf.update_cones(matched_cones, 0)
+                # Sort matched cones by index 
+                cones_sorted = matched_cones[np.argsort(matched_cones[:, 0])]
+                self.mwekf.update_cones(cones_sorted, 0)
+
+        self.publish_pose()
 
     def lidar_callback(self, msg: ConesCartesian):
         # NOTE: Thinking of doing LiDAR cannot initialize new cones
@@ -145,6 +149,8 @@ class GraphSLAM_MWEKF(Node):
         matched_cones = []
         new_cones = []
         matched_cones_rotated = []
+        matched_cones_local = []
+
         for i in range(cones_message_global.shape[0]):
             message_pos = cones_message_global[i]
             message_pos_local = cones_message_local[i]
@@ -161,12 +167,14 @@ class GraphSLAM_MWEKF(Node):
                 # Recover the true index in the global map
                 matched_cones.append((map_index, message_pos[0], message_pos[1], message_color))
                 matched_cones_rotated.append((map_index, message_pos_rotated[0], message_pos_rotated[1], message_color))
+                matched_cones_local.append((map_index, message_pos_local[0], message_pos_local[1], message_color))
             else:
                 cone = (message_pos[0], message_pos[1])
                 new_cones.append((message_pos_rotated[0], message_pos_rotated[1], message_color))
+
         if len(new_cones) > 0:
             return np.array(matched_cones_rotated), np.array(new_cones)
-        return np.array(matched_cones), np.array(new_cones)
+        return np.array(matched_cones_local), np.array(new_cones)
 
     def load_mwekf_to_slam(self):
         """

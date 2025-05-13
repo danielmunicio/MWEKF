@@ -166,6 +166,9 @@ class MWEKF_Backend():
     def h_SLAM(self, state):
         return state[0:2]
 
+    def h_SLAMCones(self, state):
+        return self.cones[:, 0:2]
+
     def jac_wheelspeeds(self, state):
         """
         Just taking in velocity, so h is just [0 0 1 0 0 0 ....]
@@ -180,6 +183,19 @@ class MWEKF_Backend():
         jac[1, 1] = 2
         return jac
 
+    def jac_SLAMCones(self, state, measurement):
+        """
+        SLAM Cones gives the full cone map, which SHOULD be the same as the MWEKF map
+        So we just take the cones from the state. Easy peasy
+        """
+        # Sanity check that both are the FULL map
+        assert len(measurement) == len(self.cones)
+
+        jac_pose = np.zeros((2 * len(measurement), 4))
+        jac_cones = np.eye(len(measurement) * 2)
+        jac = np.hstack([jac_pose, jac_cones])
+        return jac
+
     def approximate_measurement(self, state, measurement, measurement_type):
         if measurement_type == 0 or measurement_type == 1:
             jac = self.jac_cones(state, measurement)
@@ -189,6 +205,8 @@ class MWEKF_Backend():
             jac = self.jac_wheelspeeds(state)
         elif measurement_type == 4:
             jac = self.jac_SLAM(state)
+        elif measurement_type == 5:
+            jac = self.jac_SLAMCones(state, measurement)
         else:
             jac = None
         return jac
@@ -298,7 +316,7 @@ class MWEKF_Backend():
         Updates EKF with cones measurements
         0 = cones_camera
         1 = cones_lidar
-        2 = SLAM cones
+        5 = SLAM cones
         """
         self.num_cones_in_measurement = len(measurement[:, 0])
         self.current_cones_message = measurement
@@ -352,6 +370,8 @@ class MWEKF_Backend():
             return self.R_wheelspeeds
         if measurement_type == 4:
             return self.R_SLAM
+        if measurement_type == 5:
+            return np.eye(2 * len(self.cones))
 
     def choose_h(self, measurement_type):
         if measurement_type == 0:
@@ -364,6 +384,8 @@ class MWEKF_Backend():
             return self.h_wheelspeeds
         if measurement_type == 4:
             return self.h_SLAM
+        if measurement_type == 5:
+            return self.h_SLAMCones
 
     def add_cones(self, cones):
         """

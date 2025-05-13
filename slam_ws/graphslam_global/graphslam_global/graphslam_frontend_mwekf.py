@@ -50,7 +50,7 @@ class GraphSLAM_MWEKF(Node):
             self.realsense_d435i_sub = self.create_subscription(ConesCartesian, '/realsense/d435i/cones', self.d435i_cones_callback, 1)
             self.realsense_d435_sub = self.create_subscription(ConesCartesian, '/realsense/d435/cones', self.d435_cones_callback, 1)
 
-        self.timer = self.create_timer(0.1, self.publish_pose)
+        self.timer = self.create_timer(0.1, self.load_mwekf_to_slam)
         self.imu_sub = self.create_subscription(Imu, '/imu', self.imu_callback, 1)
         self.cones_lidar_sub = self.create_subscription(ConesCartesian, '/lidar/cones', self.lidar_callback, 1)
         self.mpc_sub = self.create_subscription(AckermannDriveStamped, '/cmd', self.mpc_callback, 1)
@@ -193,19 +193,12 @@ class GraphSLAM_MWEKF(Node):
         # also adds their indices from the global map
         local_cones = self.local_cones(cones, return_local_frame=True, return_indices=True)
 
-        # not using local cones function in case its buggy, this should just turn a n x 3 of [global_x, global_y, color]
-        # into n x 4 of [idx, global_x - car_x, global_y - car_y, color]
-        # Which should be exactly what graphslamsolve takes
-
-        #local_cones = np.hstack((np.arange(len(cones))[:, None], cones - [pos[0], pos[1], 0]))
         #idxs = local_cones[:, 0].astype(int)
-
 
         self.slam.update_graph(dx, new_cones=None, matched_cones=local_cones)
 
         self.last_slam_update = pos
         self.slam.solve_graph()
-
 
         #NOTE: SHOUDL USE THIS ONE, BUT NEED WHOLE MAP
         #lm_guess = np.hstack((np.array(self.slam.get_cones(indices = idxs)), local_cones[:, 2].reshape(-1, 1)))
@@ -213,9 +206,11 @@ class GraphSLAM_MWEKF(Node):
 
         x_guess = np.array(self.slam.get_positions()[-1]).reshape(-1, 1)
 
-        self.mwekf.update(x_guess, measurement=4)
-        self.mwekf.cones = lm_guess
+        # Add the index of each cone in lm_guess to the message, before sending to MWEKF
+        cones_mwekf_message = np.hstack((np.arange(lm_guess.shape[0])[:, None], lm_guess))
 
+        self.mwekf.update(x_guess, measurement_type=4)
+        self.mwekf.update_cones(cones_mwekf_message, 5)
 
         self.publish_cone_map(lm_guess)
         self.publish_pose()
@@ -261,11 +256,13 @@ class GraphSLAM_MWEKF(Node):
             # the num cones in slam map, minus the num cones we have in the mwekf, should just be the cones we just added
             assert slam_map_len - mwekf_cones_len == cones_len
 
-        self.mwekf.add_cones(updated_new_cones)
-        self.publish_cone_map(self.slam.get_cones())
         x_guess = np.array(self.slam.get_positions()[-1]).reshape(-1, 1)
+
+        self.mwekf.add_cones(updated_new_cones)
         self.mwekf.update(x_guess, measurement_type=4)
+
         self.publish_pose()
+        self.publish_cone_map(self.slam.get_cones())
 
     def publish_cone_map(self, lm_guess):   
         cones_msg = PointCloud()

@@ -213,9 +213,7 @@ class GraphSLAM_MWEKF(Node):
 
         x_guess = np.array(self.slam.get_positions()[-1]).reshape(-1, 1)
 
-        # Coping by just forcing MWEKF states instead of sending the measurements
-        self.mwekf.state[0] = x_guess.flatten()[0]
-        self.mwekf.state[1] = x_guess.flatten()[1]
+        self.mwekf.update(x_guess, measurement=4)
         self.mwekf.cones = lm_guess
 
 

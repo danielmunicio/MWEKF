@@ -191,13 +191,13 @@ class GraphSLAM_MWEKF(Node):
 
         # local cones turns cones into the local frame of the car
         # also adds their indices from the global map
-        #local_cones = self.local_cones(cones, return_local_frame=True, return_indices=True)
+        local_cones = self.local_cones(cones, return_local_frame=True, return_indices=True)
 
         # not using local cones function in case its buggy, this should just turn a n x 3 of [global_x, global_y, color]
         # into n x 4 of [idx, global_x - car_x, global_y - car_y, color]
         # Which should be exactly what graphslamsolve takes
 
-        local_cones = np.hstack((np.arange(len(cones))[:, None], cones - [pos[0], pos[1], 0]))
+        #local_cones = np.hstack((np.arange(len(cones))[:, None], cones - [pos[0], pos[1], 0]))
         #idxs = local_cones[:, 0].astype(int)
 
 

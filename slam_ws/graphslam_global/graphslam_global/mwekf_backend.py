@@ -302,8 +302,6 @@ class MWEKF_Backend():
         1 = cones_lidar
         2 = SLAM cones
         """
-        print("CONES MEASUREMENT: ", measurement.shape)
-        print("CURRENT CONES: ", self.cones.shape)
         self.num_cones_in_measurement = len(measurement[:, 0])
         self.current_cones_message = measurement
         time = perf_counter()
@@ -326,25 +324,16 @@ class MWEKF_Backend():
 
         C = self.approximate_measurement(x_next, measurement, measurement_type)
         R = self.choose_R(measurement_type)
-        print("R: ", R)
         K = P @ C.T @ np.linalg.inv(C @ P @ C.T + R)
 
         h = self.choose_h(measurement_type)
         x_diff = measurement[:, 1:3].reshape(-1, 1) - h(x_next).reshape(-1, 1)
-        print("X DIFF: ", x_diff)
-        print("K SHAPE: ", K.shape)
         x_adding =  K @ (measurement[:, 1:3].reshape(-1, 1) - h(x_next).reshape(-1, 1))
-        print("GAINS: ", x_adding)
         x_new = x_adding[0:4, :] + x_next
 
-        # Add the x and y to cones, have to do some funny stuff
-        # self.cones[:, 1:3] gives all the cones in x y pairs, while x_adding is x y x y x y as one long array
         cone_corrections = x_adding[4:].reshape(-1, 2)
-        print("CONE CORRECTRIONS: ", cone_corrections)
-        print("SELF.CONES: ", self.cones[:, 0:2])
-        # NOTE: IDK IF THIS WILL ACTUALLY KEEP THE ORDER THOUGH 
+
         cones_new = self.get_cones(indices=measurement[:, 0].astype(int))[:, 0:2] + cone_corrections
-        print("CONES NEW: ", cones_new)
         #self.P = (np.eye(self.n) - K @ C) @ P
         self.state = x_new
         self.cones[measurement[:, 0].astype(int), 0:2] = cones_new

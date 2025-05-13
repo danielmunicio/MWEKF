@@ -50,7 +50,7 @@ class GraphSLAM_MWEKF(Node):
             self.realsense_d435i_sub = self.create_subscription(ConesCartesian, '/realsense/d435i/cones', self.d435i_cones_callback, 1)
             self.realsense_d435_sub = self.create_subscription(ConesCartesian, '/realsense/d435/cones', self.d435_cones_callback, 1)
 
-        #self.timer = self.create_timer(0.1, self.publish_pose)
+        self.timer = self.create_timer(0.1, self.publish_pose)
         self.imu_sub = self.create_subscription(Imu, '/imu', self.imu_callback, 1)
         self.cones_lidar_sub = self.create_subscription(ConesCartesian, '/lidar/cones', self.lidar_callback, 1)
         self.mpc_sub = self.create_subscription(AckermannDriveStamped, '/cmd', self.mpc_callback, 1)
@@ -147,7 +147,7 @@ class GraphSLAM_MWEKF(Node):
         slam_map = np.array(self.slam.get_cones())
         map_colors = np.array(self.slam.get_colors())
         matched_cones = []
-        new_cones = []
+        new_cones_rotated = []
         matched_cones_rotated = []
         matched_cones_local = []
 
@@ -170,11 +170,11 @@ class GraphSLAM_MWEKF(Node):
                 matched_cones_local.append((map_index, message_pos_local[0], message_pos_local[1], message_color))
             else:
                 cone = (message_pos[0], message_pos[1])
-                new_cones.append((message_pos_rotated[0], message_pos_rotated[1], message_color))
+                new_cones_rotated.append((message_pos_rotated[0], message_pos_rotated[1], message_color))
 
-        if len(new_cones) > 0:
-            return np.array(matched_cones_rotated), np.array(new_cones)
-        return np.array(matched_cones_local), np.array(new_cones)
+        if len(new_cones_rotated) > 0:
+            return np.array(matched_cones_rotated), np.array(new_cones_rotated)
+        return np.array(matched_cones_local), np.array(new_cones_rotated)
 
     def load_mwekf_to_slam(self):
         """

@@ -42,7 +42,7 @@ class GraphSLAM_MWEKF(Node):
                 if (settings.using_ground_truth_wheelspeeds):
                     self.wheelspeeds_sub = self.create_subscription(WheelSpeedsStamped, '/ground_truth/wheel_speeds', self.wheelspeed_sub_sim, 1)
                 else: 
-                    self.wheelspeeds_sub = self.create_subscription(WheelSpeedsStamped, '/ros_can/wheel_speeds', 1)
+                    self.wheelspeeds_sub = self.create_subscription(WheelSpeedsStamped, '/ros_can/wheel_speeds', self.wheelspeed_sub_sim, 1)
             #self.state_subby = self.create_subscription(CarState, '/ground_truth/state', self.state_sub, 1,)
             self.camera_sub = self.create_subscription(ConesCartesian, '/camera/cones', self.camera_callback, 1)
         else: 
@@ -50,7 +50,7 @@ class GraphSLAM_MWEKF(Node):
             self.realsense_d435i_sub = self.create_subscription(ConesCartesian, '/realsense/d435i/cones', self.d435i_cones_callback, 1)
             self.realsense_d435_sub = self.create_subscription(ConesCartesian, '/realsense/d435/cones', self.d435_cones_callback, 1)
 
-        self.timer = self.create_timer(0.1, self.load_mwekf_to_slam)
+        self.timer = self.create_timer(0.25, self.load_mwekf_to_slam)
         self.imu_sub = self.create_subscription(Imu, '/imu', self.imu_callback, 1)
         self.cones_lidar_sub = self.create_subscription(ConesCartesian, '/lidar/cones', self.lidar_callback, 1)
         self.mpc_sub = self.create_subscription(AckermannDriveStamped, '/cmd', self.mpc_callback, 1)
@@ -119,13 +119,9 @@ class GraphSLAM_MWEKF(Node):
         # NOTE: Thinking of doing LiDAR cannot initialize new cones
         if self.slam.get_cones() is None or self.first_solve is True:
             return
-        print("-----------------------")
-        print("RUNNING LIDAR CALLBACK")
-        print("------------------------")
         matched_cones, new_cones = self.data_association(msg, color=False)
         if len(matched_cones > 0):
             assert len(new_cones) == 0
-            print("MATCHED CONES: ", matched_cones)
             cones_sorted = matched_cones[np.argsort(matched_cones[:, 0])]
             self.mwekf.update_cones(cones_sorted, 1)
 
@@ -178,10 +174,14 @@ class GraphSLAM_MWEKF(Node):
                 matched_cones_rotated.append((map_index, message_pos_rotated[0], message_pos_rotated[1], message_color))
                 matched_cones_local.append((map_index, message_pos_local[0], message_pos_local[1], message_color))
             else:
+                print("NEW CONE HERE: ", cones_message_local[i])
                 cone = (message_pos[0], message_pos[1])
                 new_cones_rotated.append((message_pos_rotated[0], message_pos_rotated[1], message_color))
 
         if len(new_cones_rotated) > 0:
+            print("NEW CONES: ", new_cones_rotated)
+            print("CONES FROM MAP: ", self.slam.get_cones())
+            print("POSE: ", self.mwekf.state, self.mwekf.state.flatten())
             if color is True:
                 return np.array(matched_cones_rotated), np.array(new_cones_rotated)
             else:

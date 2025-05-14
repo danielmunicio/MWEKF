@@ -98,7 +98,7 @@ class GraphSLAMSettings(metaclass=Settings):
     using_simulator: bool = True
     # Whether or not to use ground truth (perfectly accurate) measurements or not 
     using_ground_truth_cones: bool = True
-    using_ground_truth_wheelspeeds: bool = True # Whether or not to use the perfect wheel speeds
+    using_ground_truth_wheelspeeds: bool = False # Whether or not to use the perfect wheel speeds
     bypass_SLAM: bool= False # Bypasses SLAM Entirely, publishes ground truth position
     instant_global_map: bool = False # Whether or not to instantly publish the global map
     # Hardware Based Settings
@@ -108,13 +108,13 @@ class GraphSLAMSettings(metaclass=Settings):
     using_mwekf: bool = True
 
 class MWEKFSettings(metaclass=Settings):
-    max_landmark_distance_camera: float = 0.5
-    max_landmark_distance_lidar: float = 0.3
+    max_landmark_distance_camera: float = 1.4
+    max_landmark_distance_lidar: float = 1.1
     pass
 
 class SimulatorPerceptionSettings(metaclass=Settings):
-    camera_noise_std: float = 0.0
-    lidar_noise_std: float = 0.0
+    camera_noise_std: float = 0.25
+    lidar_noise_std: float = 0.15
 
     # Delay for Camera and LiDAR BETWEEN measurement and send
     camera_delay_mean: float = 0.01
@@ -124,8 +124,8 @@ class SimulatorPerceptionSettings(metaclass=Settings):
     lidar_delay_std: float = 1e-5
 
     # Publishing Rate for Sensor 
-    camera_hz: int = 15
-    lidar_hz: int = 5
+    camera_hz: int = 25
+    lidar_hz: int = 10
 
 class CANSettings(metaclass=Settings):
     interface: str = 'socketcan'

@@ -28,15 +28,15 @@ class MWEKF_Backend():
         self.num_cones = 0
         self.n = 4 # num state
 
-        self.Q = np.eye(self.n)
+        self.Q = np.eye(self.n) * 0.3
         self.P = np.eye(self.n)
         self.C = None
         self.P_cones = None
-        self.R_lidar = np.eye(1)
-        self.R_camera = np.eye(1)
-        self.R_imu = np.eye(1)
-        self.R_wheelspeeds = np.eye(1)
-        self.R_SLAM = np.eye(2)
+        self.R_lidar = np.eye(1) * 1.6
+        self.R_camera = np.eye(1) * 1.8
+        self.R_imu = np.eye(1) * 2
+        self.R_wheelspeeds = np.eye(1) * 0.5
+        self.R_SLAM = np.eye(2) * 0.25
 
         self.l_f = mpc_settings.L_F
         self.l_r = mpc_settings.L_R
@@ -359,9 +359,9 @@ class MWEKF_Backend():
 
     def choose_R(self, measurement_type):
         if measurement_type == 0:
-            return np.eye(2 * self.num_cones_in_measurement)
+            return np.eye(2 * self.num_cones_in_measurement)* 0.3
         if measurement_type == 1:
-            return np.eye(2 * self.num_cones_in_measurement)
+            return np.eye(2 * self.num_cones_in_measurement) * 0.3
         if measurement_type == 2:
             return self.R_imu
         if measurement_type == 3:
@@ -369,7 +369,7 @@ class MWEKF_Backend():
         if measurement_type == 4:
             return self.R_SLAM
         if measurement_type == 5:
-            return np.eye(2 * len(self.cones))
+            return np.eye(2 * len(self.cones)) * 0.01
 
     def choose_h(self, measurement_type):
         if measurement_type == 0:

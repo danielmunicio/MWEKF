@@ -3,7 +3,7 @@ import scipy as sp
 from typing import Union
 
 class GraphSLAMSolve:
-    def __init__(self, x0: np.ndarray = np.array([0., 0.]), initial_rows: int = 100, initial_cols: int = 100, max_landmark_distance: float = 1, dx_weight: float = 2.0, z_weight: float = 1.0, dclip: float = 2.0, expansion_ratio: float = 1.7, local_radius: float = 1e5):
+    def __init__(self, x0: np.ndarray = np.array([0., 0.]), initial_rows: int = 100, initial_cols: int = 100, dx_weight: float = 2.0, z_weight: float = 1.0, dclip: float = 2.0, expansion_ratio: float = 1.7, local_radius: float = 1e5):
         """initialize GraphSLAMFast object
 
         Args:
@@ -17,7 +17,6 @@ class GraphSLAMSolve:
             expansion_ratio (float, optional): amount by which to grow matrices when we run out of space. Defaults to 1.7.
             local radius (float, optional): radius to include cones in local map. Defaults to 1e5
         """
-        self.max_landmark_distance = max_landmark_distance
         self.maxrows=initial_rows
         self.maxcols=initial_cols
         self.dx_weight = dx_weight # how much to weigh localization

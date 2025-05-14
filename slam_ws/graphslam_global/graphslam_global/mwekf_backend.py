@@ -69,13 +69,11 @@ class MWEKF_Backend():
         """
         cones = self.current_cones_message # n x 4 of global index, x, y, color
         print("CONES: ", self.cones)
-        print("CURR CONES MESSAGE: ", self.current_cones_message)
         cones_to_grab = []
         for idx in self.current_cones_message[:, 0]:
             cones_to_grab.append(self.cones[int(idx), 0:2])
         
         cones_to_grab = np.array(cones_to_grab)
-        print("GRABBED CONES: ", cones_to_grab)
         # translate them into the local frame of the car
         x, y, = state[0:2]
         heading = state[3]

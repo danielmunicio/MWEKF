@@ -81,8 +81,7 @@ class GraphSLAMSolverSettings(metaclass=Settings):
     initial_rows: int = int(1e4)
     initial_cols: int = int(1e4)
     local_radius: int = int(10)
-    
-    max_landmark_distance: float = 0.7
+
     dx_weight: float = 1e-4
     z_weight: float = 5.0
 
@@ -109,11 +108,13 @@ class GraphSLAMSettings(metaclass=Settings):
     using_mwekf: bool = True
 
 class MWEKFSettings(metaclass=Settings):
+    max_landmark_distance_camera: float = 0.5
+    max_landmark_distance_lidar: float = 0.3
     pass
 
 class SimulatorPerceptionSettings(metaclass=Settings):
     camera_noise_std: float = 0.0
-    lidar_noise_std: float = 0.2
+    lidar_noise_std: float = 0.0
 
     # Delay for Camera and LiDAR BETWEEN measurement and send
     camera_delay_mean: float = 0.01

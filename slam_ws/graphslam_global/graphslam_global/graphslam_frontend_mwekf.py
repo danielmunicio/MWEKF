@@ -117,12 +117,18 @@ class GraphSLAM_MWEKF(Node):
 
     def lidar_callback(self, msg: ConesCartesian):
         # NOTE: Thinking of doing LiDAR cannot initialize new cones
-        return
-        if self.slam.get_cones() is None:
+        if self.slam.get_cones() is None or self.first_solve is True:
             return
-
+        print("-----------------------")
+        print("RUNNING LIDAR CALLBACK")
+        print("------------------------")
         matched_cones, new_cones = self.data_association(msg, color=False)
-        self.mwekf.update(matched_cones)
+        if len(matched_cones > 0):
+            assert len(new_cones) == 0
+            print("MATCHED CONES: ", matched_cones)
+            cones_sorted = matched_cones[np.argsort(matched_cones[:, 0])]
+            self.mwekf.update_cones(cones_sorted, 1)
+
 
 
     def data_association(self, msg: ConesCartesian, color: bool):
@@ -159,7 +165,10 @@ class GraphSLAM_MWEKF(Node):
 
             diffs = slam_map - message_pos
             dists = np.linalg.norm(diffs, axis=1)
-            mask = (dists < solver_settings.max_landmark_distance) & (map_colors == message_color)
+            if color:
+                mask = (dists < mwekf_settings.max_landmark_distance_camera) & (map_colors == message_color)
+            else: 
+                mask = (dists < mwekf_settings.max_landmark_distance_lidar)
             if np.any(mask):
                 # Only consider distances where mask is True
                 dists[~mask] = np.inf
@@ -173,7 +182,10 @@ class GraphSLAM_MWEKF(Node):
                 new_cones_rotated.append((message_pos_rotated[0], message_pos_rotated[1], message_color))
 
         if len(new_cones_rotated) > 0:
-            return np.array(matched_cones_rotated), np.array(new_cones_rotated)
+            if color is True:
+                return np.array(matched_cones_rotated), np.array(new_cones_rotated)
+            else:
+                return (np.array([]), np.array([]))
         return np.array(matched_cones_local), np.array(new_cones_rotated)
 
     def load_mwekf_to_slam(self):
@@ -212,6 +224,7 @@ class GraphSLAM_MWEKF(Node):
         self.mwekf.update(x_guess, measurement_type=4)
         self.mwekf.update_cones(cones_mwekf_message, 5)
 
+        self.publish_cone_map_visual(lm_guess)
         self.publish_cone_map(lm_guess)
         self.publish_pose()
 
@@ -262,9 +275,9 @@ class GraphSLAM_MWEKF(Node):
         self.mwekf.update(x_guess, measurement_type=4)
 
         self.publish_pose()
-        self.publish_cone_map(self.slam.get_cones())
+        self.publish_cone_map_visual(self.slam.get_cones())
 
-    def publish_cone_map(self, lm_guess):   
+    def publish_cone_map_visual(self, lm_guess):   
         cones_msg = PointCloud()
         cones_to_send = []
         for cone in lm_guess: 
@@ -340,3 +353,23 @@ class GraphSLAM_MWEKF(Node):
             result = np.hstack([final_indices[:, np.newaxis], result])
 
         return result
+    
+    def publish_cone_map(self, cone_map):
+        """
+        Args: cone_map - nx3 array of (x, y, color)
+        Left cones = cones with color == 2 (Blue)
+        Right cones = cones with color == 1 (Yellow)
+        """
+        ConesMap = Map()
+        left_cones = cone_map[np.round(cone_map[:,2]) == 2][:,:2] # blue
+        right_cones = cone_map[np.round(cone_map[:,2]) == 1][:,:2] # yellow
+
+        ConesMap.left_cones_x = np.array(left_cones)[:,0].tolist()
+        ConesMap.left_cones_y = np.array(left_cones)[:,1].tolist()
+        ConesMap.right_cones_x = np.array(right_cones)[:,0].tolist()
+        ConesMap.right_cones_y = np.array(right_cones)[:,1].tolist()
+
+        ConesMap.header.stamp = self.get_clock().now().to_msg()
+        ConesMap.header.frame_id = "map"
+
+        self.local_map_pub.publish(ConesMap)

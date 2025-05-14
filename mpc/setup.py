@@ -14,14 +14,15 @@ setup(
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='reid',
-    maintainer_email='reid.dye@xz.ax',
+    maintainer_email='reid@xz.ax',
     description='TODO: Package description',
     license='TODO: License declaration',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
             'mpc = mpc.main:main',
-            'keyboard_controller = mpc.keyboard_controller:main'
+            'keyboard_controller = mpc.keyboard_controller:main',
+            'compile_solver = mpc.compile_solver:build_solver',
         ],
     },
 )

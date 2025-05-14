@@ -1,7 +1,7 @@
 import numpy as np
-from .GraphSLAMSolve import GraphSLAMSolve
-from all_settings.all_settings import GraphSLAMSolverSettings as solver_settings
+from graphslamrs import GraphSLAMSolve
 from all_settings.all_settings import GraphSLAMSettings as settings
+from all_settings.all_settings import GraphSLAMRSSolverSettings as solver_settings
 from time import perf_counter
 import math
 import time
@@ -73,7 +73,7 @@ class GraphSLAM_Global(Node):
                 if (self.using_ground_truth_wheelspeeds):
                     self.wheelspeeds_sub = self.create_subscription(WheelSpeedsStamped, '/ground_truth/wheel_speeds', self.wheelspeed_sub_sim, 1)
                 else: 
-                    self.wheelspeeds_sub = self.create_subscription(WheelSpeedsStamped, '/ros_can/wheel_speeds', 1)
+                    self.wheelspeeds_sub = self.create_subscription(WheelSpeedsStamped, '/ros_can/wheel_speeds', self.wheelspeed_sub_sim, 1)
             
             self.state_subby = self.create_subscription(CarState, '/ground_truth/state', self.state_sub, 1,)
         else: 
@@ -90,8 +90,10 @@ class GraphSLAM_Global(Node):
 
         # Publish the current map (GLOBAL_NODE, so this will send the whole map)
         self.global_map_pub = self.create_publisher(Map, '/slam/map/global', 1)
+        self.lap_counter_pub = self.create_publisher(Float64, '/slam/lap_counter', 1)
 
         self.local_map_pub = self.create_publisher(Map, '/slam/map/local', 1)
+        self.steering_sub = self.create_subscription(Float64, '/control/steer', self.cmd_callback, 1)
 
         if (self.publish_to_rviz):
             ##These are for Visuals in the SIM 
@@ -99,15 +101,21 @@ class GraphSLAM_Global(Node):
             self.positionguess = self.create_publisher(PointCloud, '/slam/guessed_positions', 1)
             self.pose_pub = self.create_publisher(PoseStamped, '/slam/pose', 1)
 
+        self.orange_y_bounds = []
+        self.lap_counter = -1
+        self.end_race_pub = self.create_publisher(Bool, '/end_race', 1)
+    def cmd_callback(self, cmd: Float64):
+        self.currentstate.theta = cmd.data
     def state_sub(self, state: CarState):
         """ This is a callback function for the SIMULATORS ground truth carstate. 
             Currently being used to get the cars position so we can calculate the cones R, theta properly.
         """
         if self.using_ground_truth_state: 
-            self.currenstate.x = state.pose.pose.position.x
-            self.currentstate.y = state.pose.pose.position.y
-            self.currentstate.heading = quat_to_euler(state.pose.pose.orientation)
-            self.currentstate.velocity = np.sqrt(state.twist.twist.linear.x**2 + state.twist.twist.linear.y**2)
+            self.update_state(
+                [state.pose.pose.position.x - self.currentstate.x, state.pose.pose.position.y - self.currentstate.y],
+                quat_to_euler(state.pose.pose.orientation),
+                np.sqrt(state.twist.twist.linear.x**2 + state.twist.twist.linear.y**2)
+            )
         return
 
     def wheelspeed_sub_sim(self, msg: WheelSpeedsStamped):
@@ -126,11 +134,38 @@ class GraphSLAM_Global(Node):
         Outputs: None
         """
         # All carstates should be float #'s 
+        if len(self.orange_y_bounds) > 0:
+            if self.orange_y_bounds[0] < self.currentstate.y < self.orange_y_bounds[1]:
+                if self.currentstate.x < self.orange_x_pos and self.currentstate.x + dx[0] > self.orange_x_pos:
+                    self.lap_counter += 1
+                elif self.currentstate.x > self.orange_x_pos and self.currentstate.x + dx[0] < self.orange_x_pos:
+                    self.lap_counter -= 1
+            if self.lap_counter > 0:
+                self.local_map.header.stamp = self.get_clock().now().to_msg()
+                map_msg = Map()
+                left = np.array(self.slam.get_cones(1))
+                right = np.array(self.slam.get_cones(2))
+                map_msg.left_cones_x = left[:, 0].flatten().tolist()
+                map_msg.left_cones_y = left[:, 1].flatten().tolist()
+                map_msg.right_cones_x = right[:, 0].flatten().tolist()
+                map_msg.right_cones_y = right[:, 1].flatten().tolist()
+                self.global_map_pub.publish(map_msg)
+                self.finished = True
+            if self.lap_counter > settings.NUM_LAPS:
+                msg = Bool()
+                msg.data = True
+                self.end_race_pub.publish(msg)
+
         self.currentstate.x += dx[0]
         self.currentstate.y += dx[1]
         self.currentstate.velocity = velocity
         self.currentstate.heading = yaw
         self.currentstate.header.stamp = self.get_clock().now().to_msg()
+        msg = Float64()
+        msg.data = float(self.lap_counter)
+        self.lap_counter_pub.publish(msg)
+
+
 
 
 
@@ -145,7 +180,7 @@ class GraphSLAM_Global(Node):
         - geometry_msgs/Vector3 linear_acceleration
         - float64[9] linear_acceleration_covariance
         """
-        if self.finished or self.using_ground_truth_state:
+        if self.using_ground_truth_state:
             return
         # process time
         dt = compute_timediff(self, imu.header)
@@ -202,7 +237,11 @@ class GraphSLAM_Global(Node):
                 cone_matrix[0].append(r)
                 cone_matrix[1].append(theta)
                 cone_matrix[2].append(1)
- 
+            for cone in cones.big_orange_cones:
+                r, theta = cartesian_to_polar([0.0, 0.0], (cone.point.x, cone.point.y))
+                cone_matrix[0].append(r)
+                cone_matrix[1].append(theta)
+                cone_matrix[2].append(0)
 
             cone_matrix = np.array(cone_matrix).T
             cone_dx = cone_matrix[:,0] * np.cos(cone_matrix[:,1]+self.currentstate.heading) # r * cos(theta) element wise
@@ -225,33 +264,61 @@ class GraphSLAM_Global(Node):
             cone_dy = cone_matrix[:,0] * np.sin(cone_matrix[:,1]+self.currentstate.heading) # r * sin(theta) element_wise
             cartesian_cones = np.vstack((cone_dx, cone_dy, cone_matrix[:,2])).T # n x 3 array of n cones and dx, dy, color   -- input for update_graph
 
-        # Dummy function for now, need to update graph and solve graph on each timestep
-        if self.finished:
-            return
         
         distance_solve_condition = np.linalg.norm(self.last_slam_update-np.array([self.currentstate.x, self.currentstate.y])) > 1.0
         time_solve_condition = time.time() - self.time > 0.3
         # Check depending on if ready to solve based on whether you're solving by time or by condition
         ready_to_solve = (self.solve_by_time and time_solve_condition) or (not self.solve_by_time and distance_solve_condition)
 
+        if self.finished:
+            colors = np.array([2]*len(cones.blue_cones) + [1]*len(cones.yellow_cones)).astype(np.uint8)
+            cones = np.array([[i.point.x for i in cones.blue_cones] + [i.point.x for i in cones.yellow_cones],
+                           [i.point.y for i in cones.blue_cones] + [i.point.y for i in cones.yellow_cones]])
+            rot = lambda x: np.array([[np.cos(x), -np.sin(x)], [np.sin(x), np.cos(x)]])
+            cones = rot(-self.currentstate.heading)@cones
+            res = self.slam.pose_from_data_association([self.currentstate.x, self.currentstate.y, 0.0], cones.T, colors)
+            self.update_state([res[0] - self.currentstate.x, res[1]- self.currentstate.y], self.currentstate.heading + res[2], self.currentstate.velocity)
+            # self.currentstate.x = res[0]
+            # self.currentstate.y = res[1]
+            # self.currentstate.heading += res[2]
+            # print(res)
+            return
         if ready_to_solve:
             # last_slam_update initialized to infinity, so set current state x,y to 0 in the case. otherwise, update graph with relative position from last update graph
             self.slam.update_graph(
                 np.array([self.currentstate.x, self.currentstate.y])-self.last_slam_update if self.last_slam_update[0]<999999999.0 else np.array([0.0, 0.0]), 
                                    cartesian_cones[:, :2], 
-                                   cartesian_cones[:, 2].flatten())
+                                   cartesian_cones[:, 2].flatten().astype(np.uint8).tolist()) # old pre-ros threading
+            # print(cartesian_cones.T.shape)
             self.last_slam_update = np.array([self.currentstate.x, self.currentstate.y])
             self.time = time.time()
             self.slam.solve_graph()
         else:
             return
-    
+        #if (abs(self.time - time.time()) > 0.3): #NOTE self.time - time.time() should be negative
+        # print("MADE IT HERE")
+        # last_slam_update initialized to infinity, so set current state x,y to 0 in the case. otherwise, update graph with relative position from last update graph
+        self.slam.update_graph(np.array([self.currentstate.x, self.currentstate.y])-self.last_slam_update if self.last_slam_update[0]<999999999.0 else np.array([0.0, 0.0]), 
+                                cartesian_cones[:, :2], 
+                                cartesian_cones[:, 2].flatten().astype(np.uint8).tolist()) # old pre-ros threading
+        # print(cartesian_cones.T.shape)
+        self.last_slam_update = np.array([self.currentstate.x, self.currentstate.y])
+        self.time = time.time()
+        self.slam.solve_graph()
+        # print("UPDATING STATE")
+        if len(self.orange_y_bounds)==0:
+            orange_cones = np.array(self.slam.get_cones(0)) # orange cones
+            if (len(orange_cones.flatten())>2) and ((max_y:=np.max(orange_cones[:, 1])) - (min_y:=np.min(orange_cones[:, 1])) > 2):
+                self.orange_y_bounds = [min_y, max_y]
+                self.orange_x_pos = np.average(orange_cones[:, 0])
+
         
-        x_guess, lm_guess = self.slam.xhat, np.hstack((self.slam.lhat, self.slam.color[:, np.newaxis]))
+        x_guess, lm_guess = np.array(self.slam.get_positions()), np.array(self.slam.get_cones())
 
         # Publish Running Estimate of Car Positions & Cone Positions in respective messages: positionguess & cone_vis_pub
 
         pos = np.array(x_guess[-1]).flatten()
+        self.update_state([pos[0] - self.currentstate.x, pos[1]-self.currentstate.y], self.currentstate.heading, self.currentstate.velocity)
         self.currentstate.x = pos[0]
         self.currentstate.y = pos[1]
 
@@ -259,8 +326,17 @@ class GraphSLAM_Global(Node):
         x_guess = np.array(x_guess)
         lm_guess = np.array(lm_guess)
         
-        left_cones = lm_guess[np.round(lm_guess[:,2]) == 2][:,:2] # blue
-        right_cones = lm_guess[np.round(lm_guess[:,2]) == 1][:,:2] # yellow
+
+        # blue_array = np.array([2 for i in range(len(lm_guess[:,2]))])
+        # left_cones = lm_guess[np.round(lm_guess[:,2]) == 2][:,:2] # blue
+        # right_cones = lm_guess[np.round(lm_guess[:,2]) == 1][:,:2] # yellow
+        left_cones = np.array(self.slam.get_cones(2))
+        right_cones = np.array(self.slam.get_cones(1))
+        # print(left_cones)
+        # print(right_cones)
+        if left_cones.shape==(0,): left_cones = left_cones.reshape((0, 2))
+        if right_cones.shape==(0,): right_cones = right_cones.reshape((0, 2))
+        # print(self.slam.color.shape, self.slam.lhat.shape, left_cones.shape, right_cones.shape, lm_guess, cartesian_cones)
 
         #filter local conesfor sim & publihs in local_map_pub
 
@@ -296,10 +372,10 @@ class GraphSLAM_Global(Node):
             self.positionguess.publish(position_guess)   
 
             # Publish SLAM Map visual
-            blue_array = np.array([2 for i in range(len(lm_guess[:,2]))])
-            left_cones = lm_guess[np.round(lm_guess[:,2]) == 2][:,:2] # blue
-            right_cones = lm_guess[np.round(lm_guess[:,2]) == 1][:,:2] # yellow
-            print(self.slam.color.shape, self.slam.lhat.shape, left_cones.shape, right_cones.shape, lm_guess, cartesian_cones)
+            # blue_array = np.array([2 for i in range(len(lm_guess[:,2]))])
+            # left_cones = lm_guess[np.round(lm_guess[:,2]) == 2][:,:2] # blue
+            # right_cones = lm_guess[np.round(lm_guess[:,2]) == 1][:,:2] # yellow
+            # print(self.slam.color.shape, self.slam.lhat.shape, left_cones.shape, right_cones.shape, lm_guess, cartesian_cones)
             total_cones = np.vstack((left_cones,right_cones))
             cones_msg = PointCloud()
             cones_to_send = []

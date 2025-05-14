@@ -83,7 +83,7 @@ def is_point_inside_mls(point, multiline):
     return False
 
 
-def N_point_generator(yellow_multiline: MultiLineString, blue_multiline: MultiLineString, N: int, P: int = 400) -> Tuple[List[Tuple[int, int]], List[Tuple[int, int]]]:
+def N_point_generator(yellow_multiline: MultiLineString, blue_multiline: MultiLineString, N: int, P: int = 400, cur_state = np.zeros(4)) -> Tuple[List[Tuple[int, int]], List[Tuple[int, int]]]:
     """This function takes a two MultiLineStrings representing the yellow and blue boundaries of the racetrack and 
     generates N evenly ordered spaced pairs of points along the boundaries of the racetrack.
 
@@ -114,7 +114,7 @@ def N_point_generator(yellow_multiline: MultiLineString, blue_multiline: MultiLi
             mid_string_points.append(Point(me[0]))
         else:
             break
-        
+    
     # find the closest yellow points to those green points
     cpoml_y = closest_points_on_medial_line(mid_string_points, yellow_multiline)
     y_points = list(cpoml_y.keys())

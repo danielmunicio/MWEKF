@@ -4,349 +4,270 @@
 import time
 import casadi as ca
 import numpy as np
-from .utils import discrete_dynamics
+import scipy as sp
+import control as ct
+import os
 
-class KinMPCPathFollower():
-    def __init__(self, 
-                 N          = 10,     # timesteps in MPC Horizon
-                 DT         = 0.2,    # discretization time between timesteps (s)
-                 L_F        = 1.5213, # distance from CoG to front axle (m)
-                 L_R        = 1.4987, # distance from CoG to rear axle (m)
-                 V_MIN      = 0.0,    # min/max velocity constraint (m/s)
-                 V_MAX      = 25.0,     
-                 A_MIN      = -3.0,   # min/max acceleration constraint (m/s^2)
-                 A_MAX      =  2.0,     
-                 DF_MIN     = -0.5,   # min/max front steer angle constraint (rad)
-                 DF_MAX     =  0.5,    
-                 A_DOT_MIN  = -1.5,   # min/max jerk constraint (m/s^3)
-                 A_DOT_MAX  =  1.5,
-                 DF_DOT_MIN = -0.5,   # min/max front steer angle rate constraint (rad/s)
-                 DF_DOT_MAX =  0.5, 
-                 Q = [1., 1., 10., 0.1], # weights on x, y, psi, and v.
-                 R = [10., 100.],        # weights on *change in* drive and steering
-                 F = [0., 0., 0., 10.],  # final state weights
+class MPCPathFollower:
+    def __init__(self,
+                 N,
+                 DT,
+                 L_F,
+                 L_R,
+                 V_MIN,
+                 V_MAX,
+                 A_MIN,
+                 A_MAX,
+                 A_DOT_MIN,
+                 A_DOT_MAX,
+                 DF_MIN,
+                 DF_MAX,
+                 DF_DOT_MIN,
+                 DF_DOT_MAX,
+                 Q,
+                 R,
+                 RUNTIME_FREQUENCY,
+                 ivpsolver,
                  **kwargs):
-        '''
-        Initializes KinMPCPathFollower object
-
-        Arguments: see above
-        '''
-
-        # Go through all arguments and set to class attributes
         self.__dict__.update(kwargs)
         for key in list(locals()):
             if key == 'self':
                 pass
-            elif key in 'QRF': 
+            elif key in 'QR': 
                 setattr(self, key, ca.diag(locals()[key]))
             else:
                 setattr(self, key, locals()[key])
 
-        self.TRACK_SLACK_WEIGHT = 5e5
-        self.use_rk_dynamics = False
-        self.solver = 'ipopt'
-        self.opti = ca.Opti()
+        ### initialize optimization variables
+        # each column is a timestep containing [states, controls]
+        # There are 6 states because we have augmented the state to
+        # include the previous timestep's controls
+        # this is necessary to implement jerk limits.
 
-        self.global_path = None
-        self.local_path = None
-        self.curr_steer = 0
-        self.curr_acc = 0
-        self.path = self.global_path if self.global_path is not None else self.local_path
-        # self.path = np.array([[1.0, 0.0]*100])
+        # x = [x, y, psi, v, acc_prev, theta_prev]
+        # u = [acc, theta]
+
+        self.q = ca.SX.sym('q', 7, self.N+1)
+        self.x = self.q[0:5, :]
+        self.u = self.q[5:7, :]
+
+        ### Initialize parameters
+        # this is the target trajectory in the (non-augmented) state and controls
+        # plus the initial state in the first column
+        self.p = ca.SX.sym('p', 7, self.N+1)
+        self.x0 = self.p[0:5, 0:1]
+        self.xbar = self.p[0:5, 1:self.N+1] # target states
+        self.ubar = self.p[5:7, 0:self.N] # target controls (applied one timestep before target states)
+
+        ##### q (opt vars) if n=3
+        # | t = 0         | t = 1             | t = 2             | t = 3             |
+        # |---------------|-------------------|-------------------|-------------------|
+        # | initial x (x0)| predicted  x 1    | predicted x 2     | predicted x     3 | (5 rows)
+        # | u(0)          | u(1)              | u(2)              | (unused)          | (2 rows)
+
+        ##### p (parameters) if n=3
+        # | t = 0         | t = 1             | t = 2             | t = 3             |
+        # |---------------|-------------------|-------------------|-------------------|
+        # | initial x (x0)| xbar(1)           | xbar(2)           | xbar(3)           | (5 rows)
+        # | ubar(0)       | ubar(1)           | ubar(2)           | (unused)          | (2 rows)
 
 
-        ''' 
-        (1) Parameters
-        '''        
-        self.u_prev  = self.opti.parameter(2) # previous input: [u_{acc, -1}, u_{df, -1}]
-        self.z_curr  = self.opti.parameter(4) # current state:  [x_0, y_0, psi_0, v_0]
+        # Additional parameter: terminal cost matrix
+        # technically doesn't need to be 16 params since it's symmetric but issok
+        # doesn't really impact performance
+        self.P = ca.SX.sym('P', 5, 5)
 
-        # Reference trajectory we would like to follow.
-        # First index corresponds to our desired state at timestep k+1:
-        #   i.e. z_ref[0,:] = z_{desired, 1}.
-        # Second index selects the state element from [x_k, y_k, psi_k, v_k].
-        self.z_ref = self.opti.parameter(self.N, 4)
 
-        self.x_ref   = self.z_ref[:,0]
-        self.y_ref   = self.z_ref[:,1]
-        self.psi_ref = self.z_ref[:,2]
-        self.v_ref   = self.z_ref[:,3]
+        # dictionary to hold warmstart keyword arguments.
+        # empty now; will be updated when we run the solver.
+        self.warmstart = dict()
 
-        '''
-        (2) Decision Variables
-        '''
-        # Actual trajectory we will follow given the optimal solution.
-        # First index is the timestep k, i.e. self.z_dv[0,:] is z_0.        
-        # It has self.N+1 timesteps since we go from z_0, ..., z_self.N.
-        # Second index is the state element, as detailed below.
-        self.z_dv = self.opti.variable(self.N+1, 4)
-    
-        self.x_dv   = self.z_dv[:, 0]
-        self.y_dv   = self.z_dv[:, 1]
-        self.psi_dv = self.z_dv[:, 2]
-        self.v_dv   = self.z_dv[:, 3]
+        # get dynamics
+        # returns:
+        #   - F: discrete dynamics with augmented state (evolves ([x(k), u(k-1)], u(k)) to [x(k+1), u(k)])
+        #   - f: continuous dynamics with normal state (gives dx/dt from x and u)
+        #   - A: jacobian of f wrt x
+        #   - B: jacobian of f wrt u
+        self.F, self.f, self.A, self.B = self.make_dynamics(**self.ivpsolver)
 
-        # Control inputs used to achieve self.z_dv according to dynamics.
-        # First index is the timestep k, i.e. self.u_dv[0,:] is u_0.
-        # Second index is the input element as detailed below.
-        self.u_dv = self.opti.variable(self.N, 2)
+        # hack for angle wrapping
+        self.fix_angle = ca.Function('fix_angle', [x:=ca.MX.sym("x", 5)], [ca.horzcat(x[0, :], x[1, :], 2*ca.pi*ca.sin(x[2, :]/2), x[3, :], x[4, :])])
 
-        self.acc_dv = self.u_dv[:,0]
-        self.df_dv  = self.u_dv[:,1]
 
-        # Slack variables used to relax input rate and track constraints.
-        # Matches self.u_dv in structure but timesteps range from -1, ..., N-1.
-        # then another row for track constraints.
-        self.sl_dv  = self.opti.variable(self.N , 3)
-        
-        self.sl_acc_dv = self.sl_dv[:,0]
-        self.sl_df_dv  = self.sl_dv[:,1]
-        self.sl_tr_dv  = self.sl_dv[:,2]
+        #### compute default terminal cost that assumes we're traveling forward at 10 m/s
+        # first compute linearized system and check controllability
+        # A = np.array(self.A([0, 0, 0, 10], [0, 0]))
+        # B = np.array(self.B([0, 0, 0, 10], [0, 0]))
+        # assert 3.9<np.linalg.matrix_rank(ct.ctrb(A, B))<4.1 # it's an integer (mathematically at least)
+        # # then solve the CARE to get a lyapunov terminal cost
+        # self.default_P = sp.linalg.solve_continuous_are(
+        #     a = A, 
+        #     b = B, 
+        #     q = self.Q, 
+        #     r = self.R,
+        # )/self.DT
+        self.default_P = self.Q
+        # formulate dynamics constraint using map, which helps the expression graph be more compact        
+        dynamics_constr = self.x[:, 1:] - self.F.map(self.N)(self.x[:, :-1], self.u[:, :-1])
+        # formulate differential of u, which we can use to constrain rate of change.
 
-        self.constraint_added = False
+        self.g = []
+        self.lbg = []
+        self.ubg = []
+        self.equality = []
 
-        # Keep track of previous solution for updates
-        self.prev_soln = None
-        self.fix_angle = ca.Function('fix_angle', [x:=ca.MX.sym("x", 4)], [ca.horzcat(x[0, :], x[1, :], ca.sin(x[2, :]/2), x[3, :])])
+        def constrain(expr, lb, ub):
+            assert expr.shape==lb.shape, f"lower bound must have same shape as expression, but got {lb.shape} and {expr.shape}"
+            assert expr.shape==ub.shape, f"upper bound must have same shape as expression, but got {ub.shape} and {expr.shape}"
+            self.g.append(ca.vec(expr))
+            self.lbg.append(ca.vec(lb))
+            self.ubg.append(ca.vec(ub))
+            # we must keep track of which constraints are equalities bc fatrop needs this info
+            self.equality.append(lb==ub) 
 
-        '''
-        (3) Problem Setup: Constraints, Cost, Initial Solve
-        '''
-        self._add_constraints()
-        
-        self._add_cost()
-        
-        self._update_initial_condition(0., 0., 0., 1.)
-        
-        self._update_reference([self.DT * (x+1) for x in range(self.N)],
-                              self.N*[0.], 
-                              self.N*[0.], 
-                              self.N*[1.])
-        
-        self._update_previous_input(0., 0.)
-        
-        # Ipopt with custom options: https://web.casadi.org/docs/ -> see sec 9.1 on Opti stack.
-        # idk where to get info on worhp options
-        self.p_opts = {
-            'expand': True, # can only expand to sx if not using interpolant 
-            'print_time': 0,
-        }
-        self.s_opts = {
-            'max_cpu_time': 0.05, 
-            'linear_solver': 'MA27', 
-            'print_level': 0,
-            # 'sb': 'yes',
-        } 
-        if self.solver == 'worhp': self.s_opts = dict() # idk what the worhp options are
-        self.opti.solver(self.solver, self.p_opts, self.s_opts)
-
-# ---------------------------------------------------------------------------------------------- #
-        
-    ### START - Update Functions to update relevant class variables ###
-    
-    def update(self, update_dict):
-        '''
-        Input: 
-        - update_dict: all mpc variables to be updated 
-        Description: calls _update_initial_condition, _update_reference, and _update_previous_input to actually update
-        '''
-        self._update_initial_condition( *[update_dict[key] for key in ['x0', 'y0', 'psi0', 'v0']] )
-        self._update_reference( *[update_dict[key] for key in ['x_ref', 'y_ref', 'psi_ref', 'v_ref']] )
-        self._update_previous_input( *[update_dict[key] for key in ['acc_prev', 'df_prev']] )
-
-        if 'warm_start' in update_dict.keys():
-            # Warm Start used if provided.  Else I believe the problem is solved from scratch with initial values of 0.
-            self.opti.set_initial(self.z_dv,  update_dict['warm_start']['z_ws'])
-            self.opti.set_initial(self.u_dv,  update_dict['warm_start']['u_ws'])
-            self.opti.set_initial(self.sl_dv, update_dict['warm_start']['sl_ws'])
-
-    def _update_initial_condition(self, x0, y0, psi0, vel0):
-        '''
-        Inputs:
-        - x0: current x
-        - y0: current y
-        - psi0: current heading
-        - vel0: current velocity
-
-        Updates current state (z_curr)
-        '''
-        self.opti.set_value(self.z_curr, [x0, y0, psi0, vel0])
-
-    def _update_reference(self, x_ref, y_ref, psi_ref, v_ref):
-        '''
-        Inputs: reference = where car should be
-        - x_ref: reference x
-        - y_ref: reference y
-        - psi_ref: reference heading
-        - v_ref: reference velocity
-        '''
-        self.opti.set_value(self.x_ref,   x_ref)
-        self.opti.set_value(self.y_ref,   y_ref)
-        self.opti.set_value(self.psi_ref, psi_ref)
-        self.opti.set_value(self.v_ref,   v_ref)
-
-    def _update_previous_input(self, acc_prev, df_prev):
-        '''
-        Inputs: previous = last solve
-        - acc_prev: previous acceleration value
-        - df_prev: previous steering angle value
-        '''
-        self.opti.set_value(self.u_prev, [acc_prev, df_prev])
-    
-    ### END - Update Functions to update relevant class variables ###
-
-# ---------------------------------------------------------------------------------------------- #
-
-    ### START - MPC Main Functions (Setting Up and Solving MPC Optimization Problem) ###
-        
-    def _add_constraints(self):
-        '''
-        Description:
-        -> State Bound Constraints, Input Bound Constraints, Input Rate Bound Constraints, Other Constraints: 
-            Ensures variables are inside bounds set in __init__, Other Contraints ensures slack variables are >= 0
-        -> Initial State Constraint: Makes sure first state of planned trajectory matches current car state
-        -> State Dynamics Constraints: Ensures car can move appropriately based on Car Dynamics
-            - For more on equations used, read this section: 
-            https://www.notion.so/MPC-Overview-31d7d1b2a56e4e36bcdf5c195f8ec5b3?pvs=4#9b47dac35e68479f81217baee5237da8
-        -> Track Constraints: Car stays inside track limits
-            - For more, read: https://www.notion.so/MPC-Overview-31d7d1b2a56e4e36bcdf5c195f8ec5b3?pvs=4#566651b3c5444c9e85b89aec223f2cf8
-        '''
-        # State Bound Constraints
-        self.opti.subject_to( self.opti.bounded(self.V_MIN, self.v_dv, self.V_MAX) )        
-        
-        # Initial State Constraint
-        self.opti.subject_to( self.x_dv[0]   == self.z_curr[0] )
-        self.opti.subject_to( self.y_dv[0]   == self.z_curr[1] )
-        self.opti.subject_to( self.psi_dv[0] == self.z_curr[2] )
-        self.opti.subject_to( self.v_dv[0]   == self.z_curr[3] )
-
-        # State Dynamics Constraints
-        if self.use_rk_dynamics:
-            F = discrete_dynamics(self.DT, self.L_R, self.L_F)
-            for i in range(self.N):
-                self.opti.subject_to( self.z_dv[i+1] == F(x0=self.z_dv[i], u=self.u_dv[i])['xf'])
-        else:
-            for i in range(self.N):
-                beta = ca.atan( self.L_R / (self.L_F + self.L_R) * ca.tan(self.df_dv[i]) )
-                self.opti.subject_to( self.x_dv[i+1]   == self.x_dv[i]   + self.DT * (self.v_dv[i] * ca.cos(self.psi_dv[i] + beta)) )
-                self.opti.subject_to( self.y_dv[i+1]   == self.y_dv[i]   + self.DT * (self.v_dv[i] * ca.sin(self.psi_dv[i] + beta)) )
-                self.opti.subject_to( self.psi_dv[i+1] == self.psi_dv[i] + self.DT * (self.v_dv[i] / self.L_R * ca.sin(beta)) )
-                self.opti.subject_to( self.v_dv[i+1]   == self.v_dv[i]   + self.DT * (self.acc_dv[i]) )
-
-        # Input Bound Constraints
-        self.opti.subject_to( self.opti.bounded(self.A_MIN,  self.acc_dv, self.A_MAX) )
-        self.opti.subject_to( self.opti.bounded(self.DF_MIN, self.df_dv,  self.DF_MAX) )
-
-        # Input Rate Bound Constraints
-        self.opti.subject_to( self.opti.bounded( self.A_DOT_MIN*self.DT -  self.sl_acc_dv[0], 
-                                                 self.acc_dv[0] - self.u_prev[0],
-                                                 self.A_DOT_MAX*self.DT   + self.sl_acc_dv[0]) )
-
-        self.opti.subject_to( self.opti.bounded( self.DF_DOT_MIN*self.DT  -  self.sl_df_dv[0], 
-                                                 self.df_dv[0] - self.u_prev[1],
-                                                 self.DF_DOT_MAX*self.DT  + self.sl_df_dv[0]) )
-
-        for i in range(self.N - 1):
-            self.opti.subject_to( self.opti.bounded( self.A_DOT_MIN*self.DT   -  self.sl_acc_dv[i+1], 
-                                                     self.acc_dv[i+1] - self.acc_dv[i],
-                                                     self.A_DOT_MAX*self.DT   + self.sl_acc_dv[i+1]) )
-            self.opti.subject_to( self.opti.bounded( self.DF_DOT_MIN*self.DT  -  self.sl_df_dv[i+1], 
-                                                     self.df_dv[i+1]  - self.df_dv[i],
-                                                     self.DF_DOT_MAX*self.DT  + self.sl_df_dv[i+1]) )
-        # Other Constraints
-        self.opti.subject_to( 0 <= self.sl_df_dv )
-        self.opti.subject_to( 0 <= self.sl_acc_dv )
-        self.opti.subject_to( 0 <= self.sl_tr_dv )
-        # e.g. things like collision avoidance or lateral acceleration bounds could go here.
-
-        # Track Constraints
-        if 'TRACK_CON_FUN' not in self.__dict__: return
-        constraint = self.TRACK_CON_FUN(ca.horzcat(self.x_dv[1:], self.y_dv[1:]).T)
-
-        self.opti.subject_to(constraint-self.sl_tr_dv.T < 0 )
-
-    def _add_cost(self):
-        '''
-        Description: Our cost function penalizes 3 main things
-        -> _quad_form: returns (z.T)Qz where z is vector and Q is matrix
-        -> 1. Error between current state and reference state for each planned timestep
-        -> 2. Error between current state and reference state for last planned timestep
-        -> 3. Use of controls
-        '''
-        def _quad_form(z, Q):
-            return ca.mtimes(z, ca.mtimes(Q, z.T))
-        # ca.MX.sym('m').inv()
+        # now we actually add all the constraints!
+        # we must do this all in a big loop so that each stage's constraints are grouped together.
+        # the order of the constraints here is important; we must match the structure FATROP expects.
         cost = 0
-        dx = ca.vertsplit(ca.diff(self.z_ref, 1, 1)[:, :2])
-        dx.append(dx[-1])
-        # print(dx)
-        # print(self.z_ref.shape)
-        # print(self.N, len(dx))
-        for i in range(self.N):
-            segment = dx[i]/ca.norm_2(dx[i])
-            # print(segment)
-            a, c, b, d = segment[0], segment[1], -segment[1], segment[0]
-            # segment[0]  -segment[-1]
-            # segment[1]   segment[0]
-            det = a*d-b*c
-            mat = ca.reshape(ca.horzcat(d, -b, 0, 0, 
-                                               -c,  a, 0, 0, 
-                                                0,  0, det, 0, 
-                                                0,  0, 0, det), (4, 4)).T/det
+        for stage in range(self.N+1):
+            if stage < self.N:
+                # dynamics (gap-closing constraints)
+                constrain(dynamics_constr[:, stage], ca.DM([0.0]*5), ca.DM([0.0]*5))
+                # drive jerk limit
+                # constrain(du[0:1, stage]*(self.RUNTIME_FREQUENCY if stage==0 else 1/self.DT), ca.DM([self.A_DOT_MIN]), ca.DM([self.A_DOT_MAX]))
+                # steering velocity limit
+                # constrain(du[1:2, stage]*(self.RUNTIME_FREQUENCY if stage==0 else 1/self.DT), ca.DM([self.DF_DOT_MIN]), ca.DM([self.DF_DOT_MAX]))
+                # control bounds
+                constrain(self.u[0:1, stage], ca.DM([self.A_MIN]), ca.DM([self.A_MAX]))
+                constrain(self.u[1:2, stage], ca.DM([self.DF_DOT_MIN]), ca.DM([self.DF_DOT_MAX]))
+            if stage==0:
+                # initial states
+                constrain(self.x[0:5, 0]-self.x0, ca.DM([0.0]*5), ca.DM([0.0]*5))
+                # constrain(self.x[5:7, 0]-self.u_prev, ca.DM([0.0]*2), ca.DM([0.0]*2))
+            else:
+                constrain(self.x[3, stage], ca.DM([self.V_MIN]), ca.DM([self.V_MAX]))
+                constrain(self.x[4, stage], ca.DM([self.DF_MIN]), ca.DM([self.DF_MAX]))
+
             
-            # 1. Error between current state and reference state for each planned timestep
-            # cost += _quad_form((mat @ (self.z_dv[i+1, :]-self.z_ref[i, :]).T).T, self.Q)
-            # cost += _quad_form(self.z_dv[i+1, :] - self.z_ref[i,:], 9*self.Q/(i+9)) # tracking cost
-            # cost += _quad_form(self.fix_angle(self.z_dv[i+1, :] - self.z_ref[i,:]), self.Q) # tracking cost
-            cost += _quad_form(self.fix_angle(self.z_dv[i+1, :] - self.z_ref[i,:]), self.Q) # tracking cost
 
-        # 2. Error between current state and reference state for last planned timestep
-        # cost += _quad_form(self.z_dv[-1, :] - self.z_ref[-1, :], self.F)
+            if stage<self.N:
+                # control cost
+                cost += ca.bilin(self.R, self.u[:, stage] - self.ubar[:, stage])
+            if 0<stage<self.N:
+                cost += ca.bilin(self.Q, self.fix_angle(self.x[:, stage] - self.xbar[:, stage-1]).T)
 
-        for i in range(self.N - 1):
-            # 3. Use of controls
-            cost += _quad_form(self.u_dv[i+1, :] - self.u_dv[i,:], self.R)  # input derivative cost
+        # terminal state cost
+        cost += ca.bilin(self.P, self.fix_angle(self.x[:, self.N]-self.xbar[:, self.N-1]))
+
+        # collect everything into vectors in the format for `nlpsol`
+        self.nlp = {
+            'x': ca.vec(self.q),
+            'f': cost,
+            'g': ca.vertcat(*self.g),
+            'p': ca.vertcat(ca.vec(self.p), ca.vec(self.P)),
+        }
+
+        # setup options
+        # we update the options dict from settings with the equality list
+        # which tells the solver which constraints are equality vs inequality constraints
+        if self.nlpsolver.name=='fatrop':
+            self.nlpsolver.opts['equality'] = np.array(ca.vertcat(*self.equality)).flatten().astype(bool).tolist()
+        self.options = dict(**(self.nlpsolver.opts))
+
+        # now construct the solver and the constraints!
+        self.solver = ca.nlpsol('solver', self.nlpsolver.name, self.nlp, self.options)
+        self.lbg = ca.vertcat(*self.lbg)
+        self.ubg = ca.vertcat(*self.ubg)
+
+    def construct_solver(self, generate_c=False, compile_c=False, use_c=False, gcc_opt_flag='-Ofast'):
+        """handles codegeneration and loading.
+
+        Args:
+            generate_c (bool, optional): whether or not to generate new C code. Defaults to False.
+            compile_c (bool, optional): whether or not to look for and compile the C code. Defaults to False.
+            use_c (bool, optional): whether or not to load the compiled C code. Defaults to False.
+            gcc_opt_flag (str, optional): optimization flags to pass to GCC. can be -O1, -O2, -O3, or -Ofast depending on how long you're willing to wait. Defaults to '-Ofast'.
+        """
+        if generate_c: 
+            self.solver.generate_dependencies('mpc.c')
+            os.system(f"mv mpc.c {os.path.dirname(__file__)}/mpc.c")
+        if compile_c:  
+            os.system(f'gcc -fPIC {gcc_opt_flag} -shared {os.path.dirname(__file__)}/mpc.c -o {os.path.dirname(__file__)}/mpc.so')
+        if use_c:
+            self.solver = ca.nlpsol('solver', self.nlpsolver.name, f'{os.path.dirname(__file__)}/mpc.so', self.options)
+
+    def solve(self, x0, u_prev, trajectory, P=None):
+        """crunch the numbers; solve the problem.
+
+        Args:
+            x0: length 4 vector of the current car state.
+            u_prev: length 2 vector of the previous control command
+            trajectory: shape (6, N) trajectory of target states and controls.
+            P (optional): terminal cost matrix. If not passed, use default from 10 m/s fwd driving.
+
+        Returns:
+            array of shape (2, 1): control result. [[acc], [theta]]
+        """
+        if P is None: P = self.default_P
+        p = ca.blockcat([[ca.DM(x0.reshape((5, 1))), trajectory[0:5, :]], 
+                         [trajectory[5:7, :], ca.DM.zeros(2, 1)]])
+        P = ca.DM(P)
+        p = ca.vertcat(ca.vec(p), ca.vec(P))
+
+        res = self.solver(p=p, lbg=self.lbg, ubg=self.ubg, **self.warmstart)
+        self.warmstart = {
+            'x0': res['x'],
+            'lam_x0': res['lam_x'],
+            'lam_g0': res['lam_g'],
+        }
+        self.soln = np.array(ca.reshape(res['x'], self.q.shape)) # (8, self.N+1)
+        return self.soln[5:7, 0:1]
+
+
+    def make_dynamics(self, n, method='rk4'):
+        """construct functions for the dynamics of the car. uses bicycle model.
+
+        Args:
+            n (int): number of steps the integrator should take.
+            method (str, optional): integration method to use. one of ('midpoint', 'rk4'). Defaults to 'rk4' for a 4th order explicit runge-kutta method
+
+        Returns:
+            (F, f, A, B): discrete dynamics w/ augmented state, continuous dynamics, jac(f, x), jac(f, u). All casadi.Function objects.
+        """
+
+        # state: [ x, y, theta, v] (theta is heading)
+        # control: [a, phi] (fwd acceleration, steering angle)
+
+        x0 = ca.SX.sym('q0', 5)
+        u0 = ca.SX.sym('u0', 2)
+
+        beta = ca.arctan(self.L_R/(self.L_F + self.L_R) * ca.tan(x0[4]))
+
+        # calculate dx/dt
+        x1 = ca.vertcat(x0[3] * ca.cos(x0[2] + beta),  # dxPos/dt = v*cos(theta+beta)
+                        x0[3] * ca.sin(x0[2] + beta),  # dyPos/dt = v*sin(theta+beta)
+                        x0[3] / self.L_R * ca.sin(beta),   # dtheta/dt = v/l_r*sin(beta)
+                        u0[0],                    # dv/dt = a
+                        u0[1]
+        )
+
+        f = ca.Function('f', [x0, u0], [x1])
+        A = ca.Function('A', [x0, u0], [ca.jacobian(x1, x0)])
+        B = ca.Function('A', [x0, u0], [ca.jacobian(x1, u0)])
+
+        if method == 'midpoint':
+            x = x0
+            for _ in range(n):
+                xm = x + f(x, u0)*(self.DT/(2*n))
+                x += f(xm, u0)*(self.DT/n)
+        elif method == 'rk4':
+            x = x0
+            h = self.DT/n
+            for _ in range(n):
+                k1 = h*f(x, u0)
+                k2 = h*f(x+h*k1/2, u0)
+                k3 = h*f(x+h*k2/2, u0)
+                k4 = h*f(x+h*k3, u0)
+                x += (k1 + 2*k2 + 2*k3 + k4)/6
         
-        # slack costs for soft constraints
-        cost += (ca.sum1(self.sl_df_dv)
-               + ca.sum1(self.sl_acc_dv)
-               + ca.sum1(self.sl_tr_dv)*self.TRACK_SLACK_WEIGHT)
-
-        self.opti.minimize( cost )
-
-    def solve(self):
-        '''
-        Returns: sol_dict (solution variables and other data related to solve) -> see below for specific info
-        Description: self.opti.solve() uses casadi to find solution to mpc problem and publishes control to apply
-        '''
-        st = time.time()
-        try:
-            sol = self.opti.solve()
-            # Optimal solution.
-            u_mpc  = sol.value(self.u_dv)
-            z_mpc  = sol.value(self.z_dv)
-            sl_mpc = sol.value(self.sl_dv)
-            z_ref  = sol.value(self.z_ref)
-            is_opt = True
-        except:
-            # Suboptimal solution (e.g. timed out).
-            u_mpc  = self.opti.debug.value(self.u_dv)
-            z_mpc  = self.opti.debug.value(self.z_dv)
-            sl_mpc = self.opti.debug.value(self.sl_dv)
-            z_ref  = self.opti.debug.value(self.z_ref)
-            is_opt = False
-
-        solve_time = time.time() - st
-        
-        sol_dict = {}
-        sol_dict['u_control']  = u_mpc[0,:]  # control input to apply based on solution
-        sol_dict['optimal']    = is_opt      # whether the solution is optimal or not
-        sol_dict['solve_time'] = solve_time  # how long the solver took in seconds
-        sol_dict['u_mpc']      = u_mpc       # solution inputs (N by 2, see self.u_dv above) 
-        sol_dict['z_mpc']      = z_mpc       # solution states (N+1 by 4, see self.z_dv above)
-        sol_dict['sl_mpc']     = sl_mpc      # solution slack vars (N by 3, see self.sl_dv above)
-        sol_dict['z_ref']      = z_ref       # state reference (N by 4, see self.z_ref above)
-
-        return sol_dict
-
-    ### END - MPC Main Functions (Setting Up and Solving MPC Optimization Problem) ###
+        return ca.Function('F', [x0, u0], [x]), f, A, B

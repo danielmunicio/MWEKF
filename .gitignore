@@ -30,6 +30,10 @@ venv/
 # No solver created Code
 global_opt.c
 global_opt.so
+local_opt.c
+local_opt.so
+mpc.c
+mpc.so
 
 # simulator
 eufs_msgs/
@@ -53,3 +57,7 @@ sim_data.txt
 
 from sympy import symbols, Eq, simplify, I, pprint
 Depth-Anything-V2
+*.csv
+runs/
+*.mtx
+nlp_hess_l.casadi

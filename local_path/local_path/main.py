@@ -6,6 +6,7 @@ from feb_msgs.msg import FebPath
 from feb_msgs.msg import Map
 from std_msgs.msg import Bool
 from all_settings.all_settings import LocalOptSettings as settings
+from all_settings.all_settings import MPCSettings as mpc_settings
 from sensor_msgs.msg import PointCloud
 from geometry_msgs.msg import Point32
 from .local_opt_compiled import CompiledLocalOpt
@@ -26,8 +27,8 @@ class LocalPath(Node):
         super().__init__("local_path")
         self.cone_history = ConeHistory()
         self.GifVisualizer = None
-        # if LocalOptSettings.save_to_gif:
-        if True:
+        if settings.save_to_gif:
+        # if True:
             self.GifVisualizer = GifVisualizer(gif_filename="local_cone_ordering.gif", fps=10)
         
         self.distance_cone_order = settings.distance_cone_order
@@ -46,7 +47,8 @@ class LocalPath(Node):
         # self.g.construct_solver()
         self.g.construct_solver(generate_c=False, compile_c=False, use_c=False)
         print("constructed solver")
-        self.state = [0.,0.,0.,0.]
+        self.state = np.array([0.,0.,0.,0.,0.])
+        print("done")
         self.fails = -1
         self.finished = False
         self.res = None
@@ -79,21 +81,20 @@ class LocalPath(Node):
         except UnboundLocalError:
             return
         res = self.res
-
-        print("ok after solve try/except")
-        if (res is None): 
-            print("RES EMPTY")
-            return
-        states, _ = self.g.to_constant_tgrid(0.02, **res)
-        print("ok converting to constant tgrid")
+        # print("ok after solve try/except")
+        states, controls = self.g.to_constant_tgrid(mpc_settings.DT*0.1, **self.res)
+        # print("ok converting to constant tgrid")
         # states = np.zeros((50, 4))
         path_msg = FebPath()
-        print("ok creating FebPath message")
+        # print("ok creating FebPath message")
         path_msg.x = states[:, 0].flatten().tolist()
         path_msg.y = states[:, 1].flatten().tolist()
         path_msg.psi = states[:, 2].flatten().tolist()
         path_msg.v = states[:, 3].flatten().tolist()
-        print('MAP Message About to Publish')
+        path_msg.th = states[:, 4].flatten().tolist()
+        path_msg.a = controls[:, 0].flatten().tolist()
+        path_msg.thdot = controls[:, 1].flatten().tolist()
+        # print('MAP Message About to Publish')
         # with open("sim_data.txt", "a") as f:
         #     print("---------------------------------------")
         #     print("From PNC: ")
@@ -108,7 +109,7 @@ class LocalPath(Node):
             np.array([list(msg.right_cones_x), list(msg.right_cones_y)]).T,
         )
         fwd = np.array([self.state[:2]]) + 0.5*np.array([[np.cos(self.state[2]), np.sin(self.state[2])]])
-        print(fwd.shape)
+        # print(fwd.shape)
         for x in np.vstack([left, right, states[:, :2], np.array([self.state[:2]]), fwd]):
             pts.append(Point32())
             pts[-1].x = x[0]
@@ -137,16 +138,17 @@ class LocalPath(Node):
         m.header.frame_id = "map"
 
         self.path_pub.publish(m)
-        print(m)
+        # print(m)
 
 
     def state_callback(self, carstate: State):
-        self.state = [0, 0, 0, 0]
+        # self.state = [0, 0, 0, 0]
         self.state[0] = carstate.x # x value
         self.state[1] = carstate.y # y value
         ### MPC Assumes the veloccity and heading are flipped
         self.state[2] = carstate.heading # velocity
         self.state[3] = carstate.velocity # heading
+        self.state[4] = carstate.theta
 
 
 def main(args=None):

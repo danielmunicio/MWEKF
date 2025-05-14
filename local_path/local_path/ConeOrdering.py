@@ -58,7 +58,7 @@ def ConeOrdering(msg: Map, state: list[float], cone_history: ConeHistory, visual
 
     yellow_edges, blue_edges = find_racetrack(left_history, right_history)
     yellow_multiline, blue_multiline = racetrack_to_multiline(yellow_edges, blue_edges)
-    leftN_points, rightN_points = N_point_generator(yellow_multiline, blue_multiline, bigN)
+    leftN_points, rightN_points = N_point_generator(yellow_multiline, blue_multiline, bigN, cur_state = state)
 
     # convert to lists of lists instead of Point objects
     # then check if it needs to be reversed

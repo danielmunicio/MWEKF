@@ -1,4 +1,4 @@
-from all_settings.all_settings import LocalOptSettings
+from all_settings.all_settings import GlobalOptSettings
 import numpy as np
 from feb_msgs.msg import Map
 import numpy as np
@@ -8,7 +8,7 @@ from .ConeHistory import ConeHistory
 
 # cone_history = ConeHistory()
 
-def ConeOrdering(msg: Map, state: list[float]):
+def ConeOrdering(msg: Map, state: list[float], cone_history: ConeHistory):
     """get cones from message and call the cone ordering algorithm and return the results
 
     Args:
@@ -17,7 +17,7 @@ def ConeOrdering(msg: Map, state: list[float]):
     Returns:
         tuple[ndarray(2, N), ndarray(2, N)]: pairs of points on the track boundary
     """
-    N = LocalOptSettings.N # get size
+    N = GlobalOptSettings.N # get size
     bigN = 300
     
     left, right = (

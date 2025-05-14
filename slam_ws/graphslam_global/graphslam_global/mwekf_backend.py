@@ -28,15 +28,15 @@ class MWEKF_Backend():
         self.num_cones = 0
         self.n = 4 # num state
 
-        self.Q = np.eye(self.n)
+        self.Q = np.eye(self.n) * 0.3
         self.P = np.eye(self.n)
         self.C = None
-
-        self.R_lidar = np.eye(1)
-        self.R_camera = np.eye(1)
-        self.R_imu = np.eye(1)
-        self.R_wheelspeeds = np.eye(1)
-        self.R_SLAM = np.eye(2)
+        self.P_cones = None
+        self.R_lidar = np.eye(1) * 1.6
+        self.R_camera = np.eye(1) * 1.8
+        self.R_imu = np.eye(1) * 2
+        self.R_wheelspeeds = np.eye(1) * 0.5
+        self.R_SLAM = np.eye(2) * 0.25
 
         self.l_f = mpc_settings.L_F
         self.l_r = mpc_settings.L_R
@@ -44,11 +44,10 @@ class MWEKF_Backend():
         # Last control input NOTE: last element is time it was recieved at!!!
         self.last_u = np.array([0., 0., perf_counter()])
 
-        # What cones we have, stored as indices in the global map
-        self.cone_indices = []
-        # the actual cone positions, stored as 
-        self.cones = None
 
+        # n x 3 array of [x, y, color]
+        self.cones = None
+        self.current_cones_message = None
     #################
     # Different Measurement Models 
     #################
@@ -60,22 +59,93 @@ class MWEKF_Backend():
         """
         pass
 
-    def h_cones(self, state, cones):
+    def h_cones(self, state):
         """
         Calculates the expected position of the cones, based on the position of the car
         Args: 
         state - state vec
-        cones - cones measurement, NOTE: values of 0 or -1 or something will be cones not spotted
         Cones not spotted should not be included in H
-        # Still need to figure out the masking logic or something
         Returns: 2n x 1 array of cones
         """
-        idxs = cones[:, 0]
-        pts = cones[:, 1:3]
+        cones = self.current_cones_message # n x 4 of global index, x, y, color
+        print("CONES: ", self.cones)
+        cones_to_grab = []
+        for idx in self.current_cones_message[:, 0]:
+            cones_to_grab.append(self.cones[int(idx), 0:2])
         
+        cones_to_grab = np.array(cones_to_grab)
+        # translate them into the local frame of the car
+        x, y, = state[0:2]
+        heading = state[3]
+
+        
+        translated = cones_to_grab - np.array([x, y]).flatten()
+
+        # Rotate to local frame using inverse rotation
+        c, s = np.cos(-heading), np.sin(-heading)
+        rot_matrix = np.array([[c, -s], [s, c]])
+        rotated = translated @ rot_matrix.T
+
+        return rotated
+
 
     def jac_cones(self, state, cones):
-        pass
+        """
+        Computes the Jacobian of cone measurements (in the car frame) w.r.t. the full state.
+        
+        Inputs:
+            - state: (4,) array with [x, y, velocity, heading]
+            - cones: (n, 4) array with cone info (idx, x, y color)
+        
+        Returns:
+            - H: (2n, 4 + 2n) Jacobian matrix
+        """
+        x, y, v, theta = state
+        cos_theta = np.cos(theta)
+        sin_theta = np.sin(theta)
+
+        # Grab only x, y positions of cones
+        cones_organized = cones[:, 1:3]  # shape (n, 2)
+        num_cones = cones_organized.shape[0]
+
+        # Augment the state vector
+        cone_flat = cones_organized.flatten()  # shape (2n,)
+        full_state = np.concatenate([state.flatten(), cone_flat])  # shape (4 + 2n,)
+
+        H = np.zeros((2 * num_cones, 4 + 2 * num_cones))  # Jacobian
+        for i in range(num_cones):
+            cone_x = cones_organized[i, 0]
+            cone_y = cones_organized[i, 1]
+
+            dx = cone_x - x
+            dy = cone_y - y
+
+            row = 2 * i
+            col_x = 4 + 2 * i
+            col_y = 5 + 2 * i
+
+            # ∂h/∂x
+            H[row, 0] = -cos_theta
+            H[row + 1, 0] = sin_theta
+
+            # ∂h/∂y
+            H[row, 1] = -sin_theta
+            H[row + 1, 1] = -cos_theta
+
+            # ∂h/∂theta
+            H[row, 3] = (-sin_theta * dx) + (cos_theta * dy)
+            H[row + 1, 3] = (-cos_theta * dx) - (sin_theta * dy)
+
+            # ∂h/∂cone_x
+            H[row, col_x] = cos_theta
+            H[row + 1, col_x] = -sin_theta
+
+            # ∂h/∂cone_y
+            H[row, col_y] = sin_theta
+            H[row + 1, col_y] = cos_theta
+
+        return H
+
 
     def jac_imu(self, state):
         """
@@ -94,6 +164,9 @@ class MWEKF_Backend():
     def h_SLAM(self, state):
         return state[0:2]
 
+    def h_SLAMCones(self, state):
+        return self.cones[:, 0:2]
+
     def jac_wheelspeeds(self, state):
         """
         Just taking in velocity, so h is just [0 0 1 0 0 0 ....]
@@ -108,6 +181,19 @@ class MWEKF_Backend():
         jac[1, 1] = 2
         return jac
 
+    def jac_SLAMCones(self, state, measurement):
+        """
+        SLAM Cones gives the full cone map, which SHOULD be the same as the MWEKF map
+        So we just take the cones from the state. Easy peasy
+        """
+        # Sanity check that both are the FULL map
+        assert len(measurement) == len(self.cones)
+
+        jac_pose = np.zeros((2 * len(measurement), 4))
+        jac_cones = np.eye(len(measurement) * 2)
+        jac = np.hstack([jac_pose, jac_cones])
+        return jac
+
     def approximate_measurement(self, state, measurement, measurement_type):
         if measurement_type == 0 or measurement_type == 1:
             jac = self.jac_cones(state, measurement)
@@ -117,6 +203,8 @@ class MWEKF_Backend():
             jac = self.jac_wheelspeeds(state)
         elif measurement_type == 4:
             jac = self.jac_SLAM(state)
+        elif measurement_type == 5:
+            jac = self.jac_SLAMCones(state, measurement)
         else:
             jac = None
         return jac
@@ -168,17 +256,28 @@ class MWEKF_Backend():
 
         return A
     
-    def compute_A_fd(self, x, u, dt, eps=1e-5):
-        n = len(x)
-        A = np.zeros((n, n))
-        fx = self.g(x, u, dt)
-        for i in range(n):
-            dx = np.zeros((n, 1))
-            dx[i] = eps
-            fx_plus = self.g((x + dx), u, dt)
-            fx_minus = self.g((x - dx), u, dt)
-            A[:, i] = ((fx_plus - fx_minus) / (2 * eps)).flatten()
-
+    def approximate_A_2(self, state, u):
+        x, y, v, theta = state
+        a, delta = u  # acceleration and steering angle
+        
+        A = np.zeros((4, 4))
+        
+        # ∂(dot_x)/∂theta = -v * sin(theta)
+        A[0, 2] = -v * np.sin(theta)  
+        # ∂(dot_x)/∂v = cos(theta)
+        A[0, 3] = np.cos(theta)  
+        
+        # ∂(dot_y)/∂theta = v * cos(theta)
+        A[1, 2] = v * np.cos(theta)  
+        # ∂(dot_y)/∂v = sin(theta)
+        A[1, 3] = np.sin(theta)  
+        
+        # ∂(dot_theta)/∂v = tan(delta) / (l_f + l_r)
+        A[2, 3] = np.tan(delta) / (self.l_f + self.l_r)  
+        
+        # ∂(dot_v)/∂v = 0 (since dot_v = a, no state dependence)
+        A[3, 3] = 0  
+    
         return A
 
     def update(self, measurement, measurement_type):
@@ -189,10 +288,9 @@ class MWEKF_Backend():
         1 = cones_lidar - Nx2 Array of [x y]
         2 = IMU - idk yet
         3 = Wheelspeeds - velocity measurement ? 
-        4 = SLAM update
+        4 = SLAM state array of [x y]
+        5 = SLAM cones
         """
-        if (measurement_type == 0) or (measurement_type == 4) or (measurement_type == 1):
-            return
         time = perf_counter()
         dt = time - self.last_u[2]
         self.last_u[2] = perf_counter()
@@ -211,17 +309,67 @@ class MWEKF_Backend():
         self.P = (np.eye(self.n) - K @ C) @ P
         self.state = x_new
 
+    def update_cones(self, measurement, measurement_type):
+        """
+        Updates EKF with cones measurements
+        0 = cones_camera
+        1 = cones_lidar
+        5 = SLAM cones
+        """
+        self.num_cones_in_measurement = len(measurement[:, 0])
+        self.current_cones_message = measurement
+        time = perf_counter()
+        dt = time - self.last_u[2]
+        self.last_u[2] = perf_counter()
+        x_next = self.g(self.state, self.last_u[0:2], dt)
+
+        # Create A as MPC linearization, along with 0's to represent lack of cones movement in global map
+        A = self.approximate_A_2(self.state, u=self.last_u[0:2])
+        
+        A_cones = np.zeros((2 * self.num_cones_in_measurement, 2 * self.num_cones_in_measurement))
+
+        A_extended = np.block([
+            [A, np.zeros((4, 2 * self.num_cones_in_measurement))],
+            [np.zeros((2 * self.num_cones_in_measurement, 4)), A_cones]
+        ])       
+
+        Q = self.get_Q_cones()
+        P = A_extended @ self.P_cones @ A_extended.T + Q
+
+        C = self.approximate_measurement(x_next, measurement, measurement_type)
+        R = self.choose_R(measurement_type)
+        K = P @ C.T @ np.linalg.inv(C @ P @ C.T + R)
+
+        h = self.choose_h(measurement_type)
+        x_diff = measurement[:, 1:3].reshape(-1, 1) - h(x_next).reshape(-1, 1)
+        x_adding =  K @ (measurement[:, 1:3].reshape(-1, 1) - h(x_next).reshape(-1, 1))
+        x_new = x_adding[0:4, :] + x_next
+
+        cone_corrections = x_adding[4:].reshape(-1, 2)
+
+        cones_new = self.get_cones(indices=measurement[:, 0].astype(int))[:, 0:2] + cone_corrections
+        #self.P = (np.eye(self.n) - K @ C) @ P
+        self.state = x_new
+        self.cones[measurement[:, 0].astype(int), 0:2] = cones_new
+
+
+    def get_Q_cones(self):
+        self.P_cones = np.eye(4 + 2 * self.num_cones_in_measurement)
+        return np.eye(4 + 2 * self.num_cones_in_measurement)
+
     def choose_R(self, measurement_type):
         if measurement_type == 0:
-            return self.R_camera
+            return np.eye(2 * self.num_cones_in_measurement)* 0.3
         if measurement_type == 1:
-            return self.R_lidar
+            return np.eye(2 * self.num_cones_in_measurement) * 0.3
         if measurement_type == 2:
             return self.R_imu
         if measurement_type == 3:
             return self.R_wheelspeeds
         if measurement_type == 4:
             return self.R_SLAM
+        if measurement_type == 5:
+            return np.eye(2 * len(self.cones)) * 0.01
 
     def choose_h(self, measurement_type):
         if measurement_type == 0:
@@ -234,83 +382,25 @@ class MWEKF_Backend():
             return self.h_wheelspeeds
         if measurement_type == 4:
             return self.h_SLAM
+        if measurement_type == 5:
+            return self.h_SLAMCones
 
     def add_cones(self, cones):
         """
         Add cones to MWEKF window
-        Cones: list of elements (num, x, y, color)
-        # num = -1 represents the fact that they are NOT in global map yet
-        # num = map_idx means that they ARE in the global map
+        Cones: list of elements (x, y, color)
         """
-        print("CONES ADDED TO WINDOW: ", cones)
         if self.cones is None:
-            self.cones = cones[:, 1:4]
-            self.cone_indices = cones[:, 0]
+            self.cones = cones
             return
-        self.cones = np.vstack([self.cones, cones[:, 1:4]])
-        self.cone_indices = np.hstack([self.cone_indices, cones[:, 0]])
+        self.cones = np.vstack([self.cones, cones])
 
-    def remove_cones(self, cone_indices):
-        """
-        Args: cone_indices: index of cones in global map to remove from the mwekf
-        Should remove the cones from the MWEKF, update everything accordingly
-        Should go through self.cones_indices, and remove the cone in self.cones_indices and self.cones
-        If its index is in cone_indices
-        """
-        cone_indices = np.array(cone_indices, dtype=int)
-        self.cone_indices = self.cone_indices.astype(int)
-        print("CONES PRE REMOVAL: ", self.cones)
-        print("CONES TO REMOVE: ", cone_indices)
-        keep_mask = ~np.isin(self.cone_indices, cone_indices)
-        print("CONES MASK: ", keep_mask)
-        print("self.cone_indices:", self.cone_indices)
-        print("cone_indices to remove:", cone_indices)
-
-        self.cones = self.cones[keep_mask]
-        self.cone_indices = self.cone_indices[keep_mask]
-
-        print("NEW CONES: ", self.cones)
-        print("NEW CONE INDICES: ", self.cone_indices)
-    def get_cones(self):
+    def get_cones(self, indices=None):
         """
         Returns the cones to add to SLAM Graph
         n x 3 array of n cones, x, y, color
         """
-        return self.cones
-
-    def update_mwekf_to_global_map(self, global_map):
-        """
-        Assign all -1 map index cones their proper map index.
-        If a global map index is already assigned to another cone, remove that old cone.
-        """
-        print("UPDATING GLOBAL MAP:")
-        print("GLOBAL MAP:", global_map)
-        print("CONE INDICES:", self.cone_indices)
-        print("CONES:", self.cones)
-
-        masked_indices = np.where(self.cone_indices == -1)[0]
-        cones_to_update = self.cones[masked_indices]
-
-        # Track indices to remove (in self.cones and self.cone_indices)
-        to_remove = []
-
-        for i, cone in zip(masked_indices, cones_to_update):
-            distances = np.linalg.norm(global_map[:, 0:2] - cone[0:2], axis=1)
-            closest_idx = np.argmin(distances)
-
-            # Check if this global map index is already used
-            if closest_idx in self.cone_indices:
-                existing_idx = np.where(self.cone_indices == closest_idx)[0][0]
-                print(f"Will remove cone at index {existing_idx} already using global idx {closest_idx}")
-                to_remove.append(existing_idx)
-
-            # Assign the new map index
-            self.cone_indices[i] = closest_idx
-
-        # Remove duplicates **after** updating to avoid invalidating indices
-        if to_remove:
-            self.cones = np.delete(self.cones, to_remove, axis=0)
-            self.cone_indices = np.delete(self.cone_indices, to_remove)
-
-        print("MWEKF CONES:", self.cones)
-        print("MWEKF INDICES:", self.cone_indices)
+        if indices is None:
+            return self.cones
+        else:
+            return self.cones[indices]

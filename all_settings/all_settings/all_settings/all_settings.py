@@ -118,7 +118,7 @@ class GraphSLAMSettings(metaclass=Settings):
     using_simulator: bool = True
     # Whether or not to use ground truth (perfectly accurate) measurements or not 
     using_ground_truth_cones: bool = True
-    using_ground_truth_wheelspeeds: bool = True # Whether or not to use the perfect wheel speeds
+    using_ground_truth_wheelspeeds: bool = False # Whether or not to use the perfect wheel speeds
     bypass_SLAM: bool= False # Bypasses SLAM Entirely, publishes ground truth position
     instant_global_map: bool = False # Whether or not to instantly publish the global map
     # Hardware Based Settings
@@ -129,11 +129,13 @@ class GraphSLAMSettings(metaclass=Settings):
     using_mwekf: bool = True
 
 class MWEKFSettings(metaclass=Settings):
+    max_landmark_distance_camera: float = 1.4
+    max_landmark_distance_lidar: float = 1.1
     pass
 
 class SimulatorPerceptionSettings(metaclass=Settings):
-    camera_noise_std: float = 0.0
-    lidar_noise_std: float = 0.2
+    camera_noise_std: float = 0.25
+    lidar_noise_std: float = 0.15
 
     # Delay for Camera and LiDAR BETWEEN measurement and send
     camera_delay_mean: float = 0.01
@@ -143,8 +145,8 @@ class SimulatorPerceptionSettings(metaclass=Settings):
     lidar_delay_std: float = 1e-5
 
     # Publishing Rate for Sensor 
-    camera_hz: int = 15
-    lidar_hz: int = 5
+    camera_hz: int = 25
+    lidar_hz: int = 10
 
 class GraphSLAMRSSolverSettings(metaclass=Settings):
     x0: tuple[float, float] = (0.0, 0.0)
@@ -210,10 +212,10 @@ class BrakingSettings(metaclass=Settings):
 class LiDAROnlySettings(metaclass=Settings):
     # Ground Filtering 
     #ground_plane_coefficients: list = [-0.055, -0.003, 0.998, 0.591]
-    ground_plane_coefficients: list = [-0.25, 0.002, 1.0, 0.680]
-    ground_filter_threshold: float = 0.05
+    ground_plane_coefficients: list = [0.0, 0.002, 1.0, 0.20]
+    ground_filter_threshold: float = 0.04
     ground_filter_top_threshold: float = 0.5
-    max_distance: float = 10.0
+    max_distance: float = 3.7
 
     # DB Scan 
     eps: float = 0.1
@@ -235,7 +237,7 @@ class LiDAROnlySettings(metaclass=Settings):
     publish_perception_viz: bool = True
 
 class CameraOnlySettings(metaclass=Settings):
-    publish_visual: bool = False
+    publish_visual: bool = True
     yolo_minimum_confidence: float = 0.7
 
     # Camera setup settings

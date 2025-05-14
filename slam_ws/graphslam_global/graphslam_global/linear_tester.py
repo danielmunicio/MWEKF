@@ -19,6 +19,7 @@ from matplotlib.axes._axes import Axes
 from matplotlib.animation import FuncAnimation
 import struct
 import serial
+import time 
 # from controller import mpcController, mpcControllerForces
 # from swingupsim import SwingUpController
 
@@ -60,7 +61,6 @@ class HardwareInterface:
             x0 (np.ndarray | ca.DM): initial system state. Shape (6,).
             tf (float): final time (how long, in seconds, to run the simulation for)
         """
-
         ret = self._write_read(0.0)
         t0 = ret[0]
         prevt = t0
@@ -109,8 +109,8 @@ class LinearActuator(Node):
         self.state.x = 0.0
         self.state.velocity = 0.0
         self.d_accel = 0.3
-        self.x_max = 1.5
-        self.acc = 5.0
+        self.x_max = 1.2
+        self.acc = 1.0
         self.done = False
         self.history = []
         self.hw.ser.write(bytes([1]) + struct.pack(">f", 750))
@@ -137,10 +137,10 @@ class LinearActuator(Node):
         # print(self.state.x)
         self.state.x = -res[1]+0.75
         self.state.velocity = -res[2]
-        if self.state.x>self.x_max or self.state.x<-0.001 or self.state.velocity<0.0:
-            self.hw.ser.write([5])
-            self.hw.ser.flush()
-            self.done = True
+        # if self.state.x>self.x_max or self.state.x<-0.001 or self.state.velocity<0.0:
+        #     self.hw.ser.write([5])
+        #     self.hw.ser.flush()
+        #     self.done = True
         self.state_pub.publish(self.state)
         msg = AckermannDriveStamped()
         msg.header.stamp = self.get_clock().now().to_msg()
